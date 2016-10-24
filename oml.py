@@ -178,6 +178,32 @@ class Fill:
 
 		plt.show()
 
+	def blm_plot(self):
+		print('loss plot {}'.format(self.nbr))
+		fig = plt.figure()
+		intensity_axis = fig.add_subplot(111)
+		energy_axis = intensity_axis.twinx()
+		blm_axis = intensity_axis.twinx()
+
+		intensity_axis.plot(*self.data['intensity_b1'], color='b', zorder=10, linestyle='-', linewidth='1')
+		intensity_axis.set_ylim([0.95, 1.005])
+		intensity_axis.set_ylabel("Beam Intensity")
+
+		energy_axis.plot(*self.data['energy'], color='black', zorder=5)
+		energy_axis.set_ylabel("Energy")
+
+		fig.subplots_adjust(right=0.8)
+		blm_axis.spines['right'].set_position(('axes', 1.15))
+		blm_axis.set_frame_on(True)
+		blm_axis.plot(*self.data['synch_coll_b1'], color='r', linestyle='--', zorder=2)
+		blm_axis.plot(*self.data['beta_coll_b1'], color='g', linestyle='--', zorder=1)
+		blm_axis.set_yscale('log')
+		blm_axis.set_ylabel("Losses")
+
+		plt.title("Fill {}".format(self.nbr))
+		plt.show()
+
+
 	def has_off_momentum_loss(self, beam='b1'):
 		variable = 'synch_coll_%s' % beam
 		off_momentum_losses = np.array(self.data[variable][1])
@@ -189,6 +215,14 @@ class Fill:
 			return False
 		return max_loss/mean_loss > 1000
 
+	def beta_coll_merge(self):
+		beta_var = ['beta_coll_b_b1', 'beta_coll_c_b1', 'beta_coll_d_b1', ]
+		if not False in [i in self.data.keys() for i in beta_var]:
+			beta_coll = self.data[beta_var[0]]
+			for i in range(2, len(beta_var)):
+				beta_coll[1] = np.add(beta_coll[1], self.data[beta_var[i]][1])
+			self.data['beta_coll_b1'] = beta_coll
+
 
 # END OF FILL
 
@@ -198,7 +232,7 @@ def evaluate_off_momentum_losses_in_fills(fills, save_file):
 	for i in fills:
 		print("evaluating %s..." % str(i))
 		fill = Fill(i, fetch=False)
-		fill.fetch(forced=True)
+		fill.fetch(forced=False)
 		with open(save_file, 'a') as f:
 			f.write(str(i))
 			status_string = '\t'
