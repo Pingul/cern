@@ -32,6 +32,11 @@ class Fill:
 		ERROR = 'ERROR'
 	#### class STATUS
 
+	# class Variable:
+	# 	def __init__(self, data):
+	# 		# data = [[t1, t2, ..], [v1, v2, ...]]
+	# 		self.time
+
 	variables = {
 		'intensity_b1' : 'LHC.BCTFR.A6R4.B1:BEAM_INTENSITY',
 		# 'intensity_b2' : 'LHC.BCTFR.A6R4.B2:BEAM_INTENSITY',
@@ -62,6 +67,14 @@ class Fill:
 				print("\t", e)
 
 	def fetch(self, forced=False, cache=True):
+		self.__fetch__('get', forced, cache)
+
+	def fetchAligned(self):
+		# Because we might lose data due to this, we fetch it newly every time.
+		# Could possibly try to cache it seperately
+		self.__fetch__('getAligned', forced=True, cache=False)
+
+	def __fetch__(self, func, forced=False, cache=True):
 		store_file = store_file_for_fill(self.nbr)
 		to_fetch = self.variables
 		if not forced and os.path.isfile(store_file):
@@ -95,7 +108,9 @@ class Fill:
 
 		for vkey in to_fetch:
 			print('\tfetching ' + vkey)
-			d = self.db.get(self.variables[vkey], start_t, end_t)
+			func_call = 'self.db.{}(self.variables["{}"], {}, {})'.format(func, vkey, start_t, end_t)
+			d = eval(func_call)
+			# d = self.db.func(self.variables[vkey], start_t, end_t)
 			for dkey in d:
 				self.data[vkey] = list(d[dkey])
 
@@ -104,52 +119,6 @@ class Fill:
 			with open(store_file, 'wb') as f:
 				pickle.dump(self.pack(), f)
 				# pickle.dump(self.data, f)
-
-	# def __fetch__(self, func, forced=False, cache=True):
-	# 	store_file = store_file_for_fill(self.nbr)
-	# 	to_fetch = self.variables
-	# 	if not forced and os.path.isfile(store_file):
-	# 		print('loading {}'.format(self.nbr))
-	# 		with open(store_file, 'rb') as f:
-	# 			self.unpack(pickle.loads(f.read()))
-	# 			# self.data = pickle.loads(f.read())
-
-	# 		non_cached_variables = []
-	# 		for v in self.variables:
-	# 			if not v in self.data.keys():
-	# 				non_cached_variables.append(v)
-	# 		if len(non_cached_variables) == 0:
-	# 			return
-	# 		# Fetching missing varaibles
-	# 		to_fetch = non_cached_variables
-
-	# 	## Forced fetch
-	# 	print('fetching {}'.format(self.nbr))
-
-	# 	self.meta = self.db.getLHCFillData(self.nbr)
-	# 	start_t = self.meta['startTime']
-	# 	end_t = self.meta['endTime']
-	# 	preramp = next((item for item in self.meta['beamModes'] if item['mode'] == 'PRERAMP'), None)
-	# 	ramp = next((item for item in self.meta['beamModes'] if item['mode'] == 'RAMP'), None)
-	# 	if not preramp or not ramp:
-	# 		self.status = Fill.STATUS.NORAMP
-	# 	else:
-	# 		start_t = preramp['startTime']
-	# 		end_t = ramp['endTime']
-
-	# 	for vkey in to_fetch:
-	# 		print('\tfetching ' + vkey)
-	# 		func_call = 'self.db.{}(self.variables["{}"], {}, {})'.format(func, vkey, start_t, end_t)
-	# 		d = eval(func_call)
-	# 		# d = self.db.func(self.variables[vkey], start_t, end_t)
-	# 		for dkey in d:
-	# 			self.data[vkey] = list(d[dkey])
-
-	# 	if cache:
-	# 		print('caching {}'.format(self.nbr))
-	# 		with open(store_file, 'wb') as f:
-	# 			pickle.dump(self.pack(), f)
-	# 			# pickle.dump(self.data, f)
 
 	def pack(self):
 		return {
