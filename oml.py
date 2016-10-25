@@ -32,10 +32,32 @@ class Fill:
 		ERROR = 'ERROR'
 	#### class STATUS
 
-	# class Variable:
-	# 	def __init__(self, data):
-	# 		# data = [[t1, t2, ..], [v1, v2, ...]]
-	# 		self.time
+	class Variable:
+		""" Purely a wrapper so we can get named variables instead of [0] and [1] """
+		def __init__(self, data):
+			# data = [[t1, t2, ..], [v1, v2, ...]]
+			self.time = data[0]
+			self.val = data[1]
+
+		def __getitem__(self, key):
+			if key == 0:
+				return self.time
+			elif key == 1:
+				return self.val
+			else:
+				raise ValueError("not valid key '{}'".format(key))
+
+		def __setitem__(self, key, value):
+			if key == 0:
+				self.time = value
+			elif key == 1:
+				self.val = value
+			else:
+				raise ValueError("not valid key '{}'".format(key))
+
+		def __str__(self):
+			return str([self.time, self.val])
+	#### class Variable
 
 	variables = {
 		'intensity_b1' : 'LHC.BCTFR.A6R4.B1:BEAM_INTENSITY',
@@ -55,7 +77,7 @@ class Fill:
 		self.meta = {}
 		self.status = Fill.STATUS.OK
 		for key in self.variables:
-			self.data[key] = []
+			self.data[key] = Fill.Variable([[], []])
 
 		if fetch:
 			try:
@@ -112,7 +134,7 @@ class Fill:
 			d = eval(func_call)
 			# d = self.db.func(self.variables[vkey], start_t, end_t)
 			for dkey in d:
-				self.data[vkey] = list(d[dkey])
+				self.data[vkey] = Fill.Variable(list(d[dkey]))
 
 		if cache:
 			print('caching {}'.format(self.nbr))
