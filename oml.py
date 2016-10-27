@@ -11,6 +11,7 @@ from scipy import stats
 
 def store_file_for_fill(fill_nbr):
 	return 'fills/fill_%s.dat' % str(fill_nbr)
+	# return 'test_fill/fill_%s.dat' % str(fill_nbr)
 
 def subset_indices(sequence, minv, maxv):
 	low = bisect.bisect_left(sequence, minv)
@@ -35,28 +36,31 @@ class Fill:
 	class Variable:
 		""" Purely a wrapper so we can get named variables instead of [0] and [1] """
 		def __init__(self, data):
-			# data = [[t1, t2, ..], [v1, v2, ...]]
-			self.time = data[0]
-			self.val = data[1]
+			# data = [[x1, x2, ..], [y1, y2, ...]]
+			#
+			# Using x and y because it's easy to write and quickly shows intent,
+			# even though our x almost exclusively is time
+			self.x = data[0]
+			self.y = data[1]
+
+		def __len__(self):
+			return 2
 
 		def __getitem__(self, key):
 			if key == 0:
-				return self.time
+				return self.x
 			elif key == 1:
-				return self.val
+				return self.y
 			else:
-				raise ValueError("not valid key '{}'".format(key))
+				raise IndexError("not valid key '{}'".format(key))
 
 		def __setitem__(self, key, value):
 			if key == 0:
-				self.time = value
+				self.time = x
 			elif key == 1:
-				self.val = value
+				self.val = y
 			else:
-				raise ValueError("not valid key '{}'".format(key))
-
-		def __str__(self):
-			return str([self.time, self.val])
+				raise IndexError("not valid key '{}'".format(key))
 	#### class Variable
 
 	variables = {
@@ -69,6 +73,18 @@ class Fill:
 		'synch_coll_b1' : 'BLMTI.06L3.B1I10_TCP.6L3.B1:LOSS_RS09',
 		'abort_gap_int_b1' : 'LHC.BSRA.US45.B1:ABORT_GAP_INTENSITY',
 	}
+
+	aligned_variables = {
+		## ALIGNED DATA
+		## Needs to have a A_ prefix
+		'A_beta_coll_b_b1' : 'BLMTI.06L7.B1E10_TCP.B6L7.B1:LOSS_RS09',
+		'A_beta_coll_c_b1' : 'BLMTI.06L7.B1E10_TCP.C6L7.B1:LOSS_RS09',
+		'A_beta_coll_d_b1' : 'BLMTI.06L7.B1E10_TCP.D6L7.B1:LOSS_RS09',
+		'A_synch_coll_b1' : 'BLMTI.06L3.B1I10_TCP.6L3.B1:LOSS_RS09',
+
+	}
+	all_variables = {**variables, **aligned_variables}
+
 	db = pytimber.LoggingDB()
 
 	def __init__(self, nbr, fetch=True):
@@ -82,34 +98,29 @@ class Fill:
 		if fetch:
 			try:
 				self.fetch()
+				# self.convert_to_using_Variable()
 				self.normalize_intensity()
-				# self.crop_ramp()
 			except Exception as e:
 				print("could not initialize fill {}:".format(self.nbr))
 				print("\t", e)
 
 	def fetch(self, forced=False, cache=True):
-		self.__fetch__('get', forced, cache)
-
-	def fetchAligned(self):
-		# Because we might lose data due to this, we fetch it newly every time.
-		# Could possibly try to cache it seperately
-		self.__fetch__('getAligned', forced=True, cache=False)
-
-	def __fetch__(self, func, forced=False, cache=True):
 		store_file = store_file_for_fill(self.nbr)
 		to_fetch = self.variables
+		fetch_aligned = forced
 		if not forced and os.path.isfile(store_file):
 			print('loading {}'.format(self.nbr))
 			with open(store_file, 'rb') as f:
 				self.unpack(pickle.loads(f.read()))
-				# self.data = pickle.loads(f.read())
 
 			non_cached_variables = []
-			for v in self.variables:
+			for v in self.all_variables:
 				if not v in self.data.keys():
-					non_cached_variables.append(v)
-			if len(non_cached_variables) == 0:
+					if v.startswith("A_"): # We have some unfetched aligned variable
+						fetch_aligned = True
+					else:
+						non_cached_variables.append(v)
+			if len(non_cached_variables) == 0 and not fetch_aligned:
 				return
 			# Fetching missing varaibles
 			to_fetch = non_cached_variables
@@ -128,19 +139,27 @@ class Fill:
 			start_t = preramp['startTime']
 			end_t = ramp['endTime']
 
-		for vkey in to_fetch:
-			print('\tfetching ' + vkey)
-			func_call = 'self.db.{}(self.variables["{}"], {}, {})'.format(func, vkey, start_t, end_t)
-			d = eval(func_call)
-			# d = self.db.func(self.variables[vkey], start_t, end_t)
-			for dkey in d:
-				self.data[vkey] = Fill.Variable(list(d[dkey]))
+		if to_fetch:
+			print("\tfetch", to_fetch.keys())
+			data = self.db.get(list(to_fetch.values()), start_t, end_t)
+			for d_var in data:
+				var_name = next(name for name in self.variables.keys() if self.variables[name] == d_var)
+				self.data[var_name] = Fill.Variable(data[d_var])
+
+		if fetch_aligned:
+			# If we need to fetch a new aligned variable, we need to fetch all old
+			# ones as well for all to be aligned
+			print("\tfetch aligned", self.aligned_variables.keys())
+			data = self.db.getAligned(list(self.aligned_variables.values()), start_t, end_t)
+			x_data = data.pop('timestamps')
+			for d_var in data:
+				var_name = next(name for name in self.aligned_variables.keys() if self.aligned_variables[name] == d_var)
+				self.data[var_name] = Fill.Variable(np.array([x_data, data[d_var]]))
 
 		if cache:
 			print('caching {}'.format(self.nbr))
 			with open(store_file, 'wb') as f:
 				pickle.dump(self.pack(), f)
-				# pickle.dump(self.data, f)
 
 	def pack(self):
 		return {
@@ -157,16 +176,14 @@ class Fill:
 		self.status = dump['status']
 
 	def normalize_intensity(self):
-		# for v in ['intensity_b1', 'intensity_b2']:
 		for v in ['intensity_b1']:
-			m = max(self.data[v][1])
+			m = max(self.data[v].y)
 			if m > 0.0:
-				self.data[v][1] = self.data[v][1]/m
-				# self.data[v][1] = [i/m for i in self.data[v][1]]
+				self.data[v].y = self.data[v].y/m
 
 	def has_off_momentum_loss(self, beam='b1'):
 		variable = 'synch_coll_%s' % beam
-		off_momentum_losses = np.array(self.data[variable][1])
+		off_momentum_losses = np.array(self.data[variable].y)
 		# d_off_momentum_losses = np.gradient(off_momentum_losses)
 
 		max_loss = max(off_momentum_losses)
@@ -177,21 +194,16 @@ class Fill:
 		return max_loss/mean_loss > 10
 
 	def beta_coll_merge(self):
-		beta_var = ['beta_coll_b_b1', 'beta_coll_c_b1', 'beta_coll_d_b1', ]
+		# Should really be dealing with aligned data here
+		beta_var = ['A_beta_coll_b_b1', 'A_beta_coll_c_b1', 'A_beta_coll_d_b1', ]
 		if not False in [i in self.data.keys() for i in beta_var]:
-			# Looking for the largest possible subsequence
-			# tmin = max([self.data[i][0][0] for i in beta_var])
-			# tmax = min([self.data[i][0][-1] for i in beta_var])
-
-			# print(tmin, tmax)
-
 			beta_coll = None
 			for v in beta_var:
 				if beta_coll is None:
 					beta_coll = self.data[v]
 				else:
-					beta_coll[1] = np.add(beta_coll[1], self.data[v][1])
-			self.data['beta_coll_b1'] = beta_coll
+					beta_coll.y = np.add(beta_coll.y, self.data[v].y)
+			self.data['A_beta_coll_b1'] = beta_coll
 
 
 
@@ -221,7 +233,7 @@ class Fill:
 		plt.title("Fill {}".format(self.nbr))
 
 		agap_ax = fig.add_subplot(212, sharex=intensity_axis)
-		agap_ax.plot(self.data['abort_gap_int_b1'][0], moving_average(self.data['abort_gap_int_b1'][1], 10), color='g')
+		agap_ax.plot(self.data['abort_gap_int_b1'].x, moving_average(self.data['abort_gap_int_b1'].y, 10), color='g')
 		agap_ax.set_ylabel("Abort gap intensity")
 
 		plt.show()
@@ -254,6 +266,15 @@ class Fill:
 		plt.title("Fill {}".format(self.nbr))
 		plt.show()
 
+
+	def convert_to_using_Variable(self):
+		store_file = store_file_for_fill(self.nbr)
+		new_data = {}
+		for v in self.data.keys():
+			new_data[v] = Fill.Variable(self.data[v])
+		self.data = new_data
+		with open(store_file, 'wb') as f:
+			pickle.dump(self.pack(), f)
 
 
 	### DEPRECATED
@@ -403,9 +424,9 @@ def acc_loss_vs_intensity(file):
 		fill.fetch()
 		# fill.crop_ramp()
 
-		intensities.append(max(fill.data['intensity_b1'][1]))
+		intensities.append(max(fill.data['intensity_b1'].y))
 
-		losses = np.array(fill.data['synch_coll_b1'][1])
+		losses = np.array(fill.data['synch_coll_b1'].y)
 		spike, tail = find_spike(losses)
 		int_loss = 0.0
 		for i in range(spike, tail):
@@ -427,7 +448,7 @@ def intensity_histogram(file):
 		fill.fetch()
 		# fill.crop_ramp()
 
-		intensities.append(max(fill.data['intensity_b1'][1]))
+		intensities.append(max(fill.data['intensity_b1'].y))
 
 	draw_histogram('Intensity', intensities, 1e13)
 
@@ -437,9 +458,9 @@ def loss_duration_histogram(file):
 	for nbr in fills:
 		fill = Fill(nbr)
 
-		losses = fill.data['synch_coll_b1'][1]
+		losses = fill.data['synch_coll_b1'].y
 		spike, tail = find_spike(np.array(losses))
-		d = fill.data['synch_coll_b1'][0][tail] - fill.data['synch_coll_b1'][0][spike]
+		d = fill.data['synch_coll_b1'].x[tail] - fill.data['synch_coll_b1'].x[spike]
 		durations.append(d)
 
 	draw_histogram('Spike duration for {}'.format(file), durations, 5, 'Seconds', 'Count')
@@ -453,19 +474,19 @@ def spike_energy_histogram(file):
 		fill = Fill(nbr)
 
 		losses = fill.data['synch_coll_b1']
-		ispike = np.argmax(losses[1])
-		tspike = losses[0][ispike]
+		ispike = np.argmax(losses.y)
+		tspike = losses.x[ispike]
 
 		energy = fill.data['energy']
-		ienergy = bisect.bisect_left(energy[0], tspike)
+		ienergy = bisect.bisect_left(energy.x, tspike)
 
-		delta_e = energy[1][ienergy] - min(energy[1])
+		delta_e = energy.y[ienergy] - min(energy.y)
 		spike_energy.append(delta_e)
 
 		ramp = next((item for item in fill.meta['beamModes'] if item['mode'] == 'RAMP'), None)
 		# Sometimes data is weirdly labeled, so we take the latest time of the below
-		start_t = max(ramp['startTime'], energy[0][0])
-		delta_t = energy[0][ienergy] - start_t
+		start_t = max(ramp['startTime'], energy.x[0])
+		delta_t = energy.x[ienergy] - start_t
 		spike_time.append(delta_t)
 
 
@@ -493,23 +514,18 @@ def beta_vs_synch_blm(file):
 			notok += 1
 			continue
 
-		smin, smax = find_spike(fill.data['synch_coll_b1'][1]) 
-		tmax = fill.data['synch_coll_b1'][0][smax]
-		tmin = fill.data['synch_coll_b1'][0][smin]
-		# print(fill.data['beta_coll_b1'][0], tmin, tmax)
-		bmin, bmax = subset_indices(fill.data['beta_coll_b1'][0], tmin, tmax)
+		smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+		tmax = fill.data['synch_coll_b1'].x[smax]
+		tmin = fill.data['synch_coll_b1'].x[smin]
+		bmin, bmax = subset_indices(fill.data['A_beta_coll_b1'].x, tmin, tmax)
 
-		bsubset = fill.data['beta_coll_b1'][1][bmin:bmax]
-		ssubset = fill.data['synch_coll_b1'][1][smin:smax]
+		bsubset = fill.data['A_beta_coll_b1'].y[bmin:bmax]
+		ssubset = fill.data['synch_coll_b1'].y[smin:smax]
 
 		sdata['max'].append(max(ssubset))
 		sdata['mean'].append(np.mean(ssubset))
 		bdata['max'].append(max(bsubset))
 		bdata['mean'].append(np.mean(bsubset))
-
-	for v in ['max', 'mean']:
-		sdata[v].sort()
-		bdata[v].sort()
 
 	fig, ax = plt.subplots()
 	ax.set_xlabel("Synchrotron (IR3) TCP")
@@ -528,12 +544,119 @@ def beta_vs_synch_blm(file):
 	mean_yval = [slope*x + intercept for x in xval]
 	ax.plot(xval, mean_yval, color='b', label='mean')
 
+	ax.plot([0, 1], [0, 1], color = 'black', label='delimiter')
+
+	for v in ['max', 'mean']:
+		count = 0
+		for i, sd in enumerate(sdata[v]):
+			if bdata[v][i] > sd: 
+				count += 1
+		print(v, "over: ", count, "({}%)".format(int(float(count)/len(sdata[v])*100)))
+
 	files_used = int(float(ok)/(ok + notok) * 100)
 	plt.title('Losses due to synchrotron vs betatron oscillations\n for {} (could use {}% of the fills)'.format(file, files_used))
 	ax.legend(loc='upper right')
 	ax.set_ylim([0, 0.5])
 	ax.set_xlim([0, 0.5])
 	plt.show()
+
+def intensity_vs_OML(file):
+	fills = fills_from_file(file, "OML")
+	intensity = []
+	mean_loss = []
+	max_loss = []
+	discarded = 0
+	for nbr in fills:
+		fill = Fill(nbr, False)
+		fill.fetch()
+		smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+		ssubset = fill.data['synch_coll_b1'].y[smin:smax]
+
+		maxint = max(fill.data['intensity_b1'][1])
+		if maxint < 1.8e14:
+			discarded += 1
+			continue
+
+		mean_loss.append(np.mean(ssubset))
+		max_loss.append(max(ssubset))
+		intensity.append(maxint)
+
+	fig = plt.figure()
+	ax1 = fig.add_subplot(121)
+	ax2 = fig.add_subplot(122, sharey=ax1) 
+
+	# fig1, ax1 = plt.subplots()
+	ax1.set_xlabel("Mean momentum (IR3) TCP")
+	ax1.set_ylabel("Intensity")
+	ax1.scatter(mean_loss, intensity, color='b', label='mean')
+	ax1.set_xlim([0, 1.1*max(mean_loss)])
+	ax1.set_ylim([1.5e14, 1.1*max(intensity)])
+	ax1.legend(loc="lower right")
+
+	# fig2, ax2 = plt.subplots()
+	ax2.set_xlabel("Max momentum (IR3) TCP")
+	ax2.set_ylabel("Intensity")
+	ax2.scatter(max_loss, intensity, color='r', label='max')
+	ax2.set_xlim([0, 1.1*max(max_loss)])
+	ax2.legend(loc="lower right")
+
+	percent_used = int(round(float(len(intensity))/(len(intensity) + discarded) * 100))
+	fig.suptitle("Intensity vs OML for {} (only intenities > 1.8e14, {}% of total)\n".format(file, percent_used))
+
+	plt.show()
+
+def abort_gap_vs_OML(file):
+	fills = fills_from_file(file, "OML")
+	abort_gap = []
+	mean_loss = []
+	max_loss = []
+	discarded = 0
+	for nbr in fills:
+		fill = Fill(nbr, False)
+		fill.fetch()
+		smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+		tmax = fill.data['synch_coll_b1'].x[smax]
+		tmin = fill.data['synch_coll_b1'].x[smin]
+		agmin, agmax = subset_indices(fill.data['abort_gap_int_b1'].x, tmin, tmax)
+		ag_average = moving_average(fill.data['abort_gap_int_b1'].y, 5)
+
+		ssubset = fill.data['synch_coll_b1'].y[smin:smax]
+
+		maxint = max(fill.data['intensity_b1'][1])
+		if maxint < 1.8e14:
+			discarded += 1
+			continue
+
+		mean_loss.append(np.mean(ssubset))
+		max_loss.append(max(ssubset))
+		abort_gap.append(ag_average[agmin] - ag_average[agmax])
+
+
+	fig = plt.figure()
+	ax1 = fig.add_subplot(121)
+	ax2 = fig.add_subplot(122, sharey=ax1) 
+
+	# fig1, ax1 = plt.subplots()
+	ax1.set_xlabel("Mean momentum (IR3) TCP")
+	ax1.set_ylabel("Abort gap intensity")
+	ax1.scatter(mean_loss, abort_gap, color='b', label='mean')
+	ax1.set_xlim([0, 1.1*max(mean_loss)])
+	ax1.set_ylim([0, 1.1*max(abort_gap)])
+	ax1.legend(loc="lower right")
+
+	# fig2, ax2 = plt.subplots()
+	ax2.set_xlabel("Max momentum (IR3) TCP")
+	ax2.set_ylabel("Abort gap intensity")
+	ax2.scatter(max_loss, abort_gap, color='r', label='max')
+	ax2.set_xlim([0, 1.1*max(max_loss)])
+	ax2.legend(loc="lower right")
+
+	percent_used = int(round(float(len(abort_gap))/(len(abort_gap) + discarded) * 100))
+	fig.suptitle("Abort gap intensity vs OML for {} (only intensities > 1.8e14, {}% of total)\n".format(file, percent_used))
+
+	plt.show()
+	
+		
 
 
 ## I think these are irrelevant. Up for deletion.
