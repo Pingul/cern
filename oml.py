@@ -188,7 +188,6 @@ class Fill:
 
 		max_loss = max(off_momentum_losses)
 		mean_loss = np.mean(off_momentum_losses)
-		print(max_loss, mean_loss, max_loss/mean_loss)
 		if max_loss < 0 or mean_loss < 0:
 			return False
 		return max_loss/mean_loss > 10
@@ -223,12 +222,17 @@ class Fill:
 		energy_axis.plot(*self.data['energy'], color='black', zorder=5)
 		energy_axis.set_ylabel("Energy")
 
+		oml = self.data['synch_coll_b1']
+		spike, tail = find_spike(oml.y)
+		blm_axis.axvspan(oml.x[spike], oml.x[tail], facecolor='b', alpha=0.2)
+
 		fig.subplots_adjust(right=0.8)
 		blm_axis.spines['right'].set_position(('axes', 1.15))
 		blm_axis.set_frame_on(True)
-		blm_axis.plot(*self.data['synch_coll_b1'], color='r', linestyle='--', zorder=1)
+		blm_axis.plot(*oml, color='r', linestyle='--', zorder=1)
 		blm_axis.set_yscale('log')
 		blm_axis.set_ylabel("Losses")
+
 
 		plt.title("Fill {}".format(self.nbr))
 
@@ -254,11 +258,15 @@ class Fill:
 		energy_axis.plot(*self.data['energy'], color='black', zorder=5)
 		energy_axis.set_ylabel("Energy")
 
+		oml = self.data['synch_coll_b1']
+		spike, tail = find_spike(oml.y)
+
 		fig.subplots_adjust(right=0.8)
 		blm_axis.spines['right'].set_position(('axes', 1.15))
 		blm_axis.set_frame_on(True)
-		blm_axis.plot(*self.data['synch_coll_b1'], color='r', linestyle='--', zorder=2, label='momentum loss')
-		blm_axis.plot(*self.data['beta_coll_b1'], color='g', linestyle='--', zorder=1, label='transversal loss')
+		blm_axis.plot(*oml, color='r', linestyle='--', zorder=2, label='momentum loss')
+		blm_axis.plot(*self.data['A_beta_coll_b1'], color='g', linestyle='--', zorder=1, label='transversal loss')
+		blm_axis.axvspan(oml.x[spike], oml.x[tail], facecolor='b', alpha=0.2)
 		blm_axis.set_yscale('log')
 		blm_axis.set_ylabel("Losses")
 		blm_axis.legend(loc='lower right')
@@ -266,6 +274,39 @@ class Fill:
 		plt.title("Fill {}".format(self.nbr))
 		plt.show()
 
+	def oml_plot(self):
+		print('loss plot {}'.format(self.nbr))
+		self.beta_coll_merge()
+
+		fig = plt.figure()
+		intensity_axis = fig.add_subplot(111)
+		energy_axis = intensity_axis.twinx()
+		blm_axis = intensity_axis.twinx()
+
+		intensity_axis.plot(*self.data['intensity_b1'], color='b', zorder=10, linestyle='-', linewidth='1')
+		intensity_axis.set_ylim([0.95, 1.005])
+		intensity_axis.set_ylabel("Beam Intensity")
+
+		energy_axis.plot(*self.data['energy'], color='black', zorder=5)
+		energy_axis.set_ylabel("Energy")
+
+		fig.subplots_adjust(right=0.8)
+		blm_axis.spines['right'].set_position(('axes', 1.15))
+		blm_axis.set_frame_on(True)
+
+		oml = self.data['synch_coll_b1']
+		avg = moving_average(oml.y, 10)
+		spike, tail = find_spike(oml.y)
+		blm_axis.plot(*oml, color='g', linestyle='--', zorder=2, label='momentum loss')
+		blm_axis.plot(oml.x, avg, color='r', linestyle='-', zorder=2, label='average momentum loss')
+		blm_axis.axvspan(oml.x[spike], oml.x[tail], facecolor='b', alpha=0.2)
+
+		blm_axis.set_yscale('log')
+		blm_axis.set_ylabel("Losses")
+		blm_axis.legend(loc='lower right')
+
+		plt.title("Fill {}".format(self.nbr))
+		plt.show()
 
 	def convert_to_using_Variable(self):
 		store_file = store_file_for_fill(self.nbr)
@@ -367,37 +408,30 @@ def plot_from(file, status_string='*'):
 
 
 def find_spike(data):
-	ddata = np.gradient(data)
-	spike_index = max(range(len(ddata)), key=ddata.__getitem__) # - 3 # just so we get more of the start of the spike
-	spike_val = data[spike_index]
+	ddata = np.abs(np.gradient(data))
+	mov_average = moving_average(ddata, 10)
+	threshold = 1e-7
 
-	# moving average on data
-	padding = 10
-	start = spike_index
-	end = len(data) - padding
-	moving_average = []
-	for i in range(start, end):
-		mean = 0
-		for j in range(i - padding, i + padding):
-			mean += data[j]
-		mean /= 2.0*float(padding)
-		moving_average.append(mean)
+	ipeak = max(range(len(data)), key = data.__getitem__)
+	vpeak = data[ipeak]
+	start = end = ipeak
+	found_start = found_end = False
+	while not found_start and start > 0:
+		start -= 1
+		if ddata[start] < threshold and data[start] < vpeak/5e1:
+			found_start = True
 
-	# Use the moving average to calculate the tail
-	average_max = max(moving_average)
-	tail_threshold = average_max/10.0
-	tail_index = -1
-	for i, d in enumerate(moving_average):
-		if d < tail_threshold:
-			tail_index = spike_index + i
-			break
-	else:
-		print("Spike: ", spike_index, tail_index)
-		raise Exception("did not find tail")
+	while not found_end and end < len(ddata) - 1:
+		end += 1
+		if ddata[end] < threshold and data[end] < vpeak/1e2:
+			found_end = True
 
-	# Note that
-	#    spike_index < tail_index
-	return [spike_index, tail_index]
+	# if not found_start or not found_end:
+	# 	raise Exception("could not find ({})spike")
+
+	return [start, end]
+
+
 
 def draw_histogram(title, data, binsize, xlabel='', ylabel='', color='b'):
 	maxbin = max(data) + binsize
@@ -444,31 +478,6 @@ def intensity_and_OML_pruning(file_in, file_out):
 #################
 ## Statistics
 
-def acc_loss_vs_intensity(file):
-	fills = fills_from_file(file, "OML")
-	intensities = []
-	integrated_losses = []
-	for nbr in fills:
-		fill = Fill(nbr, fetch=False)
-		fill.fetch()
-		# fill.crop_ramp()
-
-		intensities.append(max(fill.data['intensity_b1'].y))
-
-		losses = np.array(fill.data['synch_coll_b1'].y)
-		spike, tail = find_spike(losses)
-		int_loss = 0.0
-		for i in range(spike, tail):
-			int_loss += losses[i]
-		integrated_losses.append(int_loss)
-
-	fig, ax = plt.subplots()
-	ax.scatter(intensities, integrated_losses)
-	ax.set_ylabel("Integrated loss")
-	ax.set_xlabel("Intensity")
-	plt.title("Loss vs intensity for {}".format(file))
-	plt.show()
-
 def intensity_histogram(file):
 	fills = fills_from_file(file, "OML")
 	intensities = []
@@ -483,6 +492,7 @@ def intensity_histogram(file):
 
 def loss_duration_histogram(file):
 	fills = fills_from_file(file, "OML")
+	outliers = []
 	durations = []
 	for nbr in fills:
 		fill = Fill(nbr)
@@ -490,9 +500,12 @@ def loss_duration_histogram(file):
 		losses = fill.data['synch_coll_b1'].y
 		spike, tail = find_spike(np.array(losses))
 		d = fill.data['synch_coll_b1'].x[tail] - fill.data['synch_coll_b1'].x[spike]
+		if d < 70 or d > 300:
+			outliers.append(nbr)
 		durations.append(d)
 
-	draw_histogram('Spike duration for {}'.format(file), durations, 5, 'Seconds', 'Count')
+	draw_histogram('Spike duration for {}'.format(file), durations, 20, 'Seconds', 'Count')
+	return outliers
 
 def spike_energy_histogram(file):
 	fills = fills_from_file(file, "OML")
@@ -711,4 +724,30 @@ def abort_gap_vs_OML(file):
 
 # 	draw_histogram('Max losses', max_loss, 0.005)
 # 	return max_loss
+
+# def find_spike(data):
+# 	raise Exception("should not be used")
+# 	# ddata = np.gradient(data)
+# 	spike_index = max(range(len(data)), key=data.__getitem__) # - 3 # just so we get more of the start of the spike
+# 	# spike_val = data[spike_index]
+
+# 	# Used 21 previously --> feels unreasonable
+# 	mov_average = moving_average(data, 5)
+# 	# dmov_average = np.gradient(mov_average)
+
+# 	# Use the moving average to calculate the tail
+# 	average_max = max(mov_average)
+# 	tail_threshold = average_max/10.0
+# 	tail_index = -1
+# 	for i, d in enumerate(mov_average[spike_index:]):
+# 		if d < tail_threshold:
+# 			tail_index = spike_index + i
+# 			break
+# 	else:
+# 		print("Spike: ", spike_index, tail_index)
+# 		raise Exception("did not find tail")
+
+# 	# Note that
+# 	#    spike_index < tail_index
+# 	return [spike_index, tail_index]
 
