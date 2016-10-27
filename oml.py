@@ -343,6 +343,7 @@ def fills_from_file(file, status_string='*'):
 
 		if status_string == "*" or status.upper() == status_string.upper():
 			fills.append(fill_nbr)
+	print("Found {} fills".format(len(fills)))
 	return fills
 
 def plot_from(file, status_string='*'):
@@ -409,6 +410,34 @@ def draw_histogram(title, data, binsize, xlabel='', ylabel='', color='b'):
 	ax.set_ylabel(ylabel)
 	plt.show()
 
+def intensity_and_OML_pruning(file_in, file_out):
+	fills = fills_from_file(file_in, "OML")
+
+	open(file_out, 'w').close() # erasing file
+
+	for nbr in fills:
+		fill = Fill(nbr, False)
+		fill.fetch()
+
+		if max(fill.data['intensity_b1'].y) < 1.8e14:
+			continue
+
+		fill.beta_coll_merge()
+		smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+		tmax = fill.data['synch_coll_b1'].x[smax]
+		tmin = fill.data['synch_coll_b1'].x[smin]
+		bmin, bmax = subset_indices(fill.data['A_beta_coll_b1'].x, tmin, tmax)
+
+		bsubset = fill.data['A_beta_coll_b1'].y[bmin:bmax]
+		ssubset = fill.data['synch_coll_b1'].y[smin:smax]
+
+		if np.mean(bsubset) > np.mean(ssubset):
+			continue
+
+		with open(file_out, 'a') as f:
+			f.write("{}\tOML\n".format(str(fill.nbr)))
+
+
 
 
 
@@ -450,7 +479,7 @@ def intensity_histogram(file):
 
 		intensities.append(max(fill.data['intensity_b1'].y))
 
-	draw_histogram('Intensity', intensities, 1e13)
+	draw_histogram('Intensity for {}'.format(file), intensities, 1e13, "Intensity", "Count")
 
 def loss_duration_histogram(file):
 	fills = fills_from_file(file, "OML")
@@ -610,7 +639,6 @@ def abort_gap_vs_OML(file):
 	abort_gap = []
 	mean_loss = []
 	max_loss = []
-	discarded = 0
 	for nbr in fills:
 		fill = Fill(nbr, False)
 		fill.fetch()
@@ -621,11 +649,6 @@ def abort_gap_vs_OML(file):
 		ag_average = moving_average(fill.data['abort_gap_int_b1'].y, 5)
 
 		ssubset = fill.data['synch_coll_b1'].y[smin:smax]
-
-		maxint = max(fill.data['intensity_b1'][1])
-		if maxint < 1.8e14:
-			discarded += 1
-			continue
 
 		mean_loss.append(np.mean(ssubset))
 		max_loss.append(max(ssubset))
@@ -651,8 +674,7 @@ def abort_gap_vs_OML(file):
 	ax2.set_xlim([0, 1.1*max(max_loss)])
 	ax2.legend(loc="lower right")
 
-	percent_used = int(round(float(len(abort_gap))/(len(abort_gap) + discarded) * 100))
-	fig.suptitle("Abort gap intensity vs OML for {} (only intensities > 1.8e14, {}% of total)\n".format(file, percent_used))
+	fig.suptitle("Abort gap intensity vs OML for {}\n".format(file))
 
 	plt.show()
 	
