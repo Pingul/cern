@@ -449,27 +449,33 @@ def intensity_and_OML_pruning(file_in, file_out):
 
 	open(file_out, 'w').close() # erasing file
 
+	low_intensity = 0
+	wrongly_categorised = 0
 	for nbr in fills:
 		fill = Fill(nbr, False)
 		fill.fetch()
 
 		if max(fill.data['intensity_b1'].y) < 1.8e14:
+			low_intensity += 1
 			continue
 
 		fill.beta_coll_merge()
-		smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
-		tmax = fill.data['synch_coll_b1'].x[smax]
-		tmin = fill.data['synch_coll_b1'].x[smin]
-		bmin, bmax = subset_indices(fill.data['A_beta_coll_b1'].x, tmin, tmax)
+		oml_data = fill.data['synch_coll_b1']
+		smin, smax = find_spike(oml_data.y) 
+		dur = oml_data.x[smax] - oml_data.x[smin]
 
-		bsubset = fill.data['A_beta_coll_b1'].y[bmin:bmax]
-		ssubset = fill.data['synch_coll_b1'].y[smin:smax]
-
-		if np.mean(bsubset) > np.mean(ssubset):
+		if dur < 100 or dur > 300:
+			wrongly_categorised += 1
 			continue
 
 		with open(file_out, 'a') as f:
 			f.write("{}\tOML\n".format(str(fill.nbr)))
+
+	removed = int(round(float(low_intensity + wrongly_categorised)/len(fills) * 100))
+	print('discarded:')
+	print('\tintensity {}'.format(low_intensity))
+	print('\tmis-categorised {}'.format(wrongly_categorised))
+	print('\ttotal {}%'.format(removed))
 
 
 
