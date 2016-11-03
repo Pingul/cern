@@ -407,7 +407,7 @@ def plot_from(file, status_string='*'):
 			if inp == 'q':
 				break
 
-def evaluate_energy_ramp(fill_nbr):
+def plot_energy_ramp(fill_nbr):
 	fill = Fill(fill_nbr)
 
 	energy = fill.data['energy']
@@ -568,8 +568,6 @@ def spike_energy_histogram(file):
 	spike_energy = []
 	spike_time = []
 
-	outliers = []
-
 	for nbr in fills:
 		fill = Fill(nbr)
 
@@ -585,21 +583,9 @@ def spike_energy_histogram(file):
 		delta_t = energy.x[ienergy] - energy.x[iramp]
 		spike_energy.append(delta_e)
 		spike_time.append(delta_t)
-		# delta_e = energy.y[ienergy] - min(energy.y)
-		# spike_energy.append(delta_e)
-
-		# ramp = next((item for item in fill.meta['beamModes'] if item['mode'] == 'RAMP'), None)
-		# # Sometimes data is weirdly labeled, so we take the latest time of the below
-		# start_t = max(ramp['startTime'], energy.x[0])
-		# delta_t = energy.x[ienergy] - start_t
-		# spike_time.append(delta_t)
-
-		# if delta_t > 10: outliers.append(fill.nbr)
-
 
 	draw_histogram('Spike energy for {}'.format(file), spike_energy, 0.13, 'Delta E (GeV) from start of ramp', 'Count', 'y')
-	draw_histogram('Max spike event for {}'.format(file), spike_time, 1, 'Delta t (s) from start of ramp till spike', 'Count')
-	return outliers
+	draw_histogram('Max spike event for {}'.format(file), spike_time, 1.0, 'Delta t (s) from start of ramp till spike', 'Count')
 
 def beta_vs_synch_blm(file):
 	fills = fills_from_file(file, "OML")
