@@ -8,6 +8,7 @@ import numpy as np
 import bisect
 
 from scipy import stats
+from scipy import interpolate
 
 def store_file_for_fill(fill_nbr):
 	return 'fills/fill_%s.dat' % str(fill_nbr)
@@ -406,8 +407,44 @@ def plot_from(file, status_string='*'):
 			if inp == 'q':
 				break
 
+def evaluate_energy_ramp(fill_nbr):
+	fill = Fill(fill_nbr)
 
-def find_spike(data):
+	energy = fill.data['energy']
+
+	fig = plt.figure()
+	ax1 = fig.add_subplot(211)
+	plt.title("Energy ramp and derivative around start of ramp for fill 5427")
+
+	ax1.plot(*energy)
+	ax1.set_ylabel("Energy GeV")
+
+	ax2 = fig.add_subplot(212, sharex=ax1)
+	d_energy = np.gradient(energy.y)/np.gradient(energy.x)
+	ax2.plot(energy.x, d_energy)
+	ax2.set_ylabel("∆ Energy GeV")
+
+	plt.show()
+
+def find_start_of_ramp(energy): 
+	denergy = np.gradient(energy.y)
+	dt = np.gradient(energy.x)
+	denergyDt = denergy/dt # the spacing could be non-uniform, so we need this to correctly represent the derivative
+
+	istart = 0
+	e_threshold = 450.0
+	de_threshold = 0.1
+	for i, e in enumerate(energy.y):
+		de = denergyDt[i]
+		if e > e_threshold and de > de_threshold:
+			istart = i
+			break
+	else:
+		raise Exception("could not find the start of the ramp")
+	return istart
+
+
+def find_spike(data): # data is normally BLM data from momentum collimators
 	ddata = np.abs(np.gradient(data))
 	mov_average = moving_average(ddata, 10)
 	threshold = 1e-7
@@ -477,6 +514,19 @@ def intensity_and_OML_pruning(file_in, file_out):
 	print('\tmis-categorised {}'.format(wrongly_categorised))
 	print('\ttotal {}%'.format(removed))
 
+def export_energy_ramp_to_sixtrack(file_out='ramp.txt', fill=5433):
+	f = Fill(fill)
+	freq = 11245 # laps / s
+	with open(file_out, 'w') as file:
+		x = f.data['energy'].x[0:300] # at least 300 s, should be enough
+		y = f.data['energy'].y[0:300]
+		rescaled_x = [freq*(i - x[0]) for i in x]
+		delta = int(round(rescaled_x[-1] - rescaled_x[0]))
+
+		new_x = np.linspace(0, delta, delta)
+		new_y = interpolate.interp1d(rescaled_x, y, kind='cubic')(new_x)
+		for i, e in enumerate(new_y):
+			file.write('{} {}\n'.format(int(round(new_x[i])), e))
 
 
 
@@ -496,7 +546,7 @@ def intensity_histogram(file):
 
 	draw_histogram('Intensity for {}'.format(file), intensities, 1e13, "Intensity", "Count")
 
-def loss_duration_histogram(file):
+def spike_duration_histogram(file):
 	fills = fills_from_file(file, "OML")
 	outliers = []
 	durations = []
@@ -504,19 +554,21 @@ def loss_duration_histogram(file):
 		fill = Fill(nbr)
 
 		losses = fill.data['synch_coll_b1'].y
-		spike, tail = find_spike(np.array(losses))
-		d = fill.data['synch_coll_b1'].x[tail] - fill.data['synch_coll_b1'].x[spike]
+		spike_start, spike_end = find_spike(np.array(losses))
+		d = fill.data['synch_coll_b1'].x[spike_end] - fill.data['synch_coll_b1'].x[spike_start]
 		if d < 70 or d > 300:
 			outliers.append(nbr)
 		durations.append(d)
 
-	draw_histogram('Spike duration for {}'.format(file), durations, 20, 'Seconds', 'Count')
+	draw_histogram('Spike duration for {}'.format(file), durations, 10, 'Seconds', 'Count')
 	return outliers
 
 def spike_energy_histogram(file):
 	fills = fills_from_file(file, "OML")
 	spike_energy = []
 	spike_time = []
+
+	outliers = []
 
 	for nbr in fills:
 		fill = Fill(nbr)
@@ -528,18 +580,26 @@ def spike_energy_histogram(file):
 		energy = fill.data['energy']
 		ienergy = bisect.bisect_left(energy.x, tspike)
 
-		delta_e = energy.y[ienergy] - min(energy.y)
+		iramp = find_start_of_ramp(energy)
+		delta_e = energy.y[ienergy] - energy.y[iramp]
+		delta_t = energy.x[ienergy] - energy.x[iramp]
 		spike_energy.append(delta_e)
-
-		ramp = next((item for item in fill.meta['beamModes'] if item['mode'] == 'RAMP'), None)
-		# Sometimes data is weirdly labeled, so we take the latest time of the below
-		start_t = max(ramp['startTime'], energy.x[0])
-		delta_t = energy.x[ienergy] - start_t
 		spike_time.append(delta_t)
+		# delta_e = energy.y[ienergy] - min(energy.y)
+		# spike_energy.append(delta_e)
+
+		# ramp = next((item for item in fill.meta['beamModes'] if item['mode'] == 'RAMP'), None)
+		# # Sometimes data is weirdly labeled, so we take the latest time of the below
+		# start_t = max(ramp['startTime'], energy.x[0])
+		# delta_t = energy.x[ienergy] - start_t
+		# spike_time.append(delta_t)
+
+		# if delta_t > 10: outliers.append(fill.nbr)
 
 
-	draw_histogram('Spike energy for {}'.format(file), spike_energy, 0.1, 'Delta E (GeV) from start of ramp', 'Count', 'y')
-	draw_histogram('Max spike event for {}'.format(file), spike_time, 2, 'Delta t (s) from start of ramp till spike', 'Count')
+	draw_histogram('Spike energy for {}'.format(file), spike_energy, 0.13, 'Delta E (GeV) from start of ramp', 'Count', 'y')
+	draw_histogram('Max spike event for {}'.format(file), spike_time, 1, 'Delta t (s) from start of ramp till spike', 'Count')
+	return outliers
 
 def beta_vs_synch_blm(file):
 	fills = fills_from_file(file, "OML")
@@ -697,6 +757,59 @@ def abort_gap_vs_OML(file):
 
 	plt.show()
 	
+def abort_gap_vs_BLM(file):
+	fills = fills_from_file(file, "OML")
+	abort_gap = []
+	smean_loss = []
+	bmean_loss = []
+	for nbr in fills:
+		fill = Fill(nbr, False)
+		fill.fetch()
+		fill.beta_coll_merge()
+
+		smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+		tmax = fill.data['synch_coll_b1'].x[smax]
+		tmin = fill.data['synch_coll_b1'].x[smin]
+		agmin, agmax = subset_indices(fill.data['abort_gap_int_b1'].x, tmin, tmax)
+		ag_average = moving_average(fill.data['abort_gap_int_b1'].y, 5)
+
+		ssubset = fill.data['synch_coll_b1'].y[smin:smax]
+		bsubset = fill.data['A_beta_coll_b1'].y[smin:smax]
+
+		smean_loss.append(np.mean(ssubset))
+		bmean_loss.append(np.mean(bsubset))
+		abort_gap.append(ag_average[agmin] - ag_average[agmax])
+
+	tot_mean_loss = np.add(np.array(smean_loss), np.array(bmean_loss))
+	vmax = 1.1*max(tot_mean_loss)
+
+	fig = plt.figure()
+	ax1 = fig.add_subplot(131)
+	ax2 = fig.add_subplot(132, sharey=ax1) 
+	ax3 = fig.add_subplot(133, sharey=ax1) 
+
+	# fig1, ax1 = plt.subplots()
+	ax1.set_xlabel("Momentum loss")
+	ax1.set_ylabel("Abort gap intensity")
+	ax1.scatter(smean_loss, abort_gap, color='r', label='longitudinal')
+	ax1.set_xlim([0, vmax])
+	ax1.xaxis.set_ticks(np.arange(0, vmax, 0.005))
+	ax1.set_ylim([0, 1.1*max(abort_gap)])
+	# ax1.legend(loc="lower right")
+
+	ax2.set_xlabel("Transversal loss")
+	ax2.scatter(bmean_loss, abort_gap, color='g', label='transversal')
+	ax2.set_xlim([0, vmax])
+	ax2.xaxis.set_ticks(np.arange(0, vmax, 0.005))
+
+	ax3.set_xlabel("Total loss")
+	ax3.scatter(tot_mean_loss, abort_gap, color='b', label='total')
+	ax3.set_xlim([0, vmax])
+	ax3.xaxis.set_ticks(np.arange(0, vmax, 0.005))
+
+	fig.suptitle("Abort gap intensity vs BLM for {}\n".format(file))
+
+	plt.show()
 		
 
 
