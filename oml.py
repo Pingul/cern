@@ -26,6 +26,11 @@ def moving_average(sequence, N):
 	average = np.convolve(sequence, np.ones((N,))/N, mode='same')
 	return average
 
+def imax(data):
+	""" Returns both the max and the index for the max value """
+	i = max(range(len(data)), key = data.__getitem__)
+	return (data[i], i)
+
 class Fill:
 
 	class STATUS:
@@ -449,8 +454,7 @@ def find_spike(data): # data is normally BLM data from momentum collimators
 	mov_average = moving_average(ddata, 10)
 	threshold = 1e-7
 
-	ipeak = max(range(len(data)), key = data.__getitem__)
-	vpeak = data[ipeak]
+	vpeak, ipeak = imax(data)
 	start = end = ipeak
 	found_start = found_end = False
 	while not found_start and start > 0:
@@ -467,6 +471,21 @@ def find_spike(data): # data is normally BLM data from momentum collimators
 	# 	raise Exception("could not find ({})spike")
 
 	return [start, end]
+
+
+def find_crossover_point(betaBLM, momentumBLM):
+	""" Look for the point after OML spike when transversal losses starts 
+		to dominate the momentum losses 
+
+		Note: this should be used with aligned data """
+	vpeak, ipeak = imax(momentumBLM.y)
+
+	i = ipeak
+	while betaBLM[i].y < momentumBLM[i].y:
+		i += 1
+		if i >= len(betaBLM.y):
+			raise Exception("could not find crossover point")
+	return i
 
 
 
@@ -526,9 +545,9 @@ def export_energy_ramp_to_sixtrack(file_out='ramp.txt', fill=5433):
 		new_x = np.linspace(0, delta, delta)
 		new_y = interpolate.interp1d(rescaled_x, y, kind='cubic')(new_x)
 		for i, e in enumerate(new_y):
-			file.write('{} {}\n'.format(int(round(new_x[i])), e))
-
-
+			scaled_e = e*1e3 # Sixtrack uses the unit MeV
+			turnnbr = int(round(new_x[i])) + 1 # 1 indexed
+			file.write('{} {}\n'.format(turnnbr, scaled_e))
 
 
 #################
