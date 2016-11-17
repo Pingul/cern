@@ -38,7 +38,10 @@ def moving_average(sequence, N):
 if len(argv) < 2:
 	raise Exception("not enough arguments")
 
-def get_lossmap(collfile, output_type):
+def get_lossmap(collfile, with_id=False, with_coll_values=False):
+	if not with_id and not with_coll_values:
+		raise Exception("chose data for lossmap")
+
 	print("creating lossmap")
 	hits = []
 	with open(collfile, 'r') as f:
@@ -49,32 +52,23 @@ def get_lossmap(collfile, output_type):
 			line_c = line.rstrip().split(',')
 			pID, turn = map(int, line_c[0:2])
 			phase, e = map(float, line_c[2:4])
-			hits.append([turn, pID, e])
+			hits.append([turn, pID, phase, e])
 
 	hits.sort(key=lambda x: x[0])
 	coll_hits = {} 
 	for hit in hits:
-		turn, pID, e_coll = hit
+		turn, pID, phase, e = hit
 
-		if output_type == 'ID': 
+		if with_id:
 			val = pID
-		elif output_type == 'E': 
-			val = e_coll
-		else: 
-			raise Exception("could not create lossmap with type '{}'".format(output_type))
+		elif with_coll_values:
+			val = [phase, e]
 
 		try:
 			coll_hits[turn].append(val)
 		except Exception as e:
 			coll_hits[turn] = [val]
 	return coll_hits
-
-def get_ID_lossmap(collfile):
-	return get_lossmap(COLL_FILE, 'ID')
-
-def get_E_lossmap(collfile):
-	return get_lossmap(COLL_FILE, 'E')
-
 
 class Trajectory:
 	def __init__(self):
@@ -102,7 +96,6 @@ class Trajectory:
 					break
 				ref_e = float(line.split()[-1])
 				self.ref_energy.append(ref_e)
-				# self.ref_energy.append(energy)
 
 		self.fig, self.ax = plt.subplots()
 
@@ -139,7 +132,7 @@ class Trajectory:
 			top_coll, bot_coll = map(float, second_line.rstrip().split(','))
 			self.collimator = {'top' : top_coll, 'bot' : bot_coll}
 
-		self.coll_hits = get_ID_lossmap(COLL_FILE)
+		self.coll_hits = get_lossmap(COLL_FILE, with_id=True)
 
 		self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
 		self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
@@ -205,7 +198,7 @@ def read_ramp(file, turns):
 	return ramp		
 
 def plot_lossmap(save_to=''):
-	lossmap = get_E_lossmap(COLL_FILE)
+	lossmap = get_lossmap(COLL_FILE, with_coll_values=True)
 
 	if len(lossmap) == 0:
 		raise Exception("no losses found")
