@@ -8,6 +8,7 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Rectangle
 import math
 import numpy as np
+import itertools
 
 from sys import argv
 
@@ -16,6 +17,7 @@ PARTICLE_FILE = "particles.dat"
 LINE_FILE = "lines.dat"
 COLL_FILE = "coll.dat"
 RAMP_FILE = "ramp.txt"
+STARTDIST_FILE = "startdist.dat"
 
 PLOT_FRAME = {
 	'x' : [-2*math.pi, 4*math.pi],
@@ -38,9 +40,10 @@ def moving_average(sequence, N):
 if len(argv) < 2:
 	raise Exception("not enough arguments")
 
-def get_lossmap(collfile, with_id=False, with_coll_values=False):
-	if not with_id and not with_coll_values:
-		raise Exception("chose data for lossmap")
+# def get_lossmap(collfile, with_id=False, with_coll_values=False):
+def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
+	# the default attributes are the only one that gets recognised
+	# no values only gives nbr of losses each turn
 
 	print("creating lossmap")
 	hits = []
@@ -59,15 +62,21 @@ def get_lossmap(collfile, with_id=False, with_coll_values=False):
 	for hit in hits:
 		turn, pID, phase, e = hit
 
-		if with_id:
-			val = pID
-		elif with_coll_values:
-			val = [phase, e]
+		val = {}
+		if 'id' in with_attr:
+			val['id'] = pID
+		if 'phase' in with_attr:
+			val['phase'] = phase
+		if 'e' in with_attr:
+			val['e'] = e
 
 		try:
 			coll_hits[turn].append(val)
 		except Exception as e:
 			coll_hits[turn] = [val]
+
+	if not with_attr:
+		return {turn : len(coll_hits[turn]) for turn in coll_hits}
 	return coll_hits
 
 class Trajectory:
@@ -132,7 +141,8 @@ class Trajectory:
 			top_coll, bot_coll = map(float, second_line.rstrip().split(','))
 			self.collimator = {'top' : top_coll, 'bot' : bot_coll}
 
-		self.coll_hits = get_lossmap(COLL_FILE, with_id=True)
+		coll_hits = get_lossmap(COLL_FILE, with_attr=['id'])
+		self.coll_hits = {turn : [hit['id'] for hit in coll_hits[turn]] for turn in coll_hits}
 
 		self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
 		self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
@@ -198,15 +208,17 @@ def read_ramp(file, turns):
 	return ramp		
 
 def plot_lossmap_phase():
-	lossmap = get_lossmap(COLL_FILE, with_coll_values=True)
+	lossmap = get_lossmap(COLL_FILE, with_attr=['id', 'phase'])
 
 	turns = []
 	phase = []
+	pid = []
 
 	for turn in lossmap:
 		for loss in lossmap[turn]:
 			turns.append(turn)
-			phase.append(loss[0])
+			phase.append(loss['phase'])
+			pid.append(loss['id'])
 
 	fig, ax = plt.subplots()
 	ax.scatter(turns, phase)
@@ -215,6 +227,16 @@ def plot_lossmap_phase():
 	ax.set_xlim([0, max(lossmap.keys()) + 100])
 	ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
 	fig.suptitle("Lossmap time vs phase")
+
+	# plt.draw()
+
+	# startdist_e = []
+	# with open(STARTDIST_FILE, "r") as f:
+	# 	for line in f.readlines():
+	# 		startdist_e.append(float(line.rstrip().split(',')[1]))
+
+	# fig, ax = plt.subplots()
+	# ax.scatter()
 	plt.show()
 
 def find_spikes(averaged_loss_data):
@@ -234,7 +256,7 @@ def find_spikes(averaged_loss_data):
 
 
 def plot_lossmap(save_to=''):
-	lossmap = get_lossmap(COLL_FILE, with_coll_values=True)
+	lossmap = get_lossmap(COLL_FILE, with_attr=[])
 
 	if len(lossmap) == 0:
 		raise Exception("no losses found")
@@ -251,7 +273,7 @@ def plot_lossmap(save_to=''):
 
 	turns = np.array(range(max_turn_loss + 100))
 	secs = np.array([turn/11245.0 for turn in turns])
-	losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
+	losses = np.array([lossmap[turn] if turn in lossmap else 0 for turn in turns])
 	ramp = np.array(read_ramp(RAMP_FILE, len(turns)))
 
 	n = nbr_p
