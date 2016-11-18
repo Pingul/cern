@@ -24,6 +24,12 @@ static constexpr double E_REF = 450e9;
 
 static constexpr int FREQ = 11245;
 
+static constexpr const char* PATH_FILE = "particles.dat";
+static constexpr const char* LINE_FILE = "line.dat";
+static constexpr const char* COLL_FILE = "coll.dat";
+static constexpr const char* RAMP_FILE = "ramp.txt";
+static constexpr const char* STARTDIST_FILE = "startdist.dat";
+
 template <typename T>
 struct Accelerator
 {
@@ -158,8 +164,7 @@ struct ToyModel
 
 	void createTurnFile(std::string filePath, int turns) 
 	{
-		mSaveFile = filePath;
-		std::ofstream file(mSaveFile.c_str());
+		std::ofstream file(filePath.c_str());
 		if (file.is_open()) {
 			std::cout << "Saving turns data in '" << filePath << "'" << std::endl;
 			file << size() << "," << turns << std::endl; 
@@ -168,13 +173,12 @@ struct ToyModel
 		file.close();
 	}
 
-	void saveTurn() const 
+	void saveParticleCoords(std::string filePath) const 
 	{
-		std::ofstream file(mSaveFile.c_str(), std::ios::app);
-		if (!file.is_open()) {
-			std::cerr << "could not save data" << std::endl;
-			return;
-		}
+		std::ofstream file(filePath.c_str(), std::ios::app);
+
+		if (!file.is_open()) 
+			throw std::runtime_error("could not save particle coordinates");
 
 		// FILE:
 		// 	∆energy / phase 
@@ -188,13 +192,13 @@ struct ToyModel
 
 	void saveCollHits(std::string filePath) const
 	{
+		std::cout << "Saving coll hits to '" << filePath << "'" << std::endl;
+
 		std::ofstream file(filePath.c_str());
 		if (!file.is_open())
-			throw std::runtime_error("could not save coll hits");
+			throw std::runtime_error("could not open file");
 		else if (mCollHits.empty())
-			throw std::runtime_error("could not save coll hits: no data was recorded");
-
-		std::cout << "Saving coll hits to '" << filePath << "'" << std::endl;
+			throw std::runtime_error("could not save coll hits -- no data was recorded");
 
 		// FILE:
 		// 	id / turn_lost / phase_lost / energy_lost
@@ -220,7 +224,7 @@ struct ToyModel
 		else  {
 			std::cout << "Saving path to '" << filePath << "'" << std::endl;
 			createTurnFile(filePath, n + 1); // +1 as we are saving the first starting configuration as well
-			saveTurn();
+			saveParticleCoords(filePath);
 		}
 
 		T E_ref = E_REF;
@@ -228,7 +232,7 @@ struct ToyModel
 		if (mType > NO_RAMP) {
 			E_ramp.reserve(n);
 
-			std::ifstream file("ramp.txt");
+			std::ifstream file(RAMP_FILE);
 			T data;
 			for (int i = 0; i < n; ++i) {
 				switch (mType) {
@@ -263,7 +267,7 @@ struct ToyModel
 			takeTimestep(i, E_ref);
 
 			// reduce the memory footprint a little if it's not necessary
-			if (!filePath.empty() && (i + 1) % saveFreq == 0) saveTurn();
+			if (!filePath.empty() && (i + 1) % saveFreq == 0) saveParticleCoords(filePath);
 		}
 	}
 
@@ -327,7 +331,6 @@ private:
 
 	std::vector<int> mCollHits;
 
-	std::string mSaveFile;
 	RAMP_TYPE mType;
 };
 
@@ -335,8 +338,9 @@ template <typename TModel>
 void generateLossmap(typename TModel::RAMP_TYPE type)
 {
 	TModel tm(16000, 0.45e9, 0.44e9, type, typename TModel::LossAnalysis());
+	tm.saveParticleCoords(STARTDIST_FILE);
 	tm.takeTimesteps(50*FREQ); // 50 seconds
-	tm.saveCollHits("coll.dat");
+	tm.saveCollHits(COLL_FILE);
 
 	int ilastHit, lastHit = -1;
 	auto hits = tm.getCollHits();
@@ -374,24 +378,24 @@ int main(int argc, char* argv[])
 		{
 			std::cout << "Creating particle paths" << std::endl;
 			ToyModel tm(1000, type);
-			tm.takeTimesteps(500, "particles.dat");
-			tm.saveCollHits("coll.dat");
+			tm.takeTimesteps(500, jwc::PATH_FILE);
+			tm.saveCollHits(jwc::COLL_FILE);
 		}
 		{
 			std::cout << "Creating line segments" << std::endl;
 			ToyModel tm(type, ToyModel::LineSim());
-			tm.takeTimesteps(1700, "lines.dat", 5);
+			tm.takeTimesteps(1700, jwc::LINE_FILE, 5);
 		}
 	} else if (args[1] == "lossmap") {
 		std::cout << "Creating data for lossmap" << std::endl;
 		ToyModel tm(10000, type);
 		tm.takeTimesteps(10000);
-		tm.saveCollHits("coll.dat");
+		tm.saveCollHits(jwc::COLL_FILE);
 	} else if (args[1] == "energy") {
 		std::cout << "Simulating 1 particle" << std::endl;
 		ToyModel tm(1, type);
-		tm.takeTimesteps(40000, "particles.dat");
-		tm.saveCollHits("coll.dat");
+		tm.takeTimesteps(40000, jwc::PATH_FILE);
+		tm.saveCollHits(jwc::COLL_FILE);
 	} else if (args[1] == "lossmap-analysis") {
 		std::cout << "Loss pattern analysis" << std::endl;
 		jwc::generateLossmap<ToyModel>(type);
