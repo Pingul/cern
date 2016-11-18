@@ -197,6 +197,42 @@ def read_ramp(file, turns):
 			ramp[i] = float(line.rstrip().split()[-1])*1e6 # unit is in MeV
 	return ramp		
 
+def plot_lossmap_phase():
+	lossmap = get_lossmap(COLL_FILE, with_coll_values=True)
+
+	turns = []
+	phase = []
+
+	for turn in lossmap:
+		for loss in lossmap[turn]:
+			turns.append(turn)
+			phase.append(loss[0])
+
+	fig, ax = plt.subplots()
+	ax.scatter(turns, phase)
+	ax.set_xlabel("Time (kturns)")
+	ax.set_ylabel("Phase")
+	ax.set_xlim([0, max(lossmap.keys()) + 100])
+	ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
+	fig.suptitle("Lossmap time vs phase")
+	plt.show()
+
+def find_spikes(averaged_loss_data):
+	cycles = []
+	istart = -1
+	iend = -1
+	for i, d in enumerate(averaged_loss_data):
+		if istart == -1 and d > 0:
+			istart = i
+		elif istart > 0 and d == 0:
+			iend = i
+			cycles.append([istart, iend])
+			istart = iend = -1
+
+	return cycles
+
+
+
 def plot_lossmap(save_to=''):
 	lossmap = get_lossmap(COLL_FILE, with_coll_values=True)
 
@@ -224,6 +260,13 @@ def plot_lossmap(save_to=''):
 		n -= v
 		intensity[i] = float(n)/nbr_p
 
+	average_losses = moving_average(losses, 1125)
+
+	spikes = find_spikes(average_losses)
+	print(len(spikes), "spikes:")
+	for i, spike in enumerate(spikes, 1):
+		print("\t{:g}: {:.2f} -> {:.2f} s ".format(i, secs[spike[0]], secs[spike[1]]))
+
 
 	# Plotting
 	fig, intensity_ax = plt.subplots()
@@ -245,7 +288,7 @@ def plot_lossmap(save_to=''):
 	e_ax.legend([ramp_line, top_coll, bot_coll], (ramp_line.get_label(), "Top coll:∆{:.2E}".format(coll['top']), "Bot coll:∆{:.2E}".format(coll['bot'])), loc='upper right')
 
 	loss_ax = intensity_ax.twinx()
-	loss_ax.plot(turns, moving_average(losses, 1125), color='r', linestyle='--', label='∆loss')
+	loss_ax.plot(turns, average_losses, color='r', linestyle='--', label='∆loss')
 	loss_ax.set_ylabel("Losses (∆particles/0.1s)")
 	loss_ax.spines['right'].set_position(('axes', 1.15))
 	if max(losses) > 0:
@@ -268,6 +311,7 @@ if __name__ == "__main__":
 	elif ACTION == "lossmap" or ACTION == "lossmap-analysis":
 		print("plot lossmap")
 		plot_lossmap(SAVE_FILE)
+		# plot_lossmap_phase()
 	elif ACTION == "energy":
 		print("plot energy oscillations")
 		plot_energy_oscillations()
