@@ -87,7 +87,12 @@ class Fill:
 		'A_beta_coll_c_b1' : 'BLMTI.06L7.B1E10_TCP.C6L7.B1:LOSS_RS09',
 		'A_beta_coll_d_b1' : 'BLMTI.06L7.B1E10_TCP.D6L7.B1:LOSS_RS09',
 		'A_synch_coll_b1' : 'BLMTI.06L3.B1I10_TCP.6L3.B1:LOSS_RS09',
-
+		#
+		# Motors
+		'A_tcp_motor_ld' : 'TCP.6L3.B1:MEAS_MOTOR_LD',
+		'A_tcp_motor_lu' : 'TCP.6L3.B1:MEAS_MOTOR_LU',
+ 		'A_tcp_motor_rd' : 'TCP.6L3.B1:MEAS_MOTOR_RD',
+ 		'A_tcp_motor_ru' : 'TCP.6L3.B1:MEAS_MOTOR_RU',
 	}
 	all_variables = {**variables, **aligned_variables}
 
@@ -102,13 +107,10 @@ class Fill:
 			self.data[key] = Fill.Variable([[], []])
 
 		if fetch:
-			try:
-				self.fetch()
-				# self.convert_to_using_Variable()
-				self.normalize_intensity()
-			except Exception as e:
-				print("could not initialize fill {}:".format(self.nbr))
-				print("\t", e)
+			self.fetch()
+			# self.convert_to_using_Variable()
+			self.normalize_intensity()
+
 
 	def fetch(self, forced=False, cache=True):
 		store_file = store_file_for_fill(self.nbr)
@@ -122,7 +124,7 @@ class Fill:
 			non_cached_variables = []
 			for v in self.all_variables:
 				if not v in self.data.keys():
-					if v.startswith("A_"): # We have some unfetched aligned variable
+					if v.startswith("A_"): # We have some unfetched aligned variable -> we need to refetch all aligned
 						fetch_aligned = True
 					else:
 						non_cached_variables.append(v)
@@ -146,8 +148,8 @@ class Fill:
 			end_t = ramp['endTime']
 
 		if to_fetch:
-			print("\tfetch", to_fetch.keys())
-			data = self.db.get(list(to_fetch.values()), start_t, end_t)
+			print("\tfetch", to_fetch)
+			data = self.db.get([self.all_variables[v] for v in to_fetch], start_t, end_t)
 			for d_var in data:
 				var_name = next(name for name in self.variables.keys() if self.variables[name] == d_var)
 				self.data[var_name] = Fill.Variable(data[d_var])
@@ -312,6 +314,25 @@ class Fill:
 		blm_axis.legend(loc='lower right')
 
 		plt.title("Fill {}".format(self.nbr))
+		plt.show()
+
+	def motor_plot(self):
+		print("plotting motors")
+
+		fig, motor_ax = plt.subplots()
+		e_ax = motor_ax.twinx()
+
+		motor_ax.plot(*self.data['A_tcp_motor_ru'], color='r')
+		# motor_ax.plot(*self.data['A_tcp_motor_rd'], color='r')
+		motor_ax.plot(*self.data['A_tcp_motor_lu'], color='r')
+		# motor_ax.plot(*self.data['A_tcp_motor_ld'], color='r')
+		motor_ax.set_ylabel("Motor (mm σ)")
+		motor_ax.set_xlabel("Time (s)")
+
+		e_ax.plot(*self.data['energy'])
+		e_ax.set_ylabel("Energy (MeV)")
+
+		plt.title("Motor plot: fill {}".format(self.nbr))
 		plt.show()
 
 	def convert_to_using_Variable(self):
@@ -533,7 +554,8 @@ def intensity_and_OML_pruning(file_in, file_out):
 	print('\tmis-categorised {}'.format(wrongly_categorised))
 	print('\ttotal {}%'.format(removed))
 
-def export_energy_ramp_to_sixtrack(file_out='ramp.txt', fill=5433):
+def export_energy_ramp_to_sixtrack(file_out='resources/ramp.txt', fill=5433, interpolation_type='cubic'):
+	print("{} interpolation".format(interpolation_type))
 	f = Fill(fill)
 	freq = 11245 # laps / s
 	with open(file_out, 'w') as file:
@@ -543,11 +565,38 @@ def export_energy_ramp_to_sixtrack(file_out='ramp.txt', fill=5433):
 		delta = int(round(rescaled_x[-1] - rescaled_x[0]))
 
 		new_x = np.linspace(0, delta, delta)
-		new_y = interpolate.interp1d(rescaled_x, y, kind='cubic')(new_x)
+		new_y = interpolate.interp1d(rescaled_x, y, kind=interpolation_type)(new_x)
 		for i, e in enumerate(new_y):
-			scaled_e = e*1e3 # Sixtrack uses the unit MeV
+			scaled_e = e*1e3 # Sixtrack uses MeV
 			turnnbr = int(round(new_x[i])) + 1 # 1 indexed
 			file.write('{} {}\n'.format(turnnbr, scaled_e))
+
+def export_momentum_tcp_squeeze(file_out='resources/motor_tcp.txt', fill=5433, interpolation_type='cubic'):
+	print("TCP movement: {} interpolation".format(interpolation_type))
+	f = Fill(fill)
+	freq = 11245 # laps / s
+	ispike = find_start_of_ramp(f.data['energy'])
+	tspike = f.data['energy'].x[ispike]
+
+	istart = bisect.bisect_left(f.data['A_tcp_motor_ld'].x, tspike)
+	iend = istart + 300 # at least 300 s
+
+	with open(file_out, 'w') as file:
+		# the data is aligned, so we can use the same x for both y
+		x = f.data['A_tcp_motor_ld'].x[istart:iend]
+		y_low = f.data['A_tcp_motor_ld'].y[istart:iend]
+		y_high = f.data['A_tcp_motor_rd'].y[istart:iend]
+		rescaled_x = [freq*(i - x[0]) for i in x]
+		delta = int(round(rescaled_x[-1] - rescaled_x[0]))
+
+		new_x = np.linspace(0, delta, delta)
+		new_y_low = interpolate.interp1d(rescaled_x, y_low, kind=interpolation_type)(new_x)
+		new_y_high = interpolate.interp1d(rescaled_x, y_high, kind=interpolation_type)(new_x)
+		for i, m_low in enumerate(new_y_low):
+			m_high = new_y_high[i]
+			turnnbr = int(round(new_x[i])) + 1 # 1 indexed
+			file.write('{} {} {}\n'.format(turnnbr, m_low, m_high))
+
 
 
 #################
