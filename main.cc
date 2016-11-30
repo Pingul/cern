@@ -10,25 +10,27 @@
 #include <iomanip>
 #include <limits>
 
+namespace CONST {
+
+constexpr double pi = 3.14159265359;
+constexpr double c = 299792458.0;
+constexpr double m_proton = 938e6;
+
+}; // namespace CONST
 
 namespace jwc {
 
-static constexpr double PI = 3.14159265359;
-
-static constexpr double FRAME_X_LOW = -2*PI;
-static constexpr double FRAME_X_HIGH = 4*PI;
+static constexpr double FRAME_X_LOW = -2*CONST::pi;
+static constexpr double FRAME_X_HIGH = 4*CONST::pi;
 static constexpr double FRAME_Y_LOW = -2e9;
 static constexpr double FRAME_Y_HIGH = 2e9;
 
-static constexpr double E_REF = 450e9;
-
-static constexpr int FREQ = 11245;
-
-static constexpr const char* PATH_FILE = "particles.dat";
-static constexpr const char* LINE_FILE = "line.dat";
-static constexpr const char* COLL_FILE = "coll.dat";
-static constexpr const char* RAMP_FILE = "ramp.txt";
-static constexpr const char* STARTDIST_FILE = "startdist.dat";
+static constexpr const char* PATH_FILE = "data/particles.dat";
+static constexpr const char* LINE_FILE = "data/lines.dat";
+static constexpr const char* COLL_FILE = "data/coll.dat";
+// static constexpr const char* RAMP_FILE = "resources/ramp.txt";
+static constexpr const char* RAMP_FILE = "resources/cLHC_momentum_programme6.5TeV.dat";
+static constexpr const char* STARTDIST_FILE = "data/startdist.dat";
 
 template <typename T>
 struct Accelerator
@@ -36,22 +38,28 @@ struct Accelerator
 	using ValType = T;
 	using Acc = Accelerator<T>;
 
+	T E_ref;
 	T rf_voltage;
 	T harmonic;
 	T m_compaction;
 	T coll_top;
 	T coll_bot;
+	T revolution_freq;
+	T w_revolution_freq;
 
 	static Acc getLHC() 
 	{
 		// Parameters for LHC can be found at http://atlas.physics.arizona.edu/~kjohns/downloads/linac/UTclass2lhc.pdf
-		return Acc{
-			/*rf_voltage=*/T(8e6),
-			/*harmonic=*/T(35640),
-			/*m_compaction=*/T(0.0003225),
-			/*coll_top=*/T(0.5e9),
-			/*coll_bot=*/T(-0.5e9)
-		};
+		Acc acc;
+		acc.E_ref = T(450e9);
+		acc.rf_voltage = T(8e6);
+		acc.harmonic = T(35640);
+		acc.m_compaction = T(0.0003225);
+		acc.coll_top = T(0.5e9);
+		acc.coll_bot = T(-0.5e9);
+		acc.revolution_freq = T(11245);
+		acc.w_revolution_freq = 2*CONST::pi*acc.revolution_freq;
+		return acc;
 	}
 
 	static Acc getLHC_NOCOLL()
@@ -61,8 +69,23 @@ struct Accelerator
 		a.coll_bot = std::numeric_limits<T>::min();;
 		return a;
 	}
-
 };
+
+template <typename T>
+inline T hamiltonian(const Accelerator<T>& acc, T deltaE, T phase)
+{
+	const T rev = acc.w_revolution_freq;
+	const T gamma = (acc.E_ref + deltaE)/CONST::m_proton;
+	const T gamma_2 = T(1)/(gamma*gamma);
+	const T eta = gamma_2 - acc.m_compaction;
+	const T beta2 = T(1) - gamma_2;
+	const T beta = std::sqrt(beta2);
+	const T k = acc.harmonic*rev/(beta*CONST::c);
+	const T Omega2 = rev*rev*acc.harmonic*eta*acc.rf_voltage/(T(2)*CONST::pi*beta*acc.E_ref);
+
+	const T H = T(1)/2*beta2*pow(CONST::c*k*eta*deltaE/acc.E_ref, 2) - Omega2*std::cos(phase);
+	return H;
+}
 
 template <typename T>
 struct ToyModel 
@@ -89,13 +112,18 @@ struct ToyModel
 
 		// Good distribution for the full frame
 		// std::normal_distribution<> e_dist(0, 0.2e9);
-		// std::normal_distribution<> ph_dist(PI, PI);
+		// std::normal_distribution<> ph_dist(CONST::pi, CONST::pi);
 
 		std::normal_distribution<> e_dist(0, 0.15e9);
-		std::normal_distribution<> ph_dist(PI, PI/5);
+		std::normal_distribution<> ph_dist(CONST::pi, CONST::pi/5);
 		for (size_t i = 0; i < n; ++i) {
-			mEnergy.push_back(e_dist(generator)); 
-			mPhase.push_back(ph_dist(generator)); 
+			const T deltaE = e_dist(generator);
+			const T phase = ph_dist(generator);
+			const T H = hamiltonian(mAcc, deltaE, phase);
+			if (H > 0) {
+				mEnergy.push_back(deltaE); 
+				mPhase.push_back(phase); 
+			}
 		}
 	}
 
@@ -115,7 +143,7 @@ struct ToyModel
 			default:
 			case NO_RAMP:
 			case LHC_RAMP:
-				for (T x = FRAME_X_LOW; x < FRAME_X_HIGH; x += PI/4.0) {
+				for (T x = FRAME_X_LOW; x < FRAME_X_HIGH; x += CONST::pi/4.0) {
 					mEnergy.push_back(0.0f);
 					mPhase.push_back(x);
 				}
@@ -127,9 +155,9 @@ struct ToyModel
 			case AGGRESSIVE_RAMP:
 				break;
 			case SEMI_AGGRESSIVE_RAMP:
-				for (T x = -PI; x < FRAME_X_HIGH; x += 2*PI) {
-					T d = PI/2;
-					for (T delta = -d; delta < d; delta += PI/5) {
+				for (T x = -CONST::pi; x < FRAME_X_HIGH; x += 2*CONST::pi) {
+					T d = CONST::pi/2;
+					for (T delta = -d; delta < d; delta += CONST::pi/5) {
 						mEnergy.push_back(0.0f);
 						mPhase.push_back(x + delta);
 					}
@@ -153,10 +181,10 @@ struct ToyModel
 
 		for (T de = minDE; de < maxDE; de += 2.0*(maxDE - minDE)/n) {
 			mEnergy.push_back(de);
-			mPhase.push_back(PI);
+			mPhase.push_back(CONST::pi);
 
 			mEnergy.push_back(-de);
-			mPhase.push_back(PI);
+			mPhase.push_back(CONST::pi);
 		}
 	}
 
@@ -211,9 +239,9 @@ struct ToyModel
 		}
 	}
 
-	void takeTimestep(int stepID, T E_ref) 
+	void takeTimestep(int stepID) 
 	{
-		CalcOp op(stepID, mAcc, E_ref, mEnergy, mPhase, mCollHits);
+		CalcOp op(stepID, mAcc, mEnergy, mPhase, mCollHits);
 		tbb::parallel_for(tbb::blocked_range<size_t>(0, size()), op);
 	}
 
@@ -227,7 +255,6 @@ struct ToyModel
 			saveParticleCoords(filePath);
 		}
 
-		T E_ref = E_REF;
 		std::vector<T> E_ramp;
 		if (mType > NO_RAMP) {
 			E_ramp.reserve(n);
@@ -244,27 +271,27 @@ struct ToyModel
 						break;
 					case AGGRESSIVE_RAMP:
 						// linear ramp
-						E_ramp.push_back(E_ref + i*1e7);
+						E_ramp.push_back(450e9 + i*1e7);
 						break;
 					case SEMI_AGGRESSIVE_RAMP:
-						E_ramp.push_back(E_ref + i*3e6);
+						E_ramp.push_back(450e9 + i*3e6);
 						break;
 				}
 
 			}
-			E_ref = E_ramp[0];
+			mAcc.E_ref = E_ramp[0];
 		}
 
 		for (int i = 0; i < n; ++i) {
 			if (mType > NO_RAMP) {
-				T deltaE = E_ramp[i] - E_ref;
-				E_ref = E_ramp[i];
+				T deltaE = E_ramp[i] - mAcc.E_ref;
+				mAcc.E_ref = E_ramp[i];
 
 				// Adjust all particle energies
 				for (T& e : mEnergy) e -= deltaE;
 			}
 
-			takeTimestep(i, E_ref);
+			takeTimestep(i);
 
 			// reduce the memory footprint a little if it's not necessary
 			if (!filePath.empty() && (i + 1) % saveFreq == 0) saveParticleCoords(filePath);
@@ -277,9 +304,9 @@ struct ToyModel
 private:
 	struct CalcOp
 	{
-		CalcOp(int stepID, const Accelerator& acc, T E_ref, std::vector<T>& energy, 
+		CalcOp(int stepID, const Accelerator& acc, std::vector<T>& energy, 
 			   std::vector<T>& phase, std::vector<int>& collHits)
-			: mStepID(stepID), mAcc(acc), mE_ref(E_ref), mEnergy(energy), mPhase(phase), mCollHits(collHits)
+			: mStepID(stepID), mAcc(acc), mEnergy(energy), mPhase(phase), mCollHits(collHits)
 		{ }
 
 		bool particleInactive(size_t index) const
@@ -297,16 +324,16 @@ private:
 		void operator()(const tbb::blocked_range<size_t>& range) const
 		{
 			const T e = 1.0;
-			const T m = 938e6;
-			const T B2_s = 1 - std::pow(m/mE_ref, 2);
+			// const T m = 938e6;
+			const T B2_s = 1 - std::pow(CONST::m_proton/mAcc.E_ref, 2);
 			for (size_t n = range.begin(), N = range.end(); n < N; ++n) {
 				if (particleInactive(n)) 
 					continue;
 
 				mEnergy[n] += e*mAcc.rf_voltage*(std::sin(mPhase[n]) - std::sin(0));
-				T B2 = T(1) - std::pow(m/(mE_ref + mEnergy[n]), 2);
+				T B2 = T(1) - std::pow(CONST::m_proton/(mAcc.E_ref + mEnergy[n]), 2);
 				T eta = T(1) - B2 - mAcc.m_compaction;
-				mPhase[n] += - T(2)*PI*mAcc.harmonic*eta/(B2_s*mE_ref)*mEnergy[n];
+				mPhase[n] += - T(2)*CONST::pi*mAcc.harmonic*eta/(B2_s*mAcc.E_ref)*mEnergy[n];
 				if (particleCollided(n)) mCollHits[n] = mStepID;
 			}
 		}
@@ -314,7 +341,6 @@ private:
 		int mStepID;
 
 		const Accelerator& mAcc;
-		const T mE_ref;
 
 		std::vector<T>& mEnergy;
 		std::vector<T>& mPhase;
@@ -324,7 +350,7 @@ private:
 
 	int mStepID;
 
-	const Accelerator mAcc;
+	Accelerator mAcc;
 	// Particle properties
 	std::vector<T> mEnergy;
 	std::vector<T> mPhase;
@@ -339,7 +365,8 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
 {
 	TModel tm(16000, 0.45e9, 0.44e9, type, typename TModel::LossAnalysis());
 	tm.saveParticleCoords(STARTDIST_FILE);
-	tm.takeTimesteps(50*FREQ); // 50 seconds
+	auto freq = TModel::Accelerator::getLHC().revolution_freq;
+	tm.takeTimesteps(50*freq); // 50 seconds
 	tm.saveCollHits(COLL_FILE);
 
 	int ilastHit, lastHit = -1;
@@ -355,7 +382,7 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
 
 	std::cout 
 		<< "Latest hit:\n\tparticle " << ilastHit << ", turn " << lastHit 
-		<< "(approx. after " << std::setprecision(3) << (double(lastHit)/FREQ) << " s)\n"
+		<< "(approx. after " << std::setprecision(3) << (double(lastHit)/freq) << " s)\n"
 		<< "\tstarting energy " << std::setprecision(5) << energy[ilastHit] << std::endl;
 }
 
