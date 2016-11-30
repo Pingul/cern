@@ -9,26 +9,26 @@ from matplotlib.patches import Rectangle
 import math
 import numpy as np
 import itertools
+from scipy import stats
 
 from sys import argv
 
 ## Some global definitions
-PARTICLE_FILE = "particles.dat"
-LINE_FILE = "lines.dat"
-COLL_FILE = "coll.dat"
-RAMP_FILE = "ramp.txt"
-STARTDIST_FILE = "startdist.dat"
+PARTICLE_FILE = "data/particles.dat"
+LINE_FILE = "data/lines.dat"
+COLL_FILE = "data/coll.dat"
+# RAMP_FILE = "resources/ramp.txt"
+RAMP_FILE = "resources/cLHC_momentum_programme6.5TeV.dat"
+STARTDIST_FILE = "data/startdist.dat"
 
 PLOT_FRAME = {
 	'x' : [-2*math.pi, 4*math.pi],
 	'y' : [-2e9, 2e9]
 }
 
-ACTION = argv[1]
 SAVE_FILE = ''
 if (len(argv) > 2):
 	SAVE_FILE = argv[2]
-
 
 def moving_average(sequence, N):
 	""" Moving average given the sequence. Returns an list equal in length
@@ -36,9 +36,6 @@ def moving_average(sequence, N):
 
 	average = np.convolve(sequence, np.ones((N,))/N, mode='same')
 	return average
-
-if len(argv) < 2:
-	raise Exception("not enough arguments")
 
 # def get_lossmap(collfile, with_id=False, with_coll_values=False):
 def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
@@ -197,16 +194,6 @@ def animate_trajectory():
 	traj.fetch_collimators()
 	traj.animate(save_to=SAVE_FILE)
 
-
-def read_ramp(file, turns):
-	ramp = np.empty(turns)
-	with open(file, 'r') as f:
-		for i, line in enumerate(f.readlines()):
-			if i >= turns: 
-				break
-			ramp[i] = float(line.rstrip().split()[-1])*1e6 # unit is in MeV
-	return ramp		
-
 def plot_lossmap_phase():
 	lossmap = get_lossmap(COLL_FILE, with_attr=['id', 'phase'])
 
@@ -228,15 +215,6 @@ def plot_lossmap_phase():
 	ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
 	fig.suptitle("Lossmap time vs phase")
 
-	# plt.draw()
-
-	# startdist_e = []
-	# with open(STARTDIST_FILE, "r") as f:
-	# 	for line in f.readlines():
-	# 		startdist_e.append(float(line.rstrip().split(',')[1]))
-
-	# fig, ax = plt.subplots()
-	# ax.scatter()
 	plt.show()
 
 def find_spikes(averaged_loss_data):
@@ -274,7 +252,7 @@ def plot_lossmap(save_to=''):
 	turns = np.array(range(max_turn_loss + 100))
 	secs = np.array([turn/11245.0 for turn in turns])
 	losses = np.array([lossmap[turn] if turn in lossmap else 0 for turn in turns])
-	ramp = np.array(read_ramp(RAMP_FILE, len(turns)))
+	ramp = np.array(read_ramp(RAMP_FILE, len(turns))['e'])
 
 	n = nbr_p
 	intensity = np.empty(len(losses))
@@ -322,11 +300,61 @@ def plot_lossmap(save_to=''):
 		plt.savefig(save_to) 
 	plt.show()
 
+def read_ramp(file, nbr_turns):
+	e = np.empty(nbr_turns)
+	with open(file, 'r') as f:
+		for i, line in enumerate(f.readlines()):
+			if i >= nbr_turns: break
+			e[i] = float(line.rstrip().split()[1])*1e6
+
+	turns = range(nbr_turns)
+	de = np.gradient(e)
+
+	slope, intercept, r_value, p_value, std_err = stats.linregress(turns, de)
+	de_fitted = [slope*turn + intercept for turn in turns]
+	e_fitted = []
+	s = 0
+	for v in de_fitted:
+		s += v
+		e_fitted.append(s + 450e9)
+
+	return {'e' : e, 'e_fitted' : e_fitted, 'de' : de, 'de_fitted' : de_fitted}
+
+def export_fitted_ramp():
+	ramp = read_ramp(RAMP_FILE, 500000)
+	with open("ramp_fitted.txt", 'w') as f:
+		for i, v in enumerate(ramp['e_fitted']):
+			f.write("{} {:.16f}\n".format(i, v/1e6))
+
+
 def plot_energy_oscillations():
-	traj = Trajectory()
-	traj.plot_energy_oscillations(0)
+	nbr_turns = 500000
+	ramp = read_ramp(RAMP_FILE, nbr_turns)
+	turns = range(nbr_turns)
+
+	fig = plt.figure()
+	e_ax = fig.add_subplot(211)
+	de_ax = fig.add_subplot(212, sharex=e_ax)
+
+	e_ax.plot(turns, ramp['e'], color='b')
+	# e_ax.plot(turns, ramp['e_fitted'], color='red')
+	e_ax.set_ylabel("E (GeV)")
+	e_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
+	e_ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
+
+	de_ax.plot(turns, ramp['de'], color='b')
+	# de_ax.plot(turns, ramp['de_fitted'], color='red')
+	de_ax.set_ylabel("∆E (MeV/turn)")
+	de_ax.set_xlabel("Time (kturns)")
+	de_ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e6)))
+
+	fig.suptitle("LHC ramp")
+
+	plt.show()
+
 
 if __name__ == "__main__":
+	ACTION = argv[1]
 	if ACTION == "animate":
 		print("animate trajectory")
 		animate_trajectory()
