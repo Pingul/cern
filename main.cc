@@ -30,6 +30,7 @@ static constexpr const char* LINE_FILE = "data/lines.dat";
 static constexpr const char* COLL_FILE = "data/coll.dat";
 // static constexpr const char* RAMP_FILE = "resources/ramp.txt";
 static constexpr const char* RAMP_FILE = "resources/cLHC_momentum_programme6.5TeV.dat";
+static constexpr const char* COLL_MOTOR_FILE = "resources/motor_tcp.txt";
 static constexpr const char* STARTDIST_FILE = "data/startdist.dat";
 
 template <typename T>
@@ -245,7 +246,7 @@ struct ToyModel
 		tbb::parallel_for(tbb::blocked_range<size_t>(0, size()), op);
 	}
 
-	void loadRamp(std::vector<T>& E_ramp, std::vector<std::pair<T>>& collimators)
+	// void loadRamp(std::vector<T>& E_ramp, std::vector<std::pair<T>>& collimators)
 
 	void takeTimesteps(int n, std::string filePath = "", int saveFreq = 1)
 	{
