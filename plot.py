@@ -159,8 +159,10 @@ class Trajectory:
 	def animate(self, save_to=""):
 		self.ax.set_xlim(PLOT_FRAME['x'])
 		self.ax.set_ylim(PLOT_FRAME['y'])
-		self.ax.set_xlabel("Phase")
-		self.ax.set_ylabel("∆E (eV)")
+		self.ax.set_xlabel("Phase (radians)")
+		self.ax.set_ylabel("∆E (GeV)")
+		self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
+		self.ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}π".format(x/math.pi)))
 		self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
 
 		self.lost_plot = self.ax.scatter([], [], color='r', marker='x', zorder=20)
@@ -169,6 +171,7 @@ class Trajectory:
 		self.lost_particles = {'denergy': [], 'phase': []}
 
 		ani = animation.FuncAnimation(self.fig, self.update, int(len(self.denergy)/self.nbr_p), interval=50, blit=False)
+
 		if save_to:
 			print("saving simulation to '{}'".format(save_to))
 			self.fig.suptitle(save_to)
@@ -262,7 +265,7 @@ def plot_lossmap(save_to=''):
 
 	average_losses = moving_average(losses, 1125)
 
-	spikes = find_spikes(average_losses)
+	# spikes = find_spikes(average_losses)
 	print(len(spikes), "spikes:")
 	for i, spike in enumerate(spikes, 1):
 		print("\t{:g}: {:.2f} -> {:.2f} s ".format(i, secs[spike[0]], secs[spike[1]]))
