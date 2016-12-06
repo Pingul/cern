@@ -29,7 +29,7 @@ static constexpr const char* PATH_FILE = "data/particles.dat";
 static constexpr const char* LINE_FILE = "data/lines.dat";
 static constexpr const char* COLL_FILE = "data/coll.dat";
 // static constexpr const char* RAMP_FILE = "resources/ramp.txt";
-static constexpr const char* RAMP_FILE = "resources/cLHC_momentum_programme6.5TeV.dat";
+static constexpr const char* RAMP_FILE = "resources/short_LHC_momentum_programme.dat";
 static constexpr const char* COLL_MOTOR_FILE = "resources/motor_tcp.txt";
 static constexpr const char* STARTDIST_FILE = "data/startdist.dat";
 
