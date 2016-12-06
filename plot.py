@@ -263,9 +263,10 @@ def plot_lossmap(save_to=''):
 		n -= v
 		intensity[i] = float(n)/nbr_p
 
-	average_losses = moving_average(losses, 1125)
+	average_losses = moving_average(losses, int(1.3*11245))
+	# average_losses = moving_average(losses, 1125)
 
-	# spikes = find_spikes(average_losses)
+	spikes = find_spikes(average_losses)
 	print(len(spikes), "spikes:")
 	for i, spike in enumerate(spikes, 1):
 		print("\t{:g}: {:.2f} -> {:.2f} s ".format(i, secs[spike[0]], secs[spike[1]]))
@@ -292,7 +293,7 @@ def plot_lossmap(save_to=''):
 
 	loss_ax = intensity_ax.twinx()
 	loss_ax.plot(turns, average_losses, color='r', linestyle='--', label='∆loss')
-	loss_ax.set_ylabel("Losses (∆particles/0.1s)")
+	loss_ax.set_ylabel("Losses (∆particles/1.3s)")
 	loss_ax.spines['right'].set_position(('axes', 1.15))
 	if max(losses) > 0:
 		loss_ax.set_yscale('log')
