@@ -120,11 +120,11 @@ struct ToyModel
 		for (size_t i = 0; i < n; ++i) {
 			const T deltaE = e_dist(generator);
 			const T phase = ph_dist(generator);
-			const T H = hamiltonian(mAcc, deltaE, phase);
-			if (H > 0) {
+			// const T H = hamiltonian(mAcc, deltaE, phase);
+			// if (H > 0) {
 				mEnergy.push_back(deltaE); 
 				mPhase.push_back(phase); 
-			}
+			// }
 		}
 	}
 
@@ -172,10 +172,10 @@ struct ToyModel
 	{
 		const T Emax = 7e8;
 		const T Emin = -Emax;
-		const T Estep = (Emax - Emin)/200;
+		const T Estep = (Emax - Emin)/300;
 		const T PHmax = 2.1*CONST::pi;
 		const T PHmin = 0;
-		const T PHstep = (PHmax - PHmin)/200;
+		const T PHstep = (PHmax - PHmin)/300;
 
 		for (T de = Emin; de < Emax; de += Estep) {
 			for (T ph = PHmin; ph < PHmax; ph += PHstep) {
@@ -187,6 +187,8 @@ struct ToyModel
 			}
 		}
 		mCollHits.assign(size(), -1);
+
+		std::cout << "Generated " << size() << " particles" << std::endl;
 	}
 
 	size_t size() const { return mEnergy.size(); }
@@ -246,44 +248,60 @@ struct ToyModel
 		tbb::parallel_for(tbb::blocked_range<size_t>(0, size()), op);
 	}
 
-	// void loadRamp(std::vector<T>& E_ramp, std::vector<std::pair<T>>& collimators)
+	void loadRamp(int steps, std::vector<T>& E_ramp, std::vector<std::pair<T, T>>& collimators) 
+	{
+		E_ramp.reserve(steps);
+		collimators.reserve(steps);
+
+		T data;
+		switch (mType) {
+			default:
+			case LHC_RAMP: {
+				std::ifstream ramp_file(RAMP_FILE);
+				for (int i = 0; i < steps; ++i) {
+					ramp_file >> data;
+					ramp_file >> data;
+					E_ramp.push_back(data*1e6);
+				}
+				ramp_file.close();
+
+				std::ifstream coll_file(COLL_MOTOR_FILE);
+				std::cout << "Reading '" << COLL_MOTOR_FILE << "'..." << std::endl;
+				for (int i = 0; i < steps; ++i) {
+					T bot_coll, top_coll;
+					// 		 	 line #
+					coll_file >> bot_coll >> bot_coll >> top_coll;
+					collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
+				}
+				break;
+			}
+			case AGGRESSIVE_RAMP:
+				for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*1e7);
+				break;
+			case SEMI_AGGRESSIVE_RAMP:
+				for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*3e6);
+				break;
+		}
+
+	}
 
 	void takeTimesteps(int n, std::string filePath = "", int saveFreq = 1)
 	{
 		if (filePath.empty())
 			std::cout << "Will not save particle path data" << std::endl;
 		else  {
-			std::cout << "Saving path to '" << filePath << "'" << std::endl;
 			createTurnFile(filePath, n + 1); // +1 as we are saving the first starting configuration as well
 			saveParticleCoords(filePath);
 		}
 
 		std::vector<T> E_ramp;
+		std::vector<std::pair<T, T>> ext_collimators;
 		if (mType > NO_RAMP) {
-			E_ramp.reserve(n);
-
-			std::ifstream file(RAMP_FILE);
-			T data;
-			for (int i = 0; i < n; ++i) {
-				switch (mType) {
-					default:
-					case LHC_RAMP:
-						file >> data; // the line number
-						file >> data; // the actual data
-						E_ramp.push_back(data*1e6);
-						break;
-					case AGGRESSIVE_RAMP:
-						// linear ramp
-						E_ramp.push_back(450e9 + i*1e7);
-						break;
-					case SEMI_AGGRESSIVE_RAMP:
-						E_ramp.push_back(450e9 + i*3e6);
-						break;
-				}
-
-			}
+			loadRamp(n, E_ramp, ext_collimators);
 			mAcc.E_ref = E_ramp[0];
 		}
+
+		std::cout << "Starting simulation..." << std::endl;
 
 		for (int i = 0; i < n; ++i) {
 			if (mType > NO_RAMP) {
@@ -291,7 +309,13 @@ struct ToyModel
 				mAcc.E_ref = E_ramp[i];
 
 				// Adjust all particle energies
-				for (T& e : mEnergy) e -= deltaE;
+				for (T& e : mEnergy) 
+					e -= deltaE;
+
+				if (!ext_collimators.empty()) {
+					mAcc.coll_bot = ext_collimators[i].first;
+					mAcc.coll_top = ext_collimators[i].second;
+				}
 			}
 
 			takeTimestep(i);
@@ -369,7 +393,7 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
 	TModel tm(type, typename TModel::LossAnalysis());
 	tm.saveParticleCoords(STARTDIST_FILE);
 	auto freq = TModel::Accelerator::getLHC().revolution_freq;
-	tm.takeTimesteps(50*freq); // 50 seconds
+	tm.takeTimesteps(300*freq); // 50 seconds
 	tm.saveCollHits(COLL_FILE);
 
 	int ilastHit, lastHit = -1;
@@ -407,9 +431,9 @@ int main(int argc, char* argv[])
 	} else if (args[1] == "animate") {
 		{
 			std::cout << "Creating particle paths" << std::endl;
-			// ToyModel tm(1000, type);
-			ToyModel tm(type, ToyModel::LossAnalysis());
-			tm.takeTimesteps(500, jwc::PATH_FILE);
+			ToyModel tm(1000, type);
+			// ToyModel tm(type, ToyModel::LossAnalysis());
+			tm.takeTimesteps(50000, jwc::PATH_FILE, 10);
 			tm.saveCollHits(jwc::COLL_FILE);
 		}
 		{
