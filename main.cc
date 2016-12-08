@@ -14,7 +14,7 @@ namespace CONST {
 
 constexpr double pi = 3.14159265359;
 constexpr double c = 299792458.0;
-constexpr double m_proton = 938e6;
+constexpr double m_proton = 938.2796e6;
 
 }; // namespace CONST
 
@@ -53,7 +53,7 @@ struct Accelerator
 		// Parameters for LHC can be found at http://atlas.physics.arizona.edu/~kjohns/downloads/linac/UTclass2lhc.pdf
 		Acc acc;
 		acc.E_ref = T(450e9);
-		acc.rf_voltage = T(8e6);
+		acc.rf_voltage = T(16e6);
 		acc.harmonic = T(35640);
 		acc.m_compaction = T(0.0003225);
 		acc.coll_top = T(0.5e9);
@@ -131,6 +131,7 @@ struct ToyModel
 	// For parameter passing in the next constructors
 	struct LineSim {};
 	struct LossAnalysis {};
+	struct SixTrackTest {};
 
 	ToyModel(RAMP_TYPE type, LineSim)
 		: mAcc(Accelerator::getLHC_NOCOLL()), mType(type)
@@ -189,6 +190,13 @@ struct ToyModel
 		mCollHits.assign(size(), -1);
 
 		std::cout << "Generated " << size() << " particles" << std::endl;
+	}
+
+	ToyModel(SixTrackTest)
+		: mAcc(Accelerator::getLHC()), mType(LHC_RAMP)
+	{
+		mEnergy.push_back(T(-4e5));
+		mPhase.push_back(CONST::pi);
 	}
 
 	size_t size() const { return mEnergy.size(); }
@@ -379,8 +387,8 @@ private:
 
 	Accelerator mAcc;
 	// Particle properties
-	std::vector<T> mEnergy;
-	std::vector<T> mPhase;
+	std::vector<T> mEnergy; // eV
+	std::vector<T> mPhase; // radians
 
 	std::vector<int> mCollHits;
 
@@ -454,6 +462,10 @@ int main(int argc, char* argv[])
 	} else if (args[1] == "lossmap-analysis") {
 		std::cout << "Loss pattern analysis" << std::endl;
 		jwc::generateLossmap<ToyModel>(type);
+	} else if (args[1] == "sixtrack-comp") {
+		std::cout << "Sixtrack comparison" << std::endl;
+		ToyModel tm( (ToyModel::SixTrackTest()) );
+		tm.takeTimesteps(40000, "toymodel_track.dat");
 	} else {
 		std::cout << "No action with name '" << args[1] << "' found" << std::endl;
 	}
