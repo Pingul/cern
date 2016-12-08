@@ -7,6 +7,8 @@ import pickle
 import numpy as np
 import bisect
 
+from matplotlib.ticker import FuncFormatter
+
 from scipy import stats
 from scipy import interpolate
 
@@ -554,9 +556,13 @@ def intensity_and_OML_pruning(file_in, file_out):
 	print('\tmis-categorised {}'.format(wrongly_categorised))
 	print('\ttotal {}%'.format(removed))
 
-def export_energy_ramp_to_sixtrack(file_out='resources/ramp.txt', fill=5433, interpolation_type='cubic'):
-	print("{} interpolation".format(interpolation_type))
+def export_energy_ramp_to_sixtrack(file_out='ramp.txt', fill=5433, interpolation_type='cubic'):
 	f = Fill(fill)
+
+	file_out = "calc/{}_{}".format(fill, file_out)
+	print("Ramp export: {} interpolation".format(interpolation_type))
+	print("Writing to file '{}'".format(file_out))
+
 	freq = 11245 # laps / s
 	with open(file_out, 'w') as file:
 		x = f.data['energy'].x[0:300] # at least 300 s, should be enough
@@ -571,16 +577,20 @@ def export_energy_ramp_to_sixtrack(file_out='resources/ramp.txt', fill=5433, int
 			turnnbr = int(round(new_x[i])) + 1 # 1 indexed
 			file.write('{} {}\n'.format(turnnbr, scaled_e))
 
-def export_momentum_tcp_squeeze(file_out='resources/motor_tcp.txt', fill=5433, interpolation_type='cubic'):
-	print("TCP movement: {} interpolation".format(interpolation_type))
+def export_momentum_tcp_squeeze(file_out='motor_tcp.txt', fill=5433, interpolation_type='cubic'):
 	f = Fill(fill)
-	freq = 11245 # laps / s
+
+	file_out = "calc/{}_{}".format(fill, file_out)
+	print("TCP movement: {} interpolation".format(interpolation_type))
+	print("Writing to file '{}'".format(file_out))
+
 	ispike = find_start_of_ramp(f.data['energy'])
 	tspike = f.data['energy'].x[ispike]
-
 	istart = bisect.bisect_left(f.data['A_tcp_motor_ld'].x, tspike)
 	iend = istart + 300 # at least 300 s
 
+	dispersion = -2.07e3 # in mm
+	freq = 11245 # laps / s
 	with open(file_out, 'w') as file:
 		# the data is aligned, so we can use the same x for both y
 		x = f.data['A_tcp_motor_ld'].x[istart:iend]
@@ -595,7 +605,47 @@ def export_momentum_tcp_squeeze(file_out='resources/motor_tcp.txt', fill=5433, i
 		for i, m_low in enumerate(new_y_low):
 			m_high = new_y_high[i]
 			turnnbr = int(round(new_x[i])) + 1 # 1 indexed
-			file.write('{} {} {}\n'.format(turnnbr, m_low, m_high))
+			file.write('{} {} {}\n'.format(turnnbr, m_low/dispersion, m_high/dispersion))
+
+def plot_collimator_ramp(ramp_file='resources/LHC_ramp.dat', collimator_file='calc/5433_motor_tcp.txt'):
+	turns = range(3000000)
+	# turns = range(300000)
+	top_coll = []
+	bot_coll = []
+	ramp = []
+
+	with open(ramp_file, 'r') as f:
+		for turn in turns:
+			line = f.readline()
+			e = float(line.rstrip().split()[1])
+			ramp.append(e)
+
+	with open(collimator_file, 'r') as f:
+		for turn in turns:
+			line = f.readline()
+			# bc, tc = map(float, line.rstrip().split()[1:])
+			bc, tc = map(lambda x : float(x)*ramp[turn], line.rstrip().split()[1:])
+			top_coll.append(tc)
+			bot_coll.append(bc)
+
+	fig, e_ax = plt.subplots()
+	coll_ax = e_ax.twinx()
+
+	e_ax.plot(turns, ramp, color='black')
+	e_ax.set_xlabel("Time (kturns)")
+	e_ax.set_ylabel("Energy (GeV)")
+	e_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
+	e_ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
+
+	coll_ax.plot(turns, bot_coll, color='r')
+	coll_ax.plot(turns, top_coll, color='r')
+	coll_ax.set_ylabel("Collimatur cut (GeV)")
+	coll_ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
+
+	fig.suptitle("Collimator movement during start of ramp")
+
+	plt.show()
+
 
 
 
