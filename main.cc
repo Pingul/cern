@@ -25,13 +25,14 @@ static constexpr double FRAME_X_HIGH = 4*CONST::pi;
 static constexpr double FRAME_Y_LOW = -2e9;
 static constexpr double FRAME_Y_HIGH = 2e9;
 
-static constexpr const char* PATH_FILE = "data/particles.dat";
-static constexpr const char* LINE_FILE = "data/lines.dat";
-static constexpr const char* COLL_FILE = "data/coll.dat";
+static constexpr const char* PATH_FILE = "calc/particles.dat";
+static constexpr const char* LINE_FILE = "calc/lines.dat";
+static constexpr const char* COLL_FILE = "calc/coll.dat";
+static constexpr const char* STARTDIST_FILE = "calc/startdist.dat";
+static constexpr const char* SIXTRACK_TEST_FILE = "calc/toymodel_track.dat";
 // static constexpr const char* RAMP_FILE = "resources/ramp.txt";
-static constexpr const char* RAMP_FILE = "resources/short_LHC_momentum_programme.dat";
+static constexpr const char* RAMP_FILE = "resources/LHC_ramp.dat";
 static constexpr const char* COLL_MOTOR_FILE = "resources/motor_tcp.txt";
-static constexpr const char* STARTDIST_FILE = "data/startdist.dat";
 
 template <typename T>
 struct Accelerator
@@ -465,7 +466,7 @@ int main(int argc, char* argv[])
 	} else if (args[1] == "sixtrack-comp") {
 		std::cout << "Sixtrack comparison" << std::endl;
 		ToyModel tm( (ToyModel::SixTrackTest()) );
-		tm.takeTimesteps(40000, "toymodel_track.dat");
+		tm.takeTimesteps(40000, jwc::SIXTRACK_TEST_FILE);
 	} else {
 		std::cout << "No action with name '" << args[1] << "' found" << std::endl;
 	}

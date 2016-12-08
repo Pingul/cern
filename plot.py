@@ -14,12 +14,11 @@ from scipy import stats
 from sys import argv
 
 ## Some global definitions
-PARTICLE_FILE = "data/particles.dat"
-LINE_FILE = "data/lines.dat"
-COLL_FILE = "data/coll.dat"
-# RAMP_FILE = "resources/ramp.txt"
-RAMP_FILE = "resources/cLHC_momentum_programme6.5TeV.dat"
-STARTDIST_FILE = "data/startdist.dat"
+PARTICLE_FILE = "calc/particles.dat"
+LINE_FILE = "calc/lines.dat"
+COLL_FILE = "calc/coll.dat"
+STARTDIST_FILE = "calc/startdist.dat"
+RAMP_FILE = "resources/LHC_ramp.dat"
 
 PLOT_FRAME = {
 	'x' : [-2*math.pi, 4*math.pi],
