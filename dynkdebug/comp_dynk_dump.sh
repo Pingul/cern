@@ -24,4 +24,4 @@ cat $stdout | grep "DDD>\s*2\s" | sed 's/DDD>[ \t]*//g' > "p2.txt"
 
 echo "Plotting..."
 
-/opt/local/bin/python3.5 plot.py $dr
+python3.5 comp_dynk_dump.py $dr
