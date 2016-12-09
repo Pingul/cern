@@ -9,6 +9,7 @@
 #include <tbb/parallel_for.h>
 #include <iomanip>
 #include <limits>
+#include "common.hh"
 
 namespace CONST {
 
@@ -121,11 +122,8 @@ struct ToyModel
 		for (size_t i = 0; i < n; ++i) {
 			const T deltaE = e_dist(generator);
 			const T phase = ph_dist(generator);
-			// const T H = hamiltonian(mAcc, deltaE, phase);
-			// if (H > 0) {
-				mEnergy.push_back(deltaE); 
-				mPhase.push_back(phase); 
-			// }
+			mEnergy.push_back(deltaE); 
+			mPhase.push_back(phase); 
 		}
 	}
 
@@ -172,17 +170,17 @@ struct ToyModel
 	ToyModel(RAMP_TYPE type, LossAnalysis) 
 		: mAcc(Accelerator::getLHC()), mType(type)
 	{
-		const T Emax = 7e8;
+		const T Emax = 9e8;
 		const T Emin = -Emax;
-		const T Estep = (Emax - Emin)/300;
+		const T Estep = (Emax - Emin)/200;
 		const T PHmax = 2.1*CONST::pi;
 		const T PHmin = 0;
-		const T PHstep = (PHmax - PHmin)/300;
+		const T PHstep = (PHmax - PHmin)/200;
 
 		for (T de = Emin; de < Emax; de += Estep) {
 			for (T ph = PHmin; ph < PHmax; ph += PHstep) {
 				const T H = hamiltonian(mAcc, de, ph);
-				if (H > 1e5 && H < 2.2e5) {
+				if (H > 1.5e5 && H < 4.5e6) {
 					mEnergy.push_back(de);
 					mPhase.push_back(ph);
 				}
@@ -268,8 +266,7 @@ struct ToyModel
 			case LHC_RAMP: {
 				std::ifstream ramp_file(RAMP_FILE);
 				for (int i = 0; i < steps; ++i) {
-					ramp_file >> data;
-					ramp_file >> data;
+					ramp_file >> skip >> data;
 					E_ramp.push_back(data*1e6);
 				}
 				ramp_file.close();
@@ -278,8 +275,7 @@ struct ToyModel
 				std::cout << "Reading '" << COLL_MOTOR_FILE << "'..." << std::endl;
 				for (int i = 0; i < steps; ++i) {
 					T bot_coll, top_coll;
-					// 		 	 line #
-					coll_file >> bot_coll >> bot_coll >> top_coll;
+					coll_file >> skip >> bot_coll >> top_coll;
 					collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
 				}
 				break;
@@ -441,7 +437,6 @@ int main(int argc, char* argv[])
 		{
 			std::cout << "Creating particle paths" << std::endl;
 			ToyModel tm(1000, type);
-			// ToyModel tm(type, ToyModel::LossAnalysis());
 			tm.takeTimesteps(50000, jwc::PATH_FILE, 10);
 			tm.saveCollHits(jwc::COLL_FILE);
 		}
