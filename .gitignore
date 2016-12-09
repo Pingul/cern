@@ -1,19 +1,19 @@
-*.dat
-*.png
+# C++
+a.out
+main
+
+# Python
+__pycache__/
+
+# General
+.DS_Store
 
 movies/
 results/
+calc/
+resources/
 
-ramp.txt
-
-main
-
+*.dat
+*.png
 *.txt
 *.log
-
-plot_fills_over_time.py
-
-fills/
-__pycache__/
-
-.DS_Store
