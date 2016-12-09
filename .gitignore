@@ -7,3 +7,13 @@ results/
 ramp.txt
 
 main
+
+*.txt
+*.log
+
+plot_fills_over_time.py
+
+fills/
+__pycache__/
+
+.DS_Store
