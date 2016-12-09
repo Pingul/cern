@@ -11,7 +11,7 @@ __pycache__/
 movies/
 results/
 calc/
-resources/
+resources
 
 *.dat
 *.png
