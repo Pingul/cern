@@ -1,0 +1,9 @@
+*.dat
+*.png
+
+movies/
+results/
+
+ramp.txt
+
+main
