@@ -192,10 +192,11 @@ struct ToyModel
 	}
 
 	ToyModel(SixTrackTest)
-		: mAcc(Accelerator::getLHC()), mType(LHC_RAMP)
+		: mAcc(Accelerator::getLHC()), mType(NO_RAMP)
 	{
-		mEnergy.push_back(T(-4e5));
+		mEnergy.push_back(T(0.4e6));
 		mPhase.push_back(CONST::pi);
+		// mPhase.push_back(0);
 	}
 
 	size_t size() const { return mEnergy.size(); }
@@ -265,6 +266,7 @@ struct ToyModel
 			default:
 			case LHC_RAMP: {
 				std::ifstream ramp_file(RAMP_FILE);
+				std::cout << "Reading '" << RAMP_FILE << "'..." << std::endl;
 				for (int i = 0; i < steps; ++i) {
 					ramp_file >> skip >> data;
 					E_ramp.push_back(data*1e6);
