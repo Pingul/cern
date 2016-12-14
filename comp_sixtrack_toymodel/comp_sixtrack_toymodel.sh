@@ -14,7 +14,7 @@ dump=$dr/DUMP.txt
 
 cat $dump | grep "^\s*1\s" > __1p.txt
 tail -n +2 $dynkset > __dynkset.dat
-paste __dynkset.dat __1p.txt | awk 'BEGIN {print "#turn Eref Epart"} {printf("%d %f %f\n", $8, $6, ($6 + $6*$15))}' > 1p.txt
+paste __dynkset.dat __1p.txt | awk 'BEGIN {print "#turn Eref Epart phase"} {printf("%d %f %f %f\n", $8, $6, ($6 + $6*$15), $14)}' > 1p.txt
 
 rm -f __1p.txt __dynkset.dat
 
