@@ -83,7 +83,8 @@ def fit(x, test_func, param=1.0, threshold=0.00001, maxiter=20):
 p1['e_calc'] = dynk_val*(1.0 + p1['e_delta'])
 # p1['e_calc'] = shift(p1['e_calc'], 1, cval=450e3)
 
-# fitting energy
+
+# Function used previously when we had a discrepancy in energy
 # p = fit(p1['e_calc'], lambda x : mean_sq_err(x, p1['e_real']))
 # p1['e_calc'] += p
 

@@ -1,3 +1,12 @@
+# Compares the internal Sixtrack total energy with the total 
+# momentum of a particle (both given by printouts in sixtrack.s).
+#
+# Assuming we find 
+#	'dynksets.dat' 	: result from using DEBUG in dynk module
+#	'six'  			: output from sixtrack containing lines like
+#					: 'DDD>ejfv		id		value'
+#					  'DDD>ejv 		id 		value' to parse
+
 dr=$1
 stdout=$dr/six
 

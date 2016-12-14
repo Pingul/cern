@@ -32,8 +32,9 @@ turns = range(size)
 
 fig, ax = plt.subplots()
 ax.plot(turns, dynk_val, color='black', label='ref')
-ax.plot(turns, total_momentum, color='b', label='total energy')
-ax.plot(turns, total_energy, color='r', label='momentum')
+ax.plot(turns, total_energy, color='r', label='total energy')
+ax.plot(turns, total_momentum, color='b', label='momentum')
+ax.legend(loc="upper left")
 
 ax.set_xlabel("Turns")
 ax.set_ylabel("Energy (GeV)")
