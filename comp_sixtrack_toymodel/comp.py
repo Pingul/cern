@@ -4,31 +4,35 @@ from matplotlib.ticker import FuncFormatter
 from collections import namedtuple
 from math import pi
 
-C_DIV_FREQ = 299793458.0/400e6*1e3 # converting to mm 
+C_DIV_FREQ = 299793458.0/398765412.66*1e3 # converting to mm 
 
 def phi_to_z(phi):
-    return (phi - pi)/(2.0*pi)*C_DIV_FREQ
+    return (pi - phi)/(2.0*pi)*C_DIV_FREQ
 
 def comp():
     turns = []
     e_ramp = []
 
-    BucketData = namedtuple("BucketData", 'e de phi')
-    six_part = BucketData([], [], [])
-    toymodel = BucketData([], [], [])
+    BucketData = namedtuple("BucketData", 'e de phi z')
+    six_part = BucketData([], [], [], [])
+    toymodel = BucketData([], [], [], [])
 
     with open("1p.txt", 'r') as f:
+        z_offset, de_offset = map(float, f.readline().strip().split())
         for line in f.readlines():
             if line.lstrip().startswith("#"): continue
             d = line.rstrip().split()
             turn = int(d[0])
-            e_ref, e_part, e_phi = map(float, d[1:])
+            e_ref, e_part, z = map(float, d[1:])
+
+            z -= z_offset
+            e_part -= 0.45e6*de_offset # Kyrre suggested 0.5e6 here. Why the 0.5? Could it be because that is the diameter of the bucket?
 
             turns.append(turn)
             e_ramp.append(e_ref)
             six_part.e.append(e_part)
             six_part.de.append(e_part - e_ref)
-            six_part.phi.append(e_phi)
+            six_part.z.append(z)
 
     with open('toymodel_track.dat', 'r') as f:
         f.readline() # throw away first line
@@ -42,7 +46,7 @@ def comp():
                 turn_it += 1
             toymodel.e.append(energy/1e6 + e_ramp[turn_it - 1])
             toymodel.de.append(energy/1e6)
-            toymodel.phi.append(phi_to_z(phase))
+            toymodel.z.append(phi_to_z(phase))
 
 
     # Energy plot
@@ -58,17 +62,17 @@ def comp():
     ax.set_xlabel("Turn")
 
     nbr_p = len(e_ramp)
-    Point = namedtuple('Point', 'x y')
-    six_center = Point(1.0/nbr_p*sum(six_part.phi), 1.0/nbr_p*sum(six_part.de))
-    toy_center = Point(1.0/nbr_p*sum(toymodel.phi), 1.0/nbr_p*sum(toymodel.de))
-    print("six center: ", six_center, "toy center: ", toy_center)
+    Point = namedtuple('Point', 'z e')
+    six_center = Point(1.0/nbr_p*sum(six_part.z), 1.0/nbr_p*sum(six_part.de))
+    toy_center = Point(1.0/nbr_p*sum(toymodel.z), 1.0/nbr_p*sum(toymodel.de))
+    print("six center: ", six_center, "\ntoy center: ", toy_center)
 
     #Bucket diagram
     fig2, ax2 = plt.subplots()
-    ax2.scatter(six_part.phi, six_part.de, color='b', label='sixtrack')
-    ax2.scatter(*six_center, color='b', marker='x')
-    ax2.scatter(toymodel.phi, toymodel.de, color='r', label='toymodel')
-    ax2.scatter(*toy_center, color='r', marker='x')
+    ax2.scatter(six_part.z, six_part.de, color='b', label='sixtrack')
+    ax2.scatter(*six_center, color='b', marker='x', zorder=10)
+    ax2.scatter(toymodel.z, toymodel.de, color='r', label='toymodel')
+    ax2.scatter(*toy_center, color='r', marker='x', zorder=10)
 
     ax2.set_axisbelow(True)
     ax2.yaxis.grid(color='gray', linestyle='--')

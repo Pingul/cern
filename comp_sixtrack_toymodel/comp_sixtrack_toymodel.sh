@@ -4,32 +4,38 @@
 dr=$1
 comp_dir=`pwd`
 
-echo "Curent directory: '$comp_dir'"
+echo "--- Current directory: '$comp_dir'"
 
 # Sixtrack
-echo "Fetching data from Sixtrack..."
-echo "	reading from '$dr'"
+echo "--- SixTrack: reading from '$dr'"
 dynkset=$dr/dynksets.dat
 dump=$dr/DUMP.txt
+six=$dr/six
 
-cat $dump | grep "^\s*1\s" > __1p.txt
-tail -n +2 $dynkset > __dynkset.dat
-paste __dynkset.dat __1p.txt | awk 'BEGIN {print "#turn Eref Epart phase"} {printf("%d %f %f %f\n", $8, $6, ($6 + $6*$15), $14)}' > 1p.txt
+# Getting coordinate offsets
+echo "--- Parsing '$six'"
+grep -A 10 "CLOSED ORBIT AND" $six | grep "/CLS" | grep -o "[0-9-]*[.][0-9]*" | paste -d " " - - > 1p.txt
+
+# Getting coordinates
+echo "--- Parsing '$dump'"
+grep "^\s*1\s" $dump > __1p.txt
+
+echo "--- Parsing '$dynkset'"
+grep "energy" $dynkset > __dynkset.dat
+paste __dynkset.dat __1p.txt | awk 'BEGIN {print "#turn Eref Epart phase"} {printf("%d %f %f %f\n", $8, $6, ($6 + $6*$15), $14)}' >> 1p.txt
 
 rm -f __1p.txt __dynkset.dat
 
 # Toy model
 tm_dir=../2d-synchrotron
-echo "Running toy model simulation..."
-echo "	path '$tm_dir'"
-
-echo "--- START"
+echo "--- ToyModel: path '$tm_dir'"
+echo "--- Running simulation"
 cd $tm_dir
 make
 ./main sixtrack-comp
+echo "--- Copy back data"
 mv calc/toymodel_track.dat $comp_dir
 cd $comp_dir
-echo "--- FINISH"
 
-echo "Plotting..."
+echo "--- Plotting"
 python3.5 comp.py $dr
