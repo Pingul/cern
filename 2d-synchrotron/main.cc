@@ -41,8 +41,13 @@ struct Accelerator
 	using ValType = T;
 	using Acc = Accelerator<T>;
 
-	T E_ref;
+private:
+	// Use accessor methods for these instead
+	T mE_ref;
+	T mE_pref;
+public:
 	T rf_voltage;
+	T rf_freq;
 	T harmonic;
 	T m_compaction;
 	T coll_top;
@@ -54,14 +59,16 @@ struct Accelerator
 	{
 		// Parameters for LHC can be found at http://atlas.physics.arizona.edu/~kjohns/downloads/linac/UTclass2lhc.pdf
 		Acc acc;
-		acc.E_ref = T(450e9);
-		acc.rf_voltage = T(16e6);
+		acc.mE_ref = T(450e9); // eV
+		acc.mE_pref = acc.mE_ref;
+		acc.rf_voltage = T(16e6); // V
+		acc.rf_freq = T(398765412.66);
 		acc.harmonic = T(35640);
 		acc.m_compaction = T(0.0003225);
-		acc.coll_top = T(0.5e9);
+		acc.coll_top = T(0.5e9); // ∆eV
 		acc.coll_bot = T(-0.5e9);
-		acc.revolution_freq = T(11245);
-		acc.w_revolution_freq = 2*CONST::pi*acc.revolution_freq;
+		acc.revolution_freq = T(acc.rf_freq/acc.harmonic); // Hz
+		acc.w_revolution_freq = 2*CONST::pi*acc.revolution_freq; // Hz
 		return acc;
 	}
 
@@ -72,21 +79,25 @@ struct Accelerator
 		a.coll_bot = std::numeric_limits<T>::min();;
 		return a;
 	}
+
+	void setE(T v, bool reset = false) { mE_pref = mE_ref; if (reset) mE_pref = v; mE_ref = v; }
+	T E() const { return mE_ref; }
+	T E_prev() const { return mE_pref; }
 };
 
 template <typename T>
 inline T hamiltonian(const Accelerator<T>& acc, T deltaE, T phase)
 {
 	const T rev = acc.w_revolution_freq;
-	const T gamma = (acc.E_ref + deltaE)/CONST::m_proton;
+	const T gamma = (acc.E() + deltaE)/CONST::m_proton;
 	const T gamma_2 = T(1)/(gamma*gamma);
 	const T eta = gamma_2 - acc.m_compaction;
 	const T beta2 = T(1) - gamma_2;
 	const T beta = std::sqrt(beta2);
 	const T k = acc.harmonic*rev/(beta*CONST::c);
-	const T Omega2 = rev*rev*acc.harmonic*eta*acc.rf_voltage/(T(2)*CONST::pi*beta*acc.E_ref);
+	const T Omega2 = rev*rev*acc.harmonic*eta*acc.rf_voltage/(T(2)*CONST::pi*beta*acc.E());
 
-	const T H = T(1)/2*beta2*pow(CONST::c*k*eta*deltaE/acc.E_ref, 2) - Omega2*std::cos(phase);
+	const T H = T(1)/2*beta2*pow(CONST::c*k*eta*deltaE/acc.E(), 2) - Omega2*std::cos(phase);
 	return H;
 }
 
@@ -194,7 +205,7 @@ struct ToyModel
 	ToyModel(SixTrackTest)
 		: mAcc(Accelerator::getLHC()), mType(NO_RAMP)
 	{
-		mEnergy.push_back(T(0.4e6));
+		mEnergy.push_back(T(0.41646726612503554e6));
 		mPhase.push_back(CONST::pi);
 		// mPhase.push_back(0);
 	}
@@ -305,19 +316,19 @@ struct ToyModel
 		std::vector<std::pair<T, T>> ext_collimators;
 		if (mType > NO_RAMP) {
 			loadRamp(n, E_ramp, ext_collimators);
-			mAcc.E_ref = E_ramp[0];
+			mAcc.setE(E_ramp[0], true);
 		}
 
 		std::cout << "Starting simulation..." << std::endl;
 
 		for (int i = 0; i < n; ++i) {
 			if (mType > NO_RAMP) {
-				T deltaE = E_ramp[i] - mAcc.E_ref;
-				mAcc.E_ref = E_ramp[i];
+				// T deltaE = E_ramp[i] - mAcc.E();
+				mAcc.setE(E_ramp[i]);
 
-				// Adjust all particle energies
-				for (T& e : mEnergy) 
-					e -= deltaE;
+				// // Adjust all particle energies
+				// for (T& e : mEnergy) 
+				// 	e -= deltaE;
 
 				if (!ext_collimators.empty()) {
 					mAcc.coll_bot = ext_collimators[i].first;
@@ -359,15 +370,22 @@ private:
 		{
 			const T e = 1.0;
 			// const T m = 938e6;
-			const T B2_s = 1 - std::pow(CONST::m_proton/mAcc.E_ref, 2);
+			const T B2_s = 1 - std::pow(CONST::m_proton/mAcc.E(), 2);
 			for (size_t n = range.begin(), N = range.end(); n < N; ++n) {
 				if (particleInactive(n)) 
 					continue;
 
-				mEnergy[n] += e*mAcc.rf_voltage*(std::sin(mPhase[n]) - std::sin(0));
-				T B2 = T(1) - std::pow(CONST::m_proton/(mAcc.E_ref + mEnergy[n]), 2);
+				// We changed the reference energy before, update the ∆E accordingly
+				T deltaRef = mAcc.E() - mAcc.E_prev();
+				mEnergy[n] -= deltaRef;
+
+				// Give the particle a kick
+				// mEnergy[n] -= mAcc.rf_voltage*std::sin(deltaRef/mAcc.rf_voltage);
+
+				mEnergy[n] += e*mAcc.rf_voltage*std::sin(mPhase[n]);
+				T B2 = T(1) - std::pow(CONST::m_proton/(mAcc.E() + mEnergy[n]), 2);
 				T eta = T(1) - B2 - mAcc.m_compaction;
-				mPhase[n] += - T(2)*CONST::pi*mAcc.harmonic*eta/(B2_s*mAcc.E_ref)*mEnergy[n];
+				mPhase[n] += - T(2)*CONST::pi*mAcc.harmonic*eta/(B2_s*mAcc.E())*mEnergy[n];
 				if (particleCollided(n)) mCollHits[n] = mStepID;
 			}
 		}
