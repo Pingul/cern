@@ -22,7 +22,7 @@ grep "^\s*1\s" $dump > __1p.txt
 
 echo "--- Parsing '$dynkset'"
 grep "energy" $dynkset > __dynkset.dat
-paste __dynkset.dat __1p.txt | awk 'BEGIN {print "#turn Eref Epart phase"} {printf("%d %f %f %f\n", $8, $6, ($6 + $6*$15), $14)}' >> 1p.txt
+paste __dynkset.dat __1p.txt | awk 'BEGIN {print "#turn Eref Epart phase"} {printf("%d %.17g %.17g %.17g\n", $8, $6, ($6 + $6*$15), $14)}' >> 1p.txt
 
 rm -f __1p.txt __dynkset.dat
 
