@@ -3,11 +3,17 @@ from matplotlib.ticker import FuncFormatter
 
 from collections import namedtuple
 from math import pi
+import numpy as np
 
 C_DIV_FREQ = 299793458.0/398765412.66*1e3 # converting to mm 
 
 def phi_to_z(phi):
     return (pi - phi)/(2.0*pi)*C_DIV_FREQ
+
+def imax(data):
+    """ Returns both the max and the index for the max value """
+    i = max(range(len(data)), key = data.__getitem__)
+    return (data[i], i)
 
 def comp():
     turns = []
@@ -26,13 +32,15 @@ def comp():
             e_ref, e_part, z = map(float, d[1:])
 
             z -= z_offset
-            e_part -= 0.45e6*de_offset # Kyrre suggested 0.5e6 here. Why the 0.5? Could it be because that is the diameter of the bucket?
+            e_part -= 0.45e6*de_offset 
 
             turns.append(turn)
             e_ramp.append(e_ref)
             six_part.e.append(e_part)
             six_part.de.append(e_part - e_ref)
             six_part.z.append(z)
+
+    turns = np.array(turns)
 
     with open('toymodel_track.dat', 'r') as f:
         f.readline() # throw away first line
@@ -49,10 +57,36 @@ def comp():
             toymodel.z.append(phi_to_z(phase))
 
 
+    nbr_p = len(e_ramp)
+
+    # Frequency
+    N = nbr_p
+    six_freq = np.abs(np.fft.fft(six_part.e)[:N])/N
+    toy_freq = np.abs(np.fft.fft(toymodel.e)[:N])/N
+
+    six_freq[0] = toy_freq[0] = 0.0 # Removing the 'constant' frequency
+    msix, isix = imax(six_freq)
+    mtoy, itoy = imax(toy_freq)
+
+    f = np.fft.fftfreq(turns.shape[-1])
+    print("Frequency\n\tsix=", f[isix], ", toy=", f[itoy])
+
+    if isix != itoy:
+        print("Frequencies diverge. Plotting frequencies...")
+
+        fftfig, fftax = plt.subplots()
+        fftax.plot(f, six_freq, c='b', label='sixtrack')
+        fftax.plot(f, toy_freq, c='r', label='toymodel')
+
+        fftax.legend(loc='upper right')
+        fftax.set_xlabel("frequency (w.r.t turns)")
+        fftfig.suptitle("Frequency of synchrotron oscillation")
+
+
     # Energy plot
     fig, ax = plt.subplots()
     ax.plot(turns, six_part.e, color='b', zorder=1, label='sixtrack particle')
-    ax.plot(turns, toymodel.e, color='red', zorder=2, label='toymodel particle')
+    ax.plot(turns, toymodel.e, color='red', zorder=2, linestyle='--', label='toymodel particle')
     ax.plot(turns, e_ramp, color='black', zorder=10, label='reference energy')
 
     ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e3)))
@@ -61,13 +95,17 @@ def comp():
     ax.set_ylabel("Energy (GeV)")
     ax.set_xlabel("Turn")
 
-    nbr_p = len(e_ramp)
+    # voltage = [6 + 2.9491187074838457087e-07*t for t in turns]
+    # vax = ax.twinx()
+    # vax.get_yaxis().set_visible(False)
+    # vax.plot(turns, voltage, color='gray', zorder=0, label='voltage')
+
     Point = namedtuple('Point', 'z e')
     six_center = Point(1.0/nbr_p*sum(six_part.z), 1.0/nbr_p*sum(six_part.de))
     toy_center = Point(1.0/nbr_p*sum(toymodel.z), 1.0/nbr_p*sum(toymodel.de))
-    print("six center: ", six_center, "\ntoy center: ", toy_center)
+    print("Center\n\tsix=", six_center, "\n\toy=", toy_center)
 
-    #Bucket diagram
+    # Bucket diagram
     fig2, ax2 = plt.subplots()
     ax2.scatter(six_part.z, six_part.de, color='b', label='sixtrack')
     ax2.scatter(*six_center, color='b', marker='x', zorder=10)
