@@ -234,7 +234,7 @@ struct ToyModel
 		// 	∆energy / phase 
 		for (size_t i = 0; i < size(); ++i) {
 			std::stringstream ss;
-			ss << mEnergy[i] << "," << mPhase[i] << std::endl;
+			ss << std::setprecision(16) << mEnergy[i] << "," << mPhase[i] << std::endl;
 			file << ss.str();
 		}
 		file.close();
@@ -329,6 +329,10 @@ struct ToyModel
 				// // Adjust all particle energies
 				// for (T& e : mEnergy) 
 				// 	e -= deltaE;
+
+				// Caluclated from LHC_ramp.dat
+				// const T k = 2.9491187074838457087e-07;
+				// mAcc.rf_voltage = 6 + k*n;
 
 				if (!ext_collimators.empty()) {
 					mAcc.coll_bot = ext_collimators[i].first;
@@ -436,6 +440,14 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
 		<< "Latest hit:\n\tparticle " << ilastHit << ", turn " << lastHit 
 		<< "(approx. after " << std::setprecision(3) << (double(lastHit)/freq) << " s)\n"
 		<< "\tstarting energy " << std::setprecision(5) << energy[ilastHit] << std::endl;
+}
+
+inline double synchrotron_frequency()
+{
+	const auto acc = ToyModel<double>::Accelerator::getLHC();
+	const auto omega = std::sqrt(std::abs(hamiltonian<double>(acc, 0, 0)));
+	const auto freq_turns = omega/acc.w_revolution_freq;
+	return freq_turns;
 }
 
 }; // namespace jwc
