@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <limits>
 #include "common.hh"
+#include "timer.hh"
 
 namespace CONST {
 
@@ -191,7 +192,7 @@ struct ToyModel
 		for (T de = Emin; de < Emax; de += Estep) {
 			for (T ph = PHmin; ph < PHmax; ph += PHstep) {
 				const T H = hamiltonian(mAcc, de, ph);
-				if (H > 1.5e5 && H < 4.5e6) {
+				if (H > 1e5 && H < 4.5e6) {
 					mEnergy.push_back(de);
 					mPhase.push_back(ph);
 				}
@@ -321,6 +322,9 @@ struct ToyModel
 
 		std::cout << "Starting simulation..." << std::endl;
 
+		SilentTimer timer;
+
+		timer.start("Testing my timer here");
 		for (int i = 0; i < n; ++i) {
 			if (mType > NO_RAMP) {
 				// T deltaE = E_ramp[i] - mAcc.E();
@@ -351,6 +355,7 @@ struct ToyModel
 				std::cout << "\t" << std::setw(9) << i << " of " << n << " turns (" << percent << "%)" << std::endl;
 			}
 		}
+		timer.stop();
 	}
 
 	std::vector<T> getEnergy() const { return mEnergy; }
@@ -426,28 +431,33 @@ template <typename TModel>
 void generateLossmap(typename TModel::RAMP_TYPE type)
 {
 	TModel tm(type, typename TModel::LossAnalysis());
+	tm.createTurnFileHeader(STARTDIST_FILE, 1);
 	tm.writeDistribution(STARTDIST_FILE);
 	auto freq = TModel::Accelerator::getLHC().revolution_freq;
-	int turns = 300*freq;
+	int turns = 1*freq;
 	std::cout << "Simulating " << turns << " turns" << std::endl;
 	tm.takeTimesteps(turns); // 50 seconds
 	tm.writeCollHits(COLL_FILE);
 
-	int ilastHit, lastHit = -1;
+	int ilastHit, tlastHit = -1;
 	auto hits = tm.getCollHits();
 	for (int i = 0; i < hits.size(); ++i) {
-		if (hits[i] > lastHit) {
-			lastHit = hits[i];
+		if (hits[i] > tlastHit) {
+			tlastHit = hits[i];
 			ilastHit = i;
 		}
 	}
 
-	auto energy = tm.getEnergy();
+	if (tlastHit == -1)
+		std::cout << "No losses" << std::endl;
+	else {
+		auto energy = tm.getEnergy();
+		std::cout 
+			<< "Latest hit:\n\tparticle " << ilastHit << ", turn " << tlastHit 
+			<< "(approx. after " << std::setprecision(3) << (double(tlastHit)/freq) << " s)\n"
+			<< "\tstarting energy " << std::setprecision(5) << energy[ilastHit] << std::endl;
+	}
 
-	std::cout 
-		<< "Latest hit:\n\tparticle " << ilastHit << ", turn " << lastHit 
-		<< "(approx. after " << std::setprecision(3) << (double(lastHit)/freq) << " s)\n"
-		<< "\tstarting energy " << std::setprecision(5) << energy[ilastHit] << std::endl;
 }
 
 inline double synchrotron_frequency()
@@ -477,7 +487,7 @@ int main(int argc, char* argv[])
 		{
 			std::cout << "Creating particle paths" << std::endl;
 			ToyModel tm(1000, type);
-			tm.takeTimesteps(50000, jwc::PATH_FILE, 10);
+			tm.takeTimesteps(5000, jwc::PATH_FILE, 10);
 			tm.writeCollHits(jwc::COLL_FILE);
 		}
 		{
