@@ -75,8 +75,10 @@ def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
 		return {turn : len(coll_hits[turn]) for turn in coll_hits}
 	return coll_hits
 
-class Trajectory:
-	def __init__(self):
+class PhaseSpace:
+	""" Only works for data output by the 2d synchrotron """
+
+	def __init__(self, pfile=PARTICLE_FILE, rfile=RAMP_FILE):
 		self.nbr_p = 0
 		self.nbr_turns = 0
 		self.denergy = []
@@ -84,8 +86,8 @@ class Trajectory:
 		self.ref_energy = []
 
 		contents = []
-		print("reading in particles from '{}'".format(PARTICLE_FILE))
-		with open(PARTICLE_FILE, 'r') as file:
+		print("reading in particles from '{}'".format(pfile))
+		with open(pfile, 'r') as file:
 			for i, line in enumerate(file.readlines()):
 				if i == 0:
 					self.nbr_p, self.nbr_turns = map(int, line.rstrip('\n').split(','))
@@ -94,16 +96,16 @@ class Trajectory:
 				self.denergy.append(denergy)
 				self.phase.append(phase)
 
-		print("reading in energy from '{}'".format(RAMP_FILE))
-		with open(RAMP_FILE, 'r') as file:
+		print("reading in energy from '{}'".format(rfile))
+		with open(rfile, 'r') as file:
 			for i, line in enumerate(file.readlines()):
 				if i >= self.nbr_turns:
 					break
 				ref_e = float(line.split()[-1])
 				self.ref_energy.append(ref_e)
 
+	def create_plot(self):
 		self.fig, self.ax = plt.subplots()
-
 
 	def plot_background_lines(self):
 		nbr_lines = 0
@@ -130,7 +132,7 @@ class Trajectory:
 			colorVal = scalarMap.to_rgba(v)
 			self.ax.plot(trail["phase"], trail["denergy"], '-', color=colorVal, zorder=1)
 
-	def fetch_collimators(self):
+	def plot_collimators(self):
 		with open(COLL_FILE, 'r') as f:
 			f.readline()
 			second_line = f.readline()
@@ -142,6 +144,29 @@ class Trajectory:
 
 		self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
 		self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
+
+	def format_axes(self):
+		self.ax.set_xlim(PLOT_FRAME['x'])
+		self.ax.set_ylim(PLOT_FRAME['y'])
+		self.ax.set_xlabel("Phase (radians)")
+		self.ax.set_ylabel("∆E (GeV)")
+		self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
+		self.ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}π".format(x/math.pi)))
+		self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
+
+	def plot_turn(self, turn=1):
+		if turn > self.nbr_turns or turn < 0:
+			raise Exception("can't plot given turn")
+
+		self.create_plot()
+		self.plot_background_lines()
+		self.plot_collimators()
+		self.format_axes()
+
+		start = (turn - 1)*self.nbr_p
+		end = turn*self.nbr_p
+		self.pos_plot = self.ax.scatter(self.phase[start:end], self.denergy[start:end], zorder=10)
+		plt.show()
 
 	def update(self, num):
 		istart = num*self.nbr_p
@@ -156,13 +181,10 @@ class Trajectory:
 		self.lost_plot.set_offsets([i for i in zip(self.lost_particles['phase'], self.lost_particles['denergy'])])
 
 	def animate(self, save_to=""):
-		self.ax.set_xlim(PLOT_FRAME['x'])
-		self.ax.set_ylim(PLOT_FRAME['y'])
-		self.ax.set_xlabel("Phase (radians)")
-		self.ax.set_ylabel("∆E (GeV)")
-		self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
-		self.ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}π".format(x/math.pi)))
-		self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
+		self.create_plot()
+		self.plot_background_lines()
+		self.plot_collimators()
+		self.format_axes()
 
 		self.lost_plot = self.ax.scatter([], [], color='r', marker='x', zorder=20)
 		self.pos_plot = self.ax.scatter(self.phase[0:self.nbr_p], self.denergy[0:self.nbr_p], zorder=10)
@@ -189,12 +211,6 @@ class Trajectory:
 		ax.plot(turns, energy, color='b')
 		ax.plot(turns, ref_e, color='black')
 		plt.show()
-
-def animate_trajectory():
-	traj = Trajectory()
-	traj.plot_background_lines()
-	traj.fetch_collimators()
-	traj.animate(save_to=SAVE_FILE)
 
 def plot_lossmap_phase():
 	lossmap = get_lossmap(COLL_FILE, with_attr=['id', 'phase'])
@@ -355,12 +371,16 @@ def plot_energy_oscillations():
 
 	plt.show()
 
+# def plot_dist(file):
+
+
 
 if __name__ == "__main__":
 	ACTION = argv[1]
 	if ACTION == "animate":
 		print("animate trajectory")
-		animate_trajectory()
+		ps = PhaseSpace()
+		ps.animate(save_to=SAVE_FILE)
 	elif ACTION == "lossmap" or ACTION == "lossmap-analysis":
 		print("plot lossmap")
 		plot_lossmap(SAVE_FILE)
@@ -368,5 +388,9 @@ if __name__ == "__main__":
 	elif ACTION == "energy":
 		print("plot energy oscillations")
 		plot_energy_oscillations()
+	elif ACTION == "startdist":
+		print("plot start distribution")
+		ps = PhaseSpace(STARTDIST_FILE)
+		ps.plot_turn()
 	else:
 		print("unrecognised action")
