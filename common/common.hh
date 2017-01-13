@@ -1,5 +1,11 @@
+#ifndef COMMON_HH
+#define COMMON_HH
+
 #include <istream>
 #include <string>
+
+namespace jwc
+{
 
 /*
  * Makes it possible to write
@@ -14,3 +20,6 @@ std::basic_istream<CharT>& skip(std::basic_istream<CharT>& in)
 	return in >> ignoredValue;
 }
 
+}; // namespace jwc
+
+#endif
