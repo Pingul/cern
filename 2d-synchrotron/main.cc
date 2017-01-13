@@ -61,7 +61,7 @@ public:
 		Acc acc;
 		acc.mE_ref = T(450e9); // eV
 		acc.mE_pref = acc.mE_ref;
-		acc.rf_voltage = T(16e6); // V
+		acc.rf_voltage = T(6e6); // V
 		acc.rf_freq = T(398765412.66);
 		acc.harmonic = T(35640);
 		acc.m_compaction = T(0.0003225);
@@ -203,7 +203,7 @@ struct ToyModel
 	}
 
 	ToyModel(SixTrackTest)
-		: mAcc(Accelerator::getLHC()), mType(NO_RAMP)
+		: mAcc(Accelerator::getLHC()), mType(LHC_RAMP)
 	{
 		mEnergy.push_back(T(0.41646726612503554e6));
 		mPhase.push_back(CONST::pi);
@@ -212,7 +212,7 @@ struct ToyModel
 
 	size_t size() const { return mEnergy.size(); }
 
-	void createTurnFile(std::string filePath, int turns) 
+	void createTurnFileHeader(std::string filePath, int turns) 
 	{
 		std::ofstream file(filePath.c_str());
 		if (file.is_open()) {
@@ -223,7 +223,7 @@ struct ToyModel
 		file.close();
 	}
 
-	void saveParticleCoords(std::string filePath) const 
+	void writeDistribution(std::string filePath) const 
 	{
 		std::ofstream file(filePath.c_str(), std::ios::app);
 
@@ -240,7 +240,7 @@ struct ToyModel
 		file.close();
 	}
 
-	void saveCollHits(std::string filePath) const
+	void writeCollHits(std::string filePath) const
 	{
 		std::cout << "Saving coll hits to '" << filePath << "'" << std::endl;
 
@@ -308,8 +308,8 @@ struct ToyModel
 		if (filePath.empty())
 			std::cout << "Will not save particle path data" << std::endl;
 		else  {
-			createTurnFile(filePath, n + 1); // +1 as we are saving the first starting configuration as well
-			saveParticleCoords(filePath);
+			createTurnFileHeader(filePath, n + 1); // +1 as we are saving the first starting configuration as well
+			writeDistribution(filePath);
 		}
 
 		std::vector<T> E_ramp;
@@ -331,8 +331,8 @@ struct ToyModel
 				// 	e -= deltaE;
 
 				// Caluclated from LHC_ramp.dat
-				// const T k = 2.9491187074838457087e-07;
-				// mAcc.rf_voltage = 6 + k*n;
+				const T k = 2.9491187074838457087e-07;
+				mAcc.rf_voltage = (6 + k*n)*1e6;
 
 				if (!ext_collimators.empty()) {
 					mAcc.coll_bot = ext_collimators[i].first;
@@ -343,7 +343,13 @@ struct ToyModel
 			takeTimestep(i);
 
 			// reduce the memory footprint a little if it's not necessary
-			if (!filePath.empty() && (i + 1) % saveFreq == 0) saveParticleCoords(filePath);
+			if (!filePath.empty() && (i + 1) % saveFreq == 0) writeDistribution(filePath);
+
+			const int d = n/10;
+			if (i % d == 0) {
+				int percent = 10*i/d;
+				std::cout << "\t" << std::setw(9) << i << " of " << n << " turns (" << percent << "%)" << std::endl;
+			}
 		}
 	}
 
@@ -420,10 +426,12 @@ template <typename TModel>
 void generateLossmap(typename TModel::RAMP_TYPE type)
 {
 	TModel tm(type, typename TModel::LossAnalysis());
-	tm.saveParticleCoords(STARTDIST_FILE);
+	tm.writeDistribution(STARTDIST_FILE);
 	auto freq = TModel::Accelerator::getLHC().revolution_freq;
-	tm.takeTimesteps(300*freq); // 50 seconds
-	tm.saveCollHits(COLL_FILE);
+	int turns = 300*freq;
+	std::cout << "Simulating " << turns << " turns" << std::endl;
+	tm.takeTimesteps(turns); // 50 seconds
+	tm.writeCollHits(COLL_FILE);
 
 	int ilastHit, lastHit = -1;
 	auto hits = tm.getCollHits();
@@ -470,7 +478,7 @@ int main(int argc, char* argv[])
 			std::cout << "Creating particle paths" << std::endl;
 			ToyModel tm(1000, type);
 			tm.takeTimesteps(50000, jwc::PATH_FILE, 10);
-			tm.saveCollHits(jwc::COLL_FILE);
+			tm.writeCollHits(jwc::COLL_FILE);
 		}
 		{
 			std::cout << "Creating line segments" << std::endl;
@@ -481,12 +489,12 @@ int main(int argc, char* argv[])
 		std::cout << "Creating data for lossmap" << std::endl;
 		ToyModel tm(10000, type);
 		tm.takeTimesteps(10000);
-		tm.saveCollHits(jwc::COLL_FILE);
+		tm.writeCollHits(jwc::COLL_FILE);
 	} else if (args[1] == "energy") {
 		std::cout << "Simulating 1 particle" << std::endl;
 		ToyModel tm(1, type);
 		tm.takeTimesteps(40000, jwc::PATH_FILE);
-		tm.saveCollHits(jwc::COLL_FILE);
+		tm.writeCollHits(jwc::COLL_FILE);
 	} else if (args[1] == "lossmap-analysis") {
 		std::cout << "Loss pattern analysis" << std::endl;
 		jwc::generateLossmap<ToyModel>(type);
