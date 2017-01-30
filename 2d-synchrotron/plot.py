@@ -235,20 +235,6 @@ def plot_lossmap_phase():
 
 	plt.show()
 
-def find_spikes(averaged_loss_data):
-	cycles = []
-	istart = -1
-	iend = -1
-	for i, d in enumerate(averaged_loss_data):
-		if istart == -1 and d > 0:
-			istart = i
-		elif istart > 0 and d == 0:
-			iend = i
-			cycles.append([istart, iend])
-			istart = iend = -1
-
-	return cycles
-
 
 
 def plot_lossmap(save_to=''):
@@ -280,11 +266,6 @@ def plot_lossmap(save_to=''):
 
 	average_losses = moving_average(losses, int(1.3*11245))
 	# average_losses = moving_average(losses, 1125)
-
-	spikes = find_spikes(average_losses)
-	print(len(spikes), "spikes:")
-	for i, spike in enumerate(spikes, 1):
-		print("\t{:g}: {:.2f} -> {:.2f} s ".format(i, secs[spike[0]], secs[spike[1]]))
 
 
 	# Plotting
