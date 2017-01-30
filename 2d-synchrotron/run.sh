@@ -3,6 +3,11 @@ possibleActions="animate lossmap energy lossmap-analysis"
 action="$1"
 save_file="$2"
 
+workingdir=`pwd`
+resultdir="$workingdir/calc"
+cache="$workingdir/simulations/$(date +%Y.%m%.%d.%H.%M.%S)"
+
+
 actionOK=0
 for a in $possibleActions
 do
@@ -25,7 +30,10 @@ else
 	echo " --- Compiling c++... "
 	make 
 	echo " --- Running c++... "
-	./main $action
+	echo " --- Caching data in '$cache'."
+	mkdir $cache
+	./main $action | tee $cache/stdout.txt
+	cp $resultdir/* $cache
 	echo " --- Plotting...  "
 	python3.5 plot.py $action $save_file
 fi
