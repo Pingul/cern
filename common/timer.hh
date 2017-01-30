@@ -30,16 +30,16 @@ typedef MessageTimer<false> SilentTimer;
 
 
 // Helper functionality for the timer
-struct TimeDuration { unsigned d, h, m, s, ms; };
+struct ElapsedTime { unsigned d, h, m, s, ms; };
 // std::ostream& operator<<(std::ostream& os, )
 
-inline TimeDuration MillisecondsToDuration(unsigned ms)
+inline ElapsedTime MillisecondsToElapsedTime(unsigned ms)
 {
-	TimeDuration td;
-	const unsigned DAY = 24*3600*1000;
-	const unsigned HOUR = 3600*1000;
-	const unsigned MIN = 60*1000;
+	ElapsedTime td;
 	const unsigned SEC = 1000;
+	const unsigned MIN = 60*SEC;
+	const unsigned HOUR = 60*MIN;
+	const unsigned DAY = 24*HOUR;
 	td.d  = ms/DAY;
 	td.h  = (ms - td.d*DAY)/HOUR;
 	td.m  = (ms - td.d*DAY - td.h*HOUR)/MIN;
