@@ -66,17 +66,12 @@ int main(int argc, char* argv[])
 			ToyModel tm(type, ToyModel::LineSim());
 			tm.takeTimesteps(1700, jwc::LINE_FILE, 5);
 		}
-	} else if (args[1] == "lossmap") {
-		std::cout << "Creating data for lossmap" << std::endl;
-		ToyModel tm(10000, type);
-		tm.takeTimesteps(10000);
-		tm.writeCollHits(jwc::COLL_FILE);
 	} else if (args[1] == "energy") {
 		std::cout << "Simulating 1 particle" << std::endl;
 		ToyModel tm(1, type);
 		tm.takeTimesteps(40000, jwc::PATH_FILE);
 		tm.writeCollHits(jwc::COLL_FILE);
-	} else if (args[1] == "lossmap-analysis") {
+	} else if (args[1] == "lossmap-analysis" || args[1] == "lossmap") {
 		std::cout << "Loss pattern analysis" << std::endl;
 		jwc::generateLossmap<ToyModel>(type);
 	} else if (args[1] == "sixtrack-comp") {

@@ -15,8 +15,8 @@
 namespace CONST {
 
 constexpr double pi = 3.14159265359;
-constexpr double c = 299792458.0;
-constexpr double m_proton = 938.2796e6;
+constexpr double c = 299792458.0; // m/s
+constexpr double m_proton = 938.2796e6; // eV
 
 }; // namespace CONST
 
@@ -182,17 +182,17 @@ struct ToyModel
 	ToyModel(RAMP_TYPE type, LossAnalysis) 
 		: mAcc(Accelerator::getLHC()), mType(type)
 	{
-		const T Emax = 9e8;
+		const T Emax = 7e8;
 		const T Emin = -Emax;
-		const T Estep = (Emax - Emin)/200;
-		const T PHmax = 2.1*CONST::pi;
+		const T Estep = (Emax - Emin)/600;
+		const T PHmax = 2.01*CONST::pi;
 		const T PHmin = 0;
-		const T PHstep = (PHmax - PHmin)/200;
+		const T PHstep = (PHmax - PHmin)/600;
 
 		for (T de = Emin; de < Emax; de += Estep) {
 			for (T ph = PHmin; ph < PHmax; ph += PHstep) {
 				const T H = hamiltonian(mAcc, de, ph);
-				if (H > 0.5e5 && H < 4e6) {
+				if (H > 1.0e5 && H < 2.0e5) {
 					mEnergy.push_back(de);
 					mPhase.push_back(ph);
 				}
@@ -358,7 +358,7 @@ struct ToyModel
 
 		double ms = timer.stop();
 
-		auto dur = MillisecondsToDuration(unsigned(ms));
+		auto dur = MillisecondsToElapsedTime(unsigned(ms));
 		std::cout << "Finished in ";
 		if (dur.d > 0) std::cout << dur.d << "d ";
 		if (dur.h > 0) std::cout << dur.h << "h ";
