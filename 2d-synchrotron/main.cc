@@ -9,13 +9,10 @@ namespace jwc {
 template <typename TModel>
 void generateLossmap(typename TModel::RAMP_TYPE type)
 {
-	TModel tm(type, typename TModel::LossAnalysis());
-	tm.createTurnFileHeader(STARTDIST_FILE, 1);
-	tm.writeDistribution(STARTDIST_FILE);
+	TModel tm(5000, type, typename TModel::LossAnalysis());
 	auto freq = TModel::Accelerator::getLHC().revolution_freq;
-	int turns = 300*freq;
-	std::cout << "Simulating " << turns << " turns" << std::endl;
-	tm.takeTimesteps(turns); // 50 seconds
+	int turns = 70*freq;
+	tm.takeTimesteps(turns); 
 	tm.writeCollHits(COLL_FILE);
 
 	int ilastHit, tlastHit = -1;
@@ -77,7 +74,10 @@ int main(int argc, char* argv[])
 	} else if (args[1] == "sixtrack-comp") {
 		std::cout << "Sixtrack comparison" << std::endl;
 		ToyModel tm( (ToyModel::SixTrackTest()) );
-		tm.takeTimesteps(40000, jwc::SIXTRACK_TEST_FILE);
+		tm.takeTimesteps(30000, jwc::SIXTRACK_TEST_FILE);
+	} else if (args[1] == "startdist") {
+		std::cout << "Start distribution" << std::endl;
+		ToyModel tm(5000, type, ToyModel::LossAnalysis());
 	} else {
 		std::cout << "No action with name '" << args[1] << "' found" << std::endl;
 	}

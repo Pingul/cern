@@ -22,6 +22,7 @@ constexpr double m_proton = 938.2796e6; // eV
 
 namespace jwc {
 
+// Same as used in the python visualisation code
 static constexpr double FRAME_X_LOW = -2*CONST::pi;
 static constexpr double FRAME_X_HIGH = 4*CONST::pi;
 static constexpr double FRAME_Y_LOW = -2e9;
@@ -31,6 +32,7 @@ static constexpr const char* PATH_FILE = "calc/particles.dat";
 static constexpr const char* LINE_FILE = "calc/lines.dat";
 static constexpr const char* COLL_FILE = "calc/coll.dat";
 static constexpr const char* STARTDIST_FILE = "calc/startdist.dat";
+static constexpr const char* ENDDIST_FILE = "calc/enddist.dat";
 static constexpr const char* SIXTRACK_TEST_FILE = "calc/toymodel_track.dat";
 // static constexpr const char* RAMP_FILE = "resources/ramp.txt";
 static constexpr const char* RAMP_FILE = "resources/LHC_ramp.dat";
@@ -137,6 +139,8 @@ struct ToyModel
 			mEnergy.push_back(deltaE); 
 			mPhase.push_back(phase); 
 		}
+
+		writeSingleDistribution(STARTDIST_FILE);
 	}
 
 	// For parameter passing in the next constructors
@@ -184,15 +188,15 @@ struct ToyModel
 	{
 		const T Emax = 7e8;
 		const T Emin = -Emax;
-		const T Estep = (Emax - Emin)/600;
+		const T Estep = (Emax - Emin)/2000;
 		const T PHmax = 2.01*CONST::pi;
 		const T PHmin = 0;
-		const T PHstep = (PHmax - PHmin)/600;
+		const T PHstep = (PHmax - PHmin)/2000;
 
 		for (T de = Emin; de < Emax; de += Estep) {
 			for (T ph = PHmin; ph < PHmax; ph += PHstep) {
 				const T H = hamiltonian(mAcc, de, ph);
-				if (H > 1.0e5 && H < 2.0e5) {
+				if (H > 1.17e5 && H < 1.199e5) {
 					mEnergy.push_back(de);
 					mPhase.push_back(ph);
 				}
@@ -200,7 +204,33 @@ struct ToyModel
 		}
 		mCollHits.assign(size(), -1);
 
-		std::cout << "Generated " << size() << " particles" << std::endl;
+		writeSingleDistribution(STARTDIST_FILE);
+	}
+
+	ToyModel(int n, RAMP_TYPE type, LossAnalysis)
+		: mAcc(Accelerator::getLHC()), mType(type)
+	{	
+		mEnergy.reserve(n);
+		mPhase.reserve(n);
+		mCollHits.assign(n, -1);
+
+		std::random_device rdev;
+		std::mt19937 generator(rdev());
+
+		std::uniform_real_distribution<> e_dist(-0.5e9, 0.5e9);
+		std::uniform_real_distribution<> ph_dist(0, 2*CONST::pi);
+		int count = 0;
+		while (count < n) {
+			const T deltaE = e_dist(generator);
+			const T phase = ph_dist(generator);
+			const T H = hamiltonian(mAcc, deltaE, phase);
+			if (H > 1.19e5 && H < 1.195e5) {
+				mEnergy.push_back(deltaE); 
+				mPhase.push_back(phase); 
+				count++;
+			}
+		}
+		writeSingleDistribution(STARTDIST_FILE);
 	}
 
 	ToyModel(SixTrackTest)
@@ -213,7 +243,7 @@ struct ToyModel
 
 	size_t size() const { return mEnergy.size(); }
 
-	void createTurnFileHeader(std::string filePath, int turns) 
+	void createTurnFileHeader(std::string filePath, int turns) const
 	{
 		std::ofstream file(filePath.c_str());
 		if (file.is_open()) {
@@ -239,6 +269,12 @@ struct ToyModel
 			file << ss.str();
 		}
 		file.close();
+	}
+
+	void writeSingleDistribution(std::string filePath) const
+	{
+		createTurnFileHeader(filePath, 1);
+		writeDistribution(filePath);
 	}
 
 	void writeCollHits(std::string filePath) const
@@ -320,6 +356,7 @@ struct ToyModel
 			mAcc.setE(E_ramp[0], true);
 		}
 
+		std::cout << "Tracking " << size() << " particles for " << n << " turns" << std::endl;
 		std::cout << "Starting simulation..." << std::endl;
 
 		SilentTimer timer;
@@ -365,6 +402,8 @@ struct ToyModel
 		if (dur.m > 0) std::cout << dur.m << "m ";
 		if (dur.s > 0) std::cout << dur.s << "s ";
 		std::cout << dur.ms << "ms" << std::endl;
+
+		writeSingleDistribution(ENDDIST_FILE);
 	}
 
 	std::vector<T> getEnergy() const { return mEnergy; }

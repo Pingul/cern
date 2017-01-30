@@ -1,5 +1,5 @@
 
-possibleActions="animate lossmap energy lossmap-analysis"
+possibleActions="animate lossmap energy lossmap-analysis startdist"
 action="$1"
 save_file="$2"
 

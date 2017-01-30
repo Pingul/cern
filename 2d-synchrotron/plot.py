@@ -18,6 +18,7 @@ PARTICLE_FILE = "calc/particles.dat"
 LINE_FILE = "calc/lines.dat"
 COLL_FILE = "calc/coll.dat"
 STARTDIST_FILE = "calc/startdist.dat"
+ENDDIST_FILE = "calc/enddist.dat"
 RAMP_FILE = "resources/LHC_ramp.dat"
 
 PLOT_FRAME = {
@@ -372,6 +373,10 @@ if __name__ == "__main__":
 	elif ACTION == "startdist":
 		print("plot start distribution")
 		ps = PhaseSpace(STARTDIST_FILE)
+		ps.plot_turn()
+	elif ACTION == "enddist":
+		print("plot end distribution")
+		ps = PhaseSpace(ENDDIST_FILE)
 		ps.plot_turn()
 	else:
 		print("unrecognised action")
