@@ -10,10 +10,18 @@ template <typename TModel>
 void generateLossmap(typename TModel::RAMP_TYPE type)
 {
     TModel tm(1000, type, typename TModel::LossAnalysis());
+    //TModel tm(type, typename TModel::LossAnalysis());
     auto freq = TModel::Accelerator::getLHC().revolution_freq;
-    int turns = 70*freq;
+    int turns = 50*freq;
+
+    // hack...
+    std::vector<double> startE(tm.getEnergy());
+    std::vector<double> startPh(tm.getPhase());
+    // ...end of hack
+
     tm.takeTimesteps(turns); 
     tm.writeCollHits(COLL_FILE);
+
 
     int ilastHit, tlastHit = -1;
     auto hits = tm.getCollHits();
@@ -31,7 +39,8 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
         std::cout 
             << "Latest hit:\n\tparticle " << ilastHit << ", turn " << tlastHit 
             << "(approx. after " << std::setprecision(3) << (double(tlastHit)/freq) << " s)\n"
-            << "\tstarting energy " << std::setprecision(5) << energy[ilastHit] << std::endl;
+            << "\tstarting H=" << std::setprecision(16) << jwc::hamiltonian(TModel::Accelerator::getLHC(),
+            startE[ilastHit], startPh[ilastHit]) << std::endl;
     }
 
 }
@@ -78,6 +87,18 @@ int main(int argc, char* argv[])
     } else if (args[1] == "startdist") {
         std::cout << "Start distribution" << std::endl;
         ToyModel tm(5000, type, ToyModel::LossAnalysis());
+        //ToyModel tm(type, ToyModel::LossAnalysis());
+    } else if (args[1] == "phasespace") {
+        int turn = std::stoi(args[2]);
+
+        // Just need a small starting distribution
+        {
+            ToyModel tm(1, type, ToyModel::LossAnalysis());
+        }
+
+        std::cout << "Creating line segments for turn " << turn << std::endl;
+        ToyModel tm(type, ToyModel::LineSim());
+        tm.takeTimestepsFromTo(turn, 1700 + turn, jwc::LINE_FILE, 5);
     } else {
         std::cout << "No action with name '" << args[1] << "' found" << std::endl;
     }
