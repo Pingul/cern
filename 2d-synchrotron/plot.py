@@ -79,31 +79,33 @@ def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
 class PhaseSpace:
     """ Only works for data output by the 2d synchrotron """
 
-    def __init__(self, pfile=PARTICLE_FILE, rfile=RAMP_FILE):
+    def __init__(self, pfile, rfile=RAMP_FILE):
         self.nbr_p = 0
         self.nbr_turns = 0
         self.denergy = []
         self.phase = []
         self.ref_energy = []
 
-        contents = []
-        print("reading in particles from '{}'".format(pfile))
-        with open(pfile, 'r') as file:
-            for i, line in enumerate(file.readlines()):
-                if i == 0:
-                    self.nbr_p, self.nbr_turns = map(int, line.rstrip('\n').split(','))
-                    continue
-                denergy, phase = map(float, line.rstrip('\n').split(','))
-                self.denergy.append(denergy)
-                self.phase.append(phase)
 
-        print("reading in energy from '{}'".format(rfile))
-        with open(rfile, 'r') as file:
-            for i, line in enumerate(file.readlines()):
-                if i >= self.nbr_turns:
-                    break
-                ref_e = float(line.split()[-1])
-                self.ref_energy.append(ref_e)
+        if pfile:
+            print("reading in particles from '{}'".format(pfile))
+            with open(pfile, 'r') as file:
+                for i, line in enumerate(file.readlines()):
+                    if i == 0:
+                        self.nbr_p, self.nbr_turns = map(int, line.rstrip('\n').split(','))
+                        continue
+                    denergy, phase = map(float, line.rstrip('\n').split(','))
+                    self.denergy.append(denergy)
+                    self.phase.append(phase)
+
+        if rfile:
+            print("reading in energy from '{}'".format(rfile))
+            with open(rfile, 'r') as file:
+                for i, line in enumerate(file.readlines()):
+                    if i >= self.nbr_turns:
+                        break
+                    ref_e = float(line.split()[-1])
+                    self.ref_energy.append(ref_e)
 
     def create_plot(self):
         self.fig, self.ax = plt.subplots()
@@ -153,7 +155,6 @@ class PhaseSpace:
         self.ax.set_ylabel("∆E (GeV)")
         self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
         self.ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}π".format(x/math.pi)))
-        self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
 
     def plot_turn(self, turn=1):
         if turn > self.nbr_turns or turn < 0:
@@ -191,6 +192,7 @@ class PhaseSpace:
         self.pos_plot = self.ax.scatter(self.phase[0:self.nbr_p], self.denergy[0:self.nbr_p], zorder=10)
         self.active_particles = range(self.nbr_p)
         self.lost_particles = {'denergy': [], 'phase': []}
+        self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
 
         ani = animation.FuncAnimation(self.fig, self.update, int(len(self.denergy)/self.nbr_p), interval=50, blit=False)
 
@@ -309,7 +311,9 @@ def read_ramp(file, nbr_turns):
             e[i] = float(line.rstrip().split()[1])*1e6
 
     turns = range(nbr_turns)
-    de = np.gradient(e)
+    #de = np.gradient(e)
+    de = np.diff(e) # size n - 1
+    de = np.append(de, de[-1])
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(turns, de)
     de_fitted = [slope*turn + intercept for turn in turns]
@@ -329,13 +333,14 @@ def export_fitted_ramp():
 
 
 def plot_energy_oscillations():
-    nbr_turns = 300*11245
+    nbr_turns = 500*11245
     ramp = read_ramp(RAMP_FILE, nbr_turns)
-    turns = range(nbr_turns)
+    turns = np.array(range(nbr_turns))
 
     fig = plt.figure()
     e_ax = fig.add_subplot(311)
     de_ax = fig.add_subplot(312, sharex=e_ax)
+    ph_ax = fig.add_subplot(313, sharex=e_ax)
 
     e_ax.plot(turns, ramp['e'], color='b')
     # e_ax.plot(turns, ramp['e_fitted'], color='red')
@@ -349,8 +354,18 @@ def plot_energy_oscillations():
     de_ax.set_xlabel("Time (kturns)")
     de_ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e6)))
 
-    e_ax.axvline(x=50*11245, linewidth=2)
-    de_ax.axvline(x=50*11245, linewidth=2)
+    k = 2.9491187074838457087e-07
+    phase = np.arcsin(ramp['de']/((k*turns + 6)*1e6))
+    ph_ax.plot(turns, phase, color='gray')
+    ph_ax.set_ylabel("φ_s (rad)")
+
+    #e_ax.axvline(x=50*11245, linewidth=1)
+    #de_ax.axvline(x=50*11245, linewidth=1)
+    #ph_ax.axvline(x=50*11245, linewidth=1)
+
+    e_ax.axvline(x=150*11245, linewidth=1, color='r')
+    de_ax.axvline(x=150*11245, linewidth=1, color='r')
+    ph_ax.axvline(x=150*11245, linewidth=1, color='r')
 
     fig.suptitle("LHC ramp")
 
@@ -364,7 +379,7 @@ if __name__ == "__main__":
     ACTION = argv[1]
     if ACTION == "animate":
         print("animate trajectory")
-        ps = PhaseSpace()
+        ps = PhaseSpace(PARTICLE_FILE)
         ps.animate(save_to=SAVE_FILE)
     elif ACTION == "lossmap" or ACTION == "lossmap-analysis":
         print("plot lossmap")
@@ -381,5 +396,15 @@ if __name__ == "__main__":
         print("plot end distribution")
         ps = PhaseSpace(ENDDIST_FILE)
         ps.plot_turn()
+    elif ACTION == "phasespace":
+        print("plot phase space")
+        ps = PhaseSpace(pfile=None)
+        ps.create_plot()
+        ps.plot_background_lines()
+        ps.format_axes()
+        if SAVE_FILE:
+            plt.savefig(SAVE_FILE)
+        else:
+            plt.show()
     else:
         print("unrecognised action")
