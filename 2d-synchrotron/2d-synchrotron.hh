@@ -186,21 +186,15 @@ struct ToyModel
     ToyModel(RAMP_TYPE type, LossAnalysis) 
         : mAcc(Accelerator::getLHC()), mType(type)
     {
-        const T Emax = 7e8;
-        const T Emin = -Emax;
-        const T Estep = (Emax - Emin)/2000;
-        const T PHmax = 2.01*CONST::pi;
-        const T PHmin = 0;
-        const T PHstep = (PHmax - PHmin)/2000;
-
-        for (T de = Emin; de < Emax; de += Estep) {
-            for (T ph = PHmin; ph < PHmax; ph += PHstep) {
+        for (T de = 0.4e9; de < 0.5e9; de += 1e5) {
+            const T ph = CONST::pi;
+            //for (T ph = ; ph < PHmax; ph += PHstep) {
                 const T H = hamiltonian(mAcc, de, ph);
-                if (H > 1.17e5 && H < 1.199e5) {
+                //if (H > 1.17e5 && H < 1.199e5) {
                     mEnergy.push_back(de);
                     mPhase.push_back(ph);
-                }
-            }
+                //}
+            //}
         }
         mCollHits.assign(size(), -1);
 
@@ -224,7 +218,7 @@ struct ToyModel
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-            if (H > 1.193e5 && H < 1.195e5) {
+            if (H > 1.19e5 && H < 1.1945e5) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -340,8 +334,18 @@ struct ToyModel
 
     }
 
+    
     void takeTimesteps(int n, std::string filePath = "", int saveFreq = 1)
     {
+        takeTimestepsFromTo(0, n, filePath, saveFreq);
+    }
+
+    void takeTimestepsFromTo(int from, int to, std::string filePath = "", int saveFreq = 1)
+    {
+        if (to <= from)
+            throw std::runtime_error("the total number of steps must be > 0");
+        int n = to - from;
+        
         if (filePath.empty())
             std::cout << "Will not save particle path data" << std::endl;
         else  {
@@ -352,8 +356,8 @@ struct ToyModel
         std::vector<T> E_ramp;
         std::vector<std::pair<T, T>> ext_collimators;
         if (mType > NO_RAMP) {
-            loadRamp(n, E_ramp, ext_collimators);
-            mAcc.setE(E_ramp[0], true);
+            loadRamp(to , E_ramp, ext_collimators);
+            mAcc.setE(E_ramp[from], true);
         }
 
         std::cout << "Tracking " << size() << " particles for " << n << " turns" << std::endl;
@@ -362,18 +366,13 @@ struct ToyModel
         SilentTimer timer;
 
         timer.start();
-        for (int i = 0; i < n; ++i) {
+        for (int i = from; i < to; ++i) {
             if (mType > NO_RAMP) {
-                // T deltaE = E_ramp[i] - mAcc.E();
                 mAcc.setE(E_ramp[i]);
-
-                // // Adjust all particle energies
-                // for (T& e : mEnergy) 
-                //     e -= deltaE;
 
                 // Caluclated from LHC_ramp.dat
                 const T k = 2.9491187074838457087e-07;
-                mAcc.rf_voltage = (6 + k*n)*1e6;
+                mAcc.rf_voltage = (6 + k*i)*1e6;
 
                 if (!ext_collimators.empty()) {
                     mAcc.coll_bot = ext_collimators[i].first;
@@ -383,13 +382,14 @@ struct ToyModel
 
             takeTimestep(i);
 
+            int itaken = i - from;
             // reduce the memory footprint a little if it's not necessary
-            if (!filePath.empty() && (i + 1) % saveFreq == 0) writeDistribution(filePath);
+            if (!filePath.empty() && (itaken + 1) % saveFreq == 0) writeDistribution(filePath);
 
             const int d = n/10;
             if (i % d == 0) {
-                int percent = 10*i/d;
-                std::cout << "\t" << std::setw(9) << i << " of " << n << " turns (" << percent << "%)" << std::endl;
+                int percent = 10*itaken/d;
+                std::cout << "\t" << std::setw(9) << itaken << " of " << n << " turns (" << percent << "%)" << std::endl;
             }
         }
 
