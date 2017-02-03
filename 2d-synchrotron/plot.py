@@ -165,9 +165,22 @@ class PhaseSpace:
         self.plot_collimators()
         self.format_axes()
 
-        start = (turn - 1)*self.nbr_p
-        end = turn*self.nbr_p
-        self.pos_plot = self.ax.scatter(self.phase[start:end], self.denergy[start:end], zorder=10)
+        lossmap = get_lossmap(COLL_FILE, "id")
+        if not lossmap:
+            start = (turn - 1)*self.nbr_p
+            end = turn*self.nbr_p
+            self.pos_plot = self.ax.scatter(self.phase[start:end], self.denergy[start:end], zorder=10)
+        else:
+            lost_particles = []
+            for turn in lossmap:
+                lost_particles += [loss['id'] for loss in lossmap[turn]]
+            lost_particles.sort()
+            live_particles = [i for i in range(self.nbr_p) if i not in lost_particles]
+
+            livez = 10
+            lostz = 9 if len(lost_particles) > len(live_particles) else 11
+            self.ax.scatter([self.phase[i] for i in live_particles], [self.denergy[i] for i in live_particles], color='b', s=4, zorder=livez)
+            self.ax.scatter([self.phase[i] for i in lost_particles], [self.denergy[i] for i in lost_particles], color='r', s=4, zorder=lostz)
         plt.show()
 
     def update(self, num):
