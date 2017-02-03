@@ -218,7 +218,10 @@ struct ToyModel
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-            if (H > 1.19e5 && H < 1.1945e5) {
+            //if (H > 0 && H < 1.25e5) {
+            //if (H < 1.25e5) {
+            if (H < 0) {
+                std::cout << "H=" << H << std::endl;
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -340,6 +343,25 @@ struct ToyModel
         takeTimestepsFromTo(0, n, filePath, saveFreq);
     }
 
+    struct ParticleStats { T emax, emin, phmax, phmin; int pleft; };
+    ParticleStats getStats() const
+    {
+        T emax, emin, phmax, phmin;
+        emin = phmin = std::numeric_limits<double>::max();
+        emax = phmax = -emin;
+        int pleft = 0;
+        for (int i = 0; i < size(); ++i) {
+            if (mCollHits.size() == size() && mCollHits[i] < 0) {
+                ++pleft;
+                emax = mEnergy[i] > emax ? mEnergy[i] : emax;
+                emin = mEnergy[i] < emin ? mEnergy[i] : emin;
+                phmax = mPhase[i] > phmax ? mPhase[i] : phmax;
+                phmin = mPhase[i] < phmin ? mPhase[i] : phmin;
+            }
+        }
+        return ParticleStats{emax, emin, phmax, phmin, pleft};
+    }
+
     void takeTimestepsFromTo(int from, int to, std::string filePath = "", int saveFreq = 1)
     {
         if (to <= from)
@@ -389,7 +411,12 @@ struct ToyModel
             const int d = n/10;
             if (i % d == 0) {
                 int percent = 10*itaken/d;
-                std::cout << "\t" << std::setw(9) << itaken << " of " << n << " turns (" << percent << "%)" << std::endl;
+                //std::cout << "\t" << std::setw(9) << itaken << " of " << n << " turns (" << percent << "%)" << std::endl;
+                ParticleStats stats = getStats();
+                std::cout << "\t" << std::setw(9) << itaken << " of " << n << " turns (" << percent << "%).";
+
+                int pleft = (100*stats.pleft)/size();
+                std::cout << " #=" << pleft << "%. φ=[" << std::setprecision(3) << stats.phmin << ", " << stats.phmax << "]" << std::endl;
             }
         }
 
@@ -480,6 +507,7 @@ inline double synchrotron_frequency()
 {
     const auto acc = ToyModel<double>::Accelerator::getLHC();
     const auto omega = std::sqrt(std::abs(hamiltonian<double>(acc, 0, 0)));
+    std::cout << (omega*omega) << std::endl;
     const auto freq_turns = omega/acc.w_revolution_freq;
     return freq_turns;
 }
