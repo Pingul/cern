@@ -4,7 +4,7 @@
 #include <istream>
 #include <string>
 
-namespace jwc
+namespace common
 {
 
 /*

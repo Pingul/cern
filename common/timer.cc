@@ -1,7 +1,7 @@
 #include "timer.hh"
 #include <iostream>
 
-namespace jwc
+namespace common
 {
 
 template <bool WithMessage>
@@ -36,10 +36,10 @@ double MessageTimer<WithMessage>::check() const
 	return t;
 }
 
-}; // namespace jwc
+}; // namespace common
 
-template class jwc::MessageTimer<true>;
-template class jwc::MessageTimer<false>;
+template class common::MessageTimer<true>;
+template class common::MessageTimer<false>;
 
 // #include <thread>
 
@@ -51,7 +51,7 @@ template class jwc::MessageTimer<false>;
 
 // int main()
 // {
-// 	jwc::SilentTimer t;
+// 	common::SilentTimer t;
 // 	t.start("Test");
 // 	f(1);
 // 	t.restart("Test2");

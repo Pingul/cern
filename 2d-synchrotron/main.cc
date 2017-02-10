@@ -4,13 +4,13 @@
 #include <tbb/task_scheduler_init.h>
 #include "2d-synchrotron.hh"
 
-namespace jwc {
+namespace twodsynch {
 
 template <typename TModel>
 void generateLossmap(typename TModel::RAMP_TYPE type)
 {
-    TModel tm(1000, type, typename TModel::LossAnalysis());
-    //TModel tm(type, typename TModel::LossAnalysis());
+    //TModel tm(2000, type, typename TModel::LossAnalysis());
+	TModel tm("calc/3pstart.dat", type);
     auto freq = TModel::Accelerator::getLHC().revolution_freq;
     int turns = 50*freq;
 
@@ -19,7 +19,8 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
     std::vector<double> startPh(tm.getPhase());
     // ...end of hack
 
-    tm.takeTimesteps(turns); 
+    //tm.takeTimesteps(turns); 
+	tm.takeTimesteps(turns, twodsynch::PATH_FILE, 50); 
     tm.writeCollHits(COLL_FILE);
 
 
@@ -39,13 +40,13 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
         std::cout 
             << "Latest hit:\n\tparticle " << ilastHit << ", turn " << tlastHit 
             << "(approx. after " << std::setprecision(3) << (double(tlastHit)/freq) << " s)\n"
-            << "\tstarting H=" << std::setprecision(16) << jwc::hamiltonian(TModel::Accelerator::getLHC(),
+            << "\tstarting H=" << std::setprecision(16) << twodsynch::hamiltonian(TModel::Accelerator::getLHC(),
             startE[ilastHit], startPh[ilastHit]) << std::endl;
     }
 
 }
 
-}; // namespace jwc
+}; // namespace twodsynch
 
 int main(int argc, char* argv[])
 {
@@ -53,9 +54,11 @@ int main(int argc, char* argv[])
 
     tbb::task_scheduler_init init;
 
-    typedef jwc::ToyModel<double> ToyModel;
+    typedef twodsynch::ToyModel<double> ToyModel;
 
-    // CHANGE FOR DIFFERENT SIMULATIONS
+    //std::cout << twodsynch::synchrotron_frequency() << std::endl;
+
+    // CHANGE FOR00 DIFFERENT SIMULATIONS
     ToyModel::RAMP_TYPE type = ToyModel::LHC_RAMP;
 
     if (args.size() < 2) {
@@ -64,30 +67,30 @@ int main(int argc, char* argv[])
         {
             std::cout << "Creating particle paths" << std::endl;
             ToyModel tm(1000, type);
-            tm.takeTimesteps(5000, jwc::PATH_FILE, 10);
-            tm.writeCollHits(jwc::COLL_FILE);
+            tm.takeTimesteps(5000, twodsynch::PATH_FILE, 10);
+            tm.writeCollHits(twodsynch::COLL_FILE);
         }
         {
             std::cout << "Creating line segments" << std::endl;
             ToyModel tm(type, ToyModel::LineSim());
-            tm.takeTimesteps(1700, jwc::LINE_FILE, 5);
+            tm.takeTimesteps(1700, twodsynch::LINE_FILE, 5);
         }
     } else if (args[1] == "energy") {
         std::cout << "Simulating 1 particle" << std::endl;
         ToyModel tm(1, type);
-        tm.takeTimesteps(40000, jwc::PATH_FILE);
-        tm.writeCollHits(jwc::COLL_FILE);
+        tm.takeTimesteps(40000, twodsynch::PATH_FILE);
+        tm.writeCollHits(twodsynch::COLL_FILE);
     } else if (args[1] == "lossmap-analysis" || args[1] == "lossmap") {
         std::cout << "Loss pattern analysis" << std::endl;
-        jwc::generateLossmap<ToyModel>(type);
+        twodsynch::generateLossmap<ToyModel>(type);
     } else if (args[1] == "sixtrack-comp") {
         std::cout << "Sixtrack comparison" << std::endl;
         ToyModel tm( (ToyModel::SixTrackTest()) );
-        tm.takeTimesteps(30000, jwc::SIXTRACK_TEST_FILE);
+        tm.takeTimesteps(30000, twodsynch::SIXTRACK_TEST_FILE);
     } else if (args[1] == "startdist") {
         std::cout << "Start distribution" << std::endl;
         ToyModel tm(5000, type, ToyModel::LossAnalysis());
-        //ToyModel tm(type, ToyModel::LossAnalysis());
+        //ToyModel tm("calc/test.dat", type);
     } else if (args[1] == "phasespace") {
         int turn = std::stoi(args[2]);
 
@@ -98,7 +101,14 @@ int main(int argc, char* argv[])
 
         std::cout << "Creating line segments for turn " << turn << std::endl;
         ToyModel tm(type, ToyModel::LineSim());
-        tm.takeTimestepsFromTo(turn, 1700 + turn, jwc::LINE_FILE, 5);
+        tm.takeTimestepsFromTo(turn, 1700 + turn, twodsynch::LINE_FILE, 5);
+    } else if (args[1] == "restart") {
+        if (args.size() < 3)
+            std::cout << "Must provide file path" << std::endl;
+        else {
+            ToyModel tm(args[2], type);
+            tm.takeTimesteps(1000);
+        }
     } else {
         std::cout << "No action with name '" << args[1] << "' found" << std::endl;
     }

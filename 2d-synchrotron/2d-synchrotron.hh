@@ -12,19 +12,18 @@
 #include "common.hh"
 #include "timer.hh"
 
-namespace CONST {
+namespace twodsynch {
 
+namespace cnst {
 constexpr double pi = 3.14159265359;
 constexpr double c = 299792458.0; // m/s
 constexpr double m_proton = 938.2796e6; // eV
+}; // namespace cnst
 
-}; // namespace CONST
-
-namespace jwc {
 
 // Same as used in the python visualisation code
-static constexpr double FRAME_X_LOW = -2*CONST::pi;
-static constexpr double FRAME_X_HIGH = 4*CONST::pi;
+static constexpr double FRAME_X_LOW = -2*cnst::pi;
+static constexpr double FRAME_X_HIGH = 4*cnst::pi;
 static constexpr double FRAME_Y_LOW = -2e9;
 static constexpr double FRAME_Y_HIGH = 2e9;
 
@@ -71,7 +70,7 @@ public:
         acc.coll_top = T(0.5e9); // ∆eV
         acc.coll_bot = T(-0.5e9);
         acc.revolution_freq = T(acc.rf_freq/acc.harmonic); // Hz
-        acc.w_revolution_freq = 2*CONST::pi*acc.revolution_freq; // Hz
+        acc.w_revolution_freq = 2*cnst::pi*acc.revolution_freq; // Hz
         return acc;
     }
 
@@ -92,15 +91,15 @@ template <typename T>
 inline T hamiltonian(const Accelerator<T>& acc, T deltaE, T phase)
 {
     const T rev = acc.w_revolution_freq;
-    const T gamma = (acc.E() + deltaE)/CONST::m_proton;
+    const T gamma = (acc.E() + deltaE)/cnst::m_proton;
     const T gamma_2 = T(1)/(gamma*gamma);
     const T eta = gamma_2 - acc.m_compaction;
     const T beta2 = T(1) - gamma_2;
     const T beta = std::sqrt(beta2);
-    const T k = acc.harmonic*rev/(beta*CONST::c);
-    const T Omega2 = rev*rev*acc.harmonic*eta*acc.rf_voltage/(T(2)*CONST::pi*beta*acc.E());
+    const T k = acc.harmonic*rev/(beta*cnst::c);
+    const T Omega2 = rev*rev*acc.harmonic*eta*acc.rf_voltage/(T(2)*cnst::pi*beta*acc.E());
 
-    const T H = T(1)/2*beta2*pow(CONST::c*k*eta*deltaE/acc.E(), 2) - Omega2*std::cos(phase);
+    const T H = T(1)/2*beta2*pow(cnst::c*k*eta*deltaE/acc.E(), 2) - Omega2*std::cos(phase);
     return H;
 }
 
@@ -108,6 +107,7 @@ template <typename T>
 struct ToyModel 
 {
     using Accelerator = Accelerator<T>;
+	//using common::skip = common::skip;
 
     enum RAMP_TYPE
     {
@@ -129,10 +129,10 @@ struct ToyModel
 
         // Good distribution for the full frame
         // std::normal_distribution<> e_dist(0, 0.2e9);
-        // std::normal_distribution<> ph_dist(CONST::pi, CONST::pi);
+        // std::normal_distribution<> ph_dist(cnst::pi, cnst::pi);
 
         std::normal_distribution<> e_dist(0, 0.15e9);
-        std::normal_distribution<> ph_dist(CONST::pi, CONST::pi/5);
+        std::normal_distribution<> ph_dist(cnst::pi, cnst::pi/5);
         for (size_t i = 0; i < n; ++i) {
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
@@ -140,6 +140,31 @@ struct ToyModel
             mPhase.push_back(phase); 
         }
 
+        writeSingleDistribution(STARTDIST_FILE);
+    }
+
+    ToyModel(const std::string filePath, RAMP_TYPE type)
+        : mAcc(Accelerator::getLHC()), mType(type)
+    {
+        std::cout << "Reading distribution from '" << filePath << "'" << std::endl;
+        std::ifstream file(filePath.c_str());
+        if (!file.is_open())
+            throw std::runtime_error("could not open file");
+
+        int n;
+        file >> n >> common::skip;
+        mEnergy.reserve(n);
+        mPhase.reserve(n);
+        mCollHits.assign(n, -1);
+    
+        for (int i = 0; i < n; ++i) {
+            T de, phase;
+            file >> de >> common::skip<char> >> phase;
+            mEnergy.push_back(de);
+            mPhase.push_back(phase);
+        }
+        
+        std::cout << "Initialized " << n << " particles" << std::endl;
         writeSingleDistribution(STARTDIST_FILE);
     }
 
@@ -160,7 +185,7 @@ struct ToyModel
             default:
             case NO_RAMP:
             case LHC_RAMP:
-                for (T x = FRAME_X_LOW; x < FRAME_X_HIGH; x += CONST::pi/4.0) {
+                for (T x = FRAME_X_LOW; x < FRAME_X_HIGH; x += cnst::pi/4.0) {
                     mEnergy.push_back(0.0f);
                     mPhase.push_back(x);
                 }
@@ -172,33 +197,15 @@ struct ToyModel
             case AGGRESSIVE_RAMP:
                 break;
             case SEMI_AGGRESSIVE_RAMP:
-                for (T x = -CONST::pi; x < FRAME_X_HIGH; x += 2*CONST::pi) {
-                    T d = CONST::pi/2;
-                    for (T delta = -d; delta < d; delta += CONST::pi/5) {
+                for (T x = -cnst::pi; x < FRAME_X_HIGH; x += 2*cnst::pi) {
+                    T d = cnst::pi/2;
+                    for (T delta = -d; delta < d; delta += cnst::pi/5) {
                         mEnergy.push_back(0.0f);
                         mPhase.push_back(x + delta);
                     }
                 }
                 break;
         }
-    }
-
-    ToyModel(RAMP_TYPE type, LossAnalysis) 
-        : mAcc(Accelerator::getLHC()), mType(type)
-    {
-        for (T de = 0.4e9; de < 0.5e9; de += 1e5) {
-            const T ph = CONST::pi;
-            //for (T ph = ; ph < PHmax; ph += PHstep) {
-                const T H = hamiltonian(mAcc, de, ph);
-                //if (H > 1.17e5 && H < 1.199e5) {
-                    mEnergy.push_back(de);
-                    mPhase.push_back(ph);
-                //}
-            //}
-        }
-        mCollHits.assign(size(), -1);
-
-        writeSingleDistribution(STARTDIST_FILE);
     }
 
     ToyModel(int n, RAMP_TYPE type, LossAnalysis)
@@ -212,16 +219,14 @@ struct ToyModel
         std::mt19937 generator(rdev());
 
         std::uniform_real_distribution<> e_dist(-0.5e9, 0.5e9);
-        std::uniform_real_distribution<> ph_dist(0, 2*CONST::pi);
+        std::uniform_real_distribution<> ph_dist(0, 2*cnst::pi);
         int count = 0;
         while (count < n) {
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-            //if (H > 0 && H < 1.25e5) {
+			if (H > 1.19e5 && H < 1.20e5) {
             //if (H < 1.25e5) {
-            if (H < 0) {
-                std::cout << "H=" << H << std::endl;
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -234,7 +239,7 @@ struct ToyModel
         : mAcc(Accelerator::getLHC()), mType(LHC_RAMP)
     {
         mEnergy.push_back(T(0.41646726612503554e6));
-        mPhase.push_back(CONST::pi);
+        mPhase.push_back(cnst::pi);
         // mPhase.push_back(0);
     }
 
@@ -259,7 +264,8 @@ struct ToyModel
             throw std::runtime_error("could not save particle coordinates");
 
         // FILE:
-        //     ∆energy / phase 
+        //      ∆energy / phase  p1
+        //      ...              p2
         for (size_t i = 0; i < size(); ++i) {
             std::stringstream ss;
             ss << std::setprecision(16) << mEnergy[i] << "," << mPhase[i] << std::endl;
@@ -313,7 +319,7 @@ struct ToyModel
                 std::ifstream ramp_file(RAMP_FILE);
                 std::cout << "Reading '" << RAMP_FILE << "'..." << std::endl;
                 for (int i = 0; i < steps; ++i) {
-                    ramp_file >> skip >> data;
+                    ramp_file >> common::skip >> data;
                     E_ramp.push_back(data*1e6);
                 }
                 ramp_file.close();
@@ -322,7 +328,7 @@ struct ToyModel
                 std::cout << "Reading '" << COLL_MOTOR_FILE << "'..." << std::endl;
                 for (int i = 0; i < steps; ++i) {
                     T bot_coll, top_coll;
-                    coll_file >> skip >> bot_coll >> top_coll;
+                    coll_file >> common::skip >> bot_coll >> top_coll;
                     collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
                 }
                 break;
@@ -385,7 +391,7 @@ struct ToyModel
         std::cout << "Tracking " << size() << " particles for " << n << " turns" << std::endl;
         std::cout << "Starting simulation..." << std::endl;
 
-        SilentTimer timer;
+		common::SilentTimer timer;
 
         timer.start();
         for (int i = from; i < to; ++i) {
@@ -422,7 +428,7 @@ struct ToyModel
 
         double ms = timer.stop();
 
-        auto dur = MillisecondsToElapsedTime(unsigned(ms));
+        auto dur = common::MillisecondsToElapsedTime(unsigned(ms));
         std::cout << "Finished in ";
         if (dur.d > 0) std::cout << dur.d << "d ";
         if (dur.h > 0) std::cout << dur.h << "h ";
@@ -461,7 +467,7 @@ private:
         {
             const T e = 1.0;
             // const T m = 938e6;
-            const T B2_s = 1 - std::pow(CONST::m_proton/mAcc.E(), 2);
+            const T B2_s = 1 - std::pow(cnst::m_proton/mAcc.E(), 2);
             for (size_t n = range.begin(), N = range.end(); n < N; ++n) {
                 if (particleInactive(n)) 
                     continue;
@@ -474,9 +480,9 @@ private:
                 // mEnergy[n] -= mAcc.rf_voltage*std::sin(deltaRef/mAcc.rf_voltage);
 
                 mEnergy[n] += e*mAcc.rf_voltage*std::sin(mPhase[n]);
-                T B2 = T(1) - std::pow(CONST::m_proton/(mAcc.E() + mEnergy[n]), 2);
+                T B2 = T(1) - std::pow(cnst::m_proton/(mAcc.E() + mEnergy[n]), 2);
                 T eta = T(1) - B2 - mAcc.m_compaction;
-                mPhase[n] -= T(2)*CONST::pi*mAcc.harmonic*eta/(B2_s*mAcc.E())*mEnergy[n];
+                mPhase[n] -= T(2)*cnst::pi*mAcc.harmonic*eta/(B2_s*mAcc.E())*mEnergy[n];
                 if (particleCollided(n)) mCollHits[n] = mStepID;
             }
         }
@@ -513,4 +519,4 @@ inline double synchrotron_frequency()
 }
 
 
-}; // namespace jwc
+}; // namespace twodsynch

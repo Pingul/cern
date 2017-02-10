@@ -5,7 +5,7 @@
 #include <string>
 #include <iostream>
 
-namespace jwc {
+namespace common {
 
 template <bool WithMessage>
 class MessageTimer
@@ -49,6 +49,6 @@ inline ElapsedTime MillisecondsToElapsedTime(unsigned ms)
 }
 
 
-}; // namespace jwc
+}; // namespace common
 
 #endif
