@@ -102,12 +102,10 @@ inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
     const T eta = gamma_2 - acc.m_compaction;
     const T beta2 = T(1) - gamma_2;
     const T beta = std::sqrt(beta2);
-    const T k = acc.h_rf*rev/(beta*cnst::c);
     const T Omega2 = rev*rev*acc.h_rf*eta*acc.V_rf/(T(2)*cnst::pi*beta*acc.E());
 
 	const T ph_s = acc.lag_phase();
-	//const T ph_s = 0;
-
+	//const T ph_s = 0.5;
 
     //const T H = T(0.5)*beta2*pow(cnst::c*k*eta*de/acc.E(), 2) - Omega2*std::cos(ph);
 	const T H2 = T(0.5)*beta2*pow(cnst::c*acc.k_rf*eta*de/acc.E(), 2) - Omega2/std::cos(ph_s)*(std::cos(ph_s + ph) - std::cos(ph_s) + ph*std::sin(ph_s));
@@ -241,9 +239,7 @@ struct ToyModel
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-			//if (H > 1.19e5 && H < 1.20e5) {
-			//if (H < 1.25e5) {
-			if (H < 0) {
+			if (-1000 < H && H < 1000) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -281,11 +277,11 @@ struct ToyModel
             throw std::runtime_error("could not save particle coordinates");
 
         // FILE:
-        //      ∆energy / phase  p1
-        //      ...              p2
+        //      ∆energy,phase,hamiltonian   p1
+        //      ...							p2
         for (size_t i = 0; i < size(); ++i) {
             std::stringstream ss;
-            ss << std::setprecision(16) << mEnergy[i] << "," << mPhase[i] << std::endl;
+            ss << std::setprecision(16) << mEnergy[i] << "," << mPhase[i] << "," << hamiltonian(mAcc, mEnergy[i], mPhase[i]) << std::endl;
             file << ss.str();
         }
         file.close();

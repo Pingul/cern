@@ -81,9 +81,10 @@ class PhaseSpace:
     def __init__(self, pfile, rfile=None):
         self.nbr_p = 0
         self.nbr_turns = 0
-        self.denergy = []
-        self.phase = []
-        self.ref_energy = []
+        self.denergy = np.array([])
+        self.phase = np.array([])
+        # self.ref_energy = []
+        self.ref_energy = None
 
 
         if pfile:
@@ -105,10 +106,12 @@ class PhaseSpace:
                 for i, line in enumerate(file.readlines()):
                     if i == 0:
                         self.nbr_p, self.nbr_turns = map(int, line.rstrip('\n').split(','))
+                        self.denergy = np.empty(self.nbr_p*self.nbr_turns)
+                        self.phase = np.empty(self.nbr_p*self.nbr_turns)
                         continue
-                    denergy, phase = map(float, line.rstrip('\n').split(','))
-                    self.denergy.append(denergy)
-                    self.phase.append(phase)
+                    denergy, phase, h = map(float, line.rstrip('\n').split(','))
+                    self.denergy[i - 1] = denergy
+                    self.phase[i - 1] = phase
 
         if rfile:
             raise Exception("removed support for ramp file")
@@ -135,7 +138,7 @@ class PhaseSpace:
                         nbr_series = int(line.rstrip().split(',')[0])
                         series = [{"denergy" : [], "phase" : []} for l in range(nbr_series)]
                         continue
-                    denergy, phase = map(float, line.rstrip("\n").split(","))
+                    denergy, phase, h = map(float, line.rstrip("\n").split(","))
                     series[i % nbr_series]["phase"].append(phase)
                     series[i % nbr_series]["denergy"].append(denergy)
         else:
@@ -197,7 +200,7 @@ class PhaseSpace:
         if not lossmap:
             start = (turn - 1)*self.nbr_p
             end = turn*self.nbr_p
-            self.pos_plot = self.ax.scatter(self.phase[start:end], self.denergy[start:end], zorder=10)
+            self.pos_plot = self.ax.scatter(self.phase[start:end], self.denergy[start:end], zorder=10, color='b', s=4)
         else:
             lost_particles = []
             for turn in lossmap:
