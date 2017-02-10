@@ -277,8 +277,8 @@ struct ToyModel
             throw std::runtime_error("could not save particle coordinates");
 
         // FILE:
-        //      ∆energy,phase,hamiltonian   p1
-        //      ...							p2
+        //      ∆energy,phase,h		p1
+        //      ...					p2
         for (size_t i = 0; i < size(); ++i) {
             std::stringstream ss;
             ss << std::setprecision(16) << mEnergy[i] << "," << mPhase[i] << "," << hamiltonian(mAcc, mEnergy[i], mPhase[i]) << std::endl;
@@ -392,7 +392,7 @@ struct ToyModel
         if (filePath.empty())
             std::cout << "Will not save particle path data" << std::endl;
         else  {
-            createTurnFileHeader(filePath, n + 1); // +1 as we are saving the first starting configuration as well
+            createTurnFileHeader(filePath, 1 + n/saveFreq); // +1 as we are saving the first starting configuration as well
             writeDistribution(filePath);
         }
 
