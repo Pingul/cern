@@ -37,7 +37,6 @@ def moving_average(sequence, N):
     average = np.convolve(sequence, np.ones((N,))/N, mode='same')
     return average
 
-# def get_lossmap(collfile, with_id=False, with_coll_values=False):
 def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
     # the default attributes are the only one that gets recognised
     # no values only gives nbr of losses each turn
@@ -79,7 +78,7 @@ def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
 class PhaseSpace:
     """ Only works for data output by the 2d synchrotron """
 
-    def __init__(self, pfile, rfile=RAMP_FILE):
+    def __init__(self, pfile, rfile=None):
         self.nbr_p = 0
         self.nbr_turns = 0
         self.denergy = []
@@ -90,6 +89,19 @@ class PhaseSpace:
         if pfile:
             print("reading in particles from '{}'".format(pfile))
             with open(pfile, 'r') as file:
+                # This does not work... why?
+                # self.nbr_p, self.nbr_turns = map(int, file.readline().rstrip('\n').split(','))
+                # for i in range(self.nbr_turns):
+                    # line = file.readline().strip()
+                    # if not line: break # EOF
+                    # e_ref = float(line.strip())
+                    # self.ref_energy.append(e_ref)
+                    # for j in range(self.nbr_p):
+                        # line = file.readline().strip()
+                        # denergy, phase = map(float, line.split(','))
+                        # self.denergy.append(denergy)
+                        # self.phase.append(phase)
+
                 for i, line in enumerate(file.readlines()):
                     if i == 0:
                         self.nbr_p, self.nbr_turns = map(int, line.rstrip('\n').split(','))
@@ -99,41 +111,57 @@ class PhaseSpace:
                     self.phase.append(phase)
 
         if rfile:
-            print("reading in energy from '{}'".format(rfile))
-            with open(rfile, 'r') as file:
-                for i, line in enumerate(file.readlines()):
-                    if i >= self.nbr_turns:
-                        break
-                    ref_e = float(line.split()[-1])
-                    self.ref_energy.append(ref_e)
+            raise Exception("removed support for ramp file")
+            # print("reading in energy from '{}'".format(rfile))
+            # with open(rfile, 'r') as file:
+                # for i, line in enumerate(file.readlines()):
+                    # if i >= self.nbr_turns:
+                        # break
+                    # ref_e = float(line.split()[-1])
+                    # self.ref_energy.append(ref_e)
 
     def create_plot(self):
         self.fig, self.ax = plt.subplots()
 
-    def plot_background_lines(self):
-        nbr_lines = 0
-        lines = []
-        print("reading background lines from '{}'".format(LINE_FILE))
-        with open(LINE_FILE, 'r') as f:
-            for i, line in enumerate(f.readlines()):
-                if i == 0:
-                    nbr_lines = int(line.rstrip().split(',')[0])
-                    lines = [{"denergy" : [], "phase" : []} for l in range(nbr_lines)]
-                    continue
-                denergy, phase = map(float, line.rstrip("\n").split(","))
-                lines[i % nbr_lines]["phase"].append(phase)
-                lines[i % nbr_lines]["denergy"].append(denergy)
+    def plot_trajectory(self, filePath=None, randomizeColors=False):
+        print("plot trajectory '{}'".format(filePath))
+        nbr_series = 0
+        series = []
+        if filePath is not None:
+            print("reading file '{}'".format(filePath))
+            with open(filePath, 'r') as f:
+                for i, line in enumerate(f.readlines()):
+                    if i == 0:
+                        nbr_series = int(line.rstrip().split(',')[0])
+                        series = [{"denergy" : [], "phase" : []} for l in range(nbr_series)]
+                        continue
+                    denergy, phase = map(float, line.rstrip("\n").split(","))
+                    series[i % nbr_series]["phase"].append(phase)
+                    series[i % nbr_series]["denergy"].append(denergy)
+        else:
+            print("using local data")
+            nbr_series = self.nbr_p
+            series = [{"denergy" : [], "phase" : []} for l in range(nbr_series)]
+            for i, de in enumerate(self.denergy):
+                series[i % nbr_series]["phase"].append(self.phase[i])
+                series[i % nbr_series]["denergy"].append(de)
+
 
         cMap = plt.get_cmap('plasma_r')
         cNorm = colors.Normalize(vmin=0, vmax=6e8)
         scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cMap)
-        print("plotting background lines")
-        for trail in lines:
+        print("plotting series")
+        for trail in series:
             mmax = abs(max(trail['denergy']))
             mmin = abs(min(trail['denergy']))
             v = mmax if mmax > mmin else mmin
             colorVal = scalarMap.to_rgba(v)
+            if randomizeColors:
+                colorVal = np.random.rand(3,)
             self.ax.plot(trail["phase"], trail["denergy"], '-', color=colorVal, zorder=1)
+
+    def plot_background_lines(self):
+        self.plot_trajectory(LINE_FILE)
 
     def plot_collimators(self):
         with open(COLL_FILE, 'r') as f:
@@ -188,7 +216,8 @@ class PhaseSpace:
         lost_particles = [i for i in self.active_particles if num in self.coll_hits and i in self.coll_hits[num]]
         self.active_particles = [i for i in self.active_particles if not i in lost_particles]
 
-        self.ref_e_text.set_text("E = {0:.8E}".format(self.ref_energy[num]))
+        # self.ref_e_text.set_text("E = {0:.8E}".format(self.ref_energy[num]))
+        self.ref_e_text.set_text("Frame {}".format(num))
         self.pos_plot.set_offsets([(self.phase[i + istart], self.denergy[i + istart]) for i in self.active_particles])
 
         self.lost_particles['denergy'].extend((self.denergy[i + istart] for i in lost_particles))
@@ -205,7 +234,8 @@ class PhaseSpace:
         self.pos_plot = self.ax.scatter(self.phase[0:self.nbr_p], self.denergy[0:self.nbr_p], zorder=10)
         self.active_particles = range(self.nbr_p)
         self.lost_particles = {'denergy': [], 'phase': []}
-        self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
+        # self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
+        self.ref_e_text = self.ax.text(-4, 1.7e9, "Frame {}".format(0), ha = 'left', va = 'center', fontsize = 15)
 
         ani = animation.FuncAnimation(self.fig, self.update, int(len(self.denergy)/self.nbr_p), interval=50, blit=False)
 
@@ -419,5 +449,12 @@ if __name__ == "__main__":
             plt.savefig(SAVE_FILE)
         else:
             plt.show()
+    elif ACTION == "trajectory":
+        print("plot particle trajectory")
+        ps = PhaseSpace(PARTICLE_FILE)
+        ps.create_plot()
+        ps.format_axes()
+        ps.plot_trajectory(randomizeColors=True)
+        plt.show()
     else:
         print("unrecognised action")
