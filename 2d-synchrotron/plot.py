@@ -108,10 +108,12 @@ class PhaseSpace:
                         self.nbr_p, self.nbr_turns = map(int, line.rstrip('\n').split(','))
                         self.denergy = np.empty(self.nbr_p*self.nbr_turns)
                         self.phase = np.empty(self.nbr_p*self.nbr_turns)
+                        self.h = np.empty(self.nbr_p*self.nbr_turns)
                         continue
                     denergy, phase, h = map(float, line.rstrip('\n').split(','))
                     self.denergy[i - 1] = denergy
                     self.phase[i - 1] = phase
+                    self.h[i - 1] = h
 
         if rfile:
             raise Exception("removed support for ramp file")
@@ -285,7 +287,6 @@ def plot_lossmap_phase():
     plt.show()
 
 
-
 def plot_lossmap(save_to=''):
     lossmap = get_lossmap(COLL_FILE, with_attr=[])
 
@@ -417,7 +418,19 @@ def plot_energy_oscillations():
 
     plt.show()
 
-# def plot_dist(file):
+def plot_hamiltonian(ps): # input phase space containing ps.h
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    print(ps.h.shape)
+    x = np.empty(ps.h.shape)
+    for i in range(ps.nbr_turns):
+        for j in range(ps.nbr_p):
+            x[i*j + j] = i
+
+    print("drawing {} points...".format(len(x)))
+    ax.scatter(x, ps.h, color='brown')
+    plt.show()
 
 
 
@@ -459,5 +472,9 @@ if __name__ == "__main__":
         ps.format_axes()
         ps.plot_trajectory(randomizeColors=True)
         plt.show()
+    elif ACTION == "ham":
+        print("plot hamiltonian")
+        ps = PhaseSpace(PARTICLE_FILE)
+        plot_hamiltonian(ps)
     else:
         print("unrecognised action")
