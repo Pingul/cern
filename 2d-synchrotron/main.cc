@@ -9,9 +9,9 @@ namespace twodsynch {
 template <typename TModel>
 void generateLossmap(typename TModel::RAMP_TYPE type)
 {
-    //TModel tm(2000, type, typename TModel::LossAnalysis());
-	TModel tm("calc/3pstart.dat", type);
-    auto freq = TModel::Accelerator::getLHC().revolution_freq;
+	TModel tm(2000, type, typename TModel::LossAnalysis());
+	//TModel tm("calc/3pstart.dat", type);
+    auto freq = TModel::Accelerator::getLHC().f_rev;
     int turns = 50*freq;
 
     // hack...
@@ -19,8 +19,8 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
     std::vector<double> startPh(tm.getPhase());
     // ...end of hack
 
-    //tm.takeTimesteps(turns); 
-	tm.takeTimesteps(turns, twodsynch::PATH_FILE, 50); 
+	tm.takeTimesteps(turns); 
+	//tm.takeTimesteps(turns, twodsynch::PATH_FILE, 50); 
     tm.writeCollHits(COLL_FILE);
 
 
@@ -66,7 +66,8 @@ int main(int argc, char* argv[])
     } else if (args[1] == "animate") {
         {
             std::cout << "Creating particle paths" << std::endl;
-            ToyModel tm(1000, type);
+            //ToyModel tm(1000, type);
+            ToyModel tm(1000, type, ToyModel::LossAnalysis());
             tm.takeTimesteps(5000, twodsynch::PATH_FILE, 10);
             tm.writeCollHits(twodsynch::COLL_FILE);
         }

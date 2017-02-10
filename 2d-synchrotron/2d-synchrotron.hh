@@ -48,29 +48,33 @@ private:
     T mE_ref;
     T mE_pref;
 public:
-    T rf_voltage;
-    T rf_freq;
-    T harmonic;
+	T C;
+    T V_rf;
+    T f_rf;
+    T h_rf;
+	T k_rf;
     T m_compaction;
     T coll_top;
     T coll_bot;
-    T revolution_freq;
-    T w_revolution_freq;
+    T f_rev;
+    T w_rev;
 
     static Acc getLHC() 
     {
         // Parameters for LHC can be found at http://atlas.physics.arizona.edu/~kjohns/downloads/linac/UTclass2lhc.pdf
         Acc acc;
+		acc.C = 26658.8832;
         acc.mE_ref = T(450e9); // eV
         acc.mE_pref = acc.mE_ref;
-        acc.rf_voltage = T(6e6); // V
-        acc.rf_freq = T(398765412.66);
-        acc.harmonic = T(35640);
+        acc.V_rf = T(6e6); // V
+        acc.f_rf = T(398765412.66);
+        acc.h_rf = T(35640);
+		acc.k_rf = acc.h_rf*T(2)*cnst::pi/acc.C;
         acc.m_compaction = T(0.0003225);
         acc.coll_top = T(0.5e9); // ∆eV
         acc.coll_bot = T(-0.5e9);
-        acc.revolution_freq = T(acc.rf_freq/acc.harmonic); // Hz
-        acc.w_revolution_freq = 2*cnst::pi*acc.revolution_freq; // Hz
+        acc.f_rev = T(acc.f_rf/acc.h_rf); // Hz
+        acc.w_rev = 2*cnst::pi*acc.f_rev; // Hz
         return acc;
     }
 
@@ -82,32 +86,41 @@ public:
         return a;
     }
 
+
     void setE(T v, bool reset = false) { mE_pref = mE_ref; if (reset) mE_pref = v; mE_ref = v; }
     T E() const { return mE_ref; }
     T E_prev() const { return mE_pref; }
+	T lag_phase() const { return std::asin((E() - E_prev())/V_rf); }
 };
 
 template <typename T>
-inline T hamiltonian(const Accelerator<T>& acc, T deltaE, T phase)
+inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
 {
-    const T rev = acc.w_revolution_freq;
-    const T gamma = (acc.E() + deltaE)/cnst::m_proton;
+    const T rev = acc.w_rev;
+    const T gamma = (acc.E() + de)/cnst::m_proton;
     const T gamma_2 = T(1)/(gamma*gamma);
     const T eta = gamma_2 - acc.m_compaction;
     const T beta2 = T(1) - gamma_2;
     const T beta = std::sqrt(beta2);
-    const T k = acc.harmonic*rev/(beta*cnst::c);
-    const T Omega2 = rev*rev*acc.harmonic*eta*acc.rf_voltage/(T(2)*cnst::pi*beta*acc.E());
+    const T k = acc.h_rf*rev/(beta*cnst::c);
+    const T Omega2 = rev*rev*acc.h_rf*eta*acc.V_rf/(T(2)*cnst::pi*beta*acc.E());
 
-    const T H = T(1)/2*beta2*pow(cnst::c*k*eta*deltaE/acc.E(), 2) - Omega2*std::cos(phase);
-    return H;
+	const T ph_s = acc.lag_phase();
+	//const T ph_s = 0;
+
+
+    //const T H = T(0.5)*beta2*pow(cnst::c*k*eta*de/acc.E(), 2) - Omega2*std::cos(ph);
+	const T H2 = T(0.5)*beta2*pow(cnst::c*acc.k_rf*eta*de/acc.E(), 2) - Omega2/std::cos(ph_s)*(std::cos(ph_s + ph) - std::cos(ph_s) + ph*std::sin(ph_s));
+	//std::cout << "H=" << H << ", H2=" << H2 << std::endl;
+    return H2;
 }
+
+
 
 template <typename T>
 struct ToyModel 
 {
     using Accelerator = Accelerator<T>;
-	//using common::skip = common::skip;
 
     enum RAMP_TYPE
     {
@@ -151,15 +164,17 @@ struct ToyModel
         if (!file.is_open())
             throw std::runtime_error("could not open file");
 
+		using common::skip;
+
         int n;
-        file >> n >> common::skip;
+        file >> n >> skip;
         mEnergy.reserve(n);
         mPhase.reserve(n);
         mCollHits.assign(n, -1);
     
         for (int i = 0; i < n; ++i) {
             T de, phase;
-            file >> de >> common::skip<char> >> phase;
+            file >> de >> skip<char> >> phase;
             mEnergy.push_back(de);
             mPhase.push_back(phase);
         }
@@ -205,6 +220,7 @@ struct ToyModel
                     }
                 }
                 break;
+
         }
     }
 
@@ -225,8 +241,9 @@ struct ToyModel
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-			if (H > 1.19e5 && H < 1.20e5) {
-            //if (H < 1.25e5) {
+			//if (H > 1.19e5 && H < 1.20e5) {
+			//if (H < 1.25e5) {
+			if (H < 0) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -309,6 +326,8 @@ struct ToyModel
 
     void loadRamp(int steps, std::vector<T>& E_ramp, std::vector<std::pair<T, T>>& collimators) 
     {
+		using common::skip;
+
         E_ramp.reserve(steps);
         collimators.reserve(steps);
 
@@ -319,7 +338,7 @@ struct ToyModel
                 std::ifstream ramp_file(RAMP_FILE);
                 std::cout << "Reading '" << RAMP_FILE << "'..." << std::endl;
                 for (int i = 0; i < steps; ++i) {
-                    ramp_file >> common::skip >> data;
+                    ramp_file >> skip >> data;
                     E_ramp.push_back(data*1e6);
                 }
                 ramp_file.close();
@@ -328,7 +347,7 @@ struct ToyModel
                 std::cout << "Reading '" << COLL_MOTOR_FILE << "'..." << std::endl;
                 for (int i = 0; i < steps; ++i) {
                     T bot_coll, top_coll;
-                    coll_file >> common::skip >> bot_coll >> top_coll;
+                    coll_file >> skip >> bot_coll >> top_coll;
                     collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
                 }
                 break;
@@ -400,7 +419,7 @@ struct ToyModel
 
                 // Caluclated from LHC_ramp.dat
                 const T k = 2.9491187074838457087e-07;
-                mAcc.rf_voltage = (6 + k*i)*1e6;
+                mAcc.V_rf = (6 + k*i)*1e6;
 
                 if (!ext_collimators.empty()) {
                     mAcc.coll_bot = ext_collimators[i].first;
@@ -477,12 +496,12 @@ private:
                 mEnergy[n] -= deltaRef;
 
                 // Give the particle a kick
-                // mEnergy[n] -= mAcc.rf_voltage*std::sin(deltaRef/mAcc.rf_voltage);
+                // mEnergy[n] -= mAcc.V_rf*std::sin(deltaRef/mAcc.V_rf);
 
-                mEnergy[n] += e*mAcc.rf_voltage*std::sin(mPhase[n]);
+                mEnergy[n] += e*mAcc.V_rf*std::sin(mPhase[n]);
                 T B2 = T(1) - std::pow(cnst::m_proton/(mAcc.E() + mEnergy[n]), 2);
                 T eta = T(1) - B2 - mAcc.m_compaction;
-                mPhase[n] -= T(2)*cnst::pi*mAcc.harmonic*eta/(B2_s*mAcc.E())*mEnergy[n];
+                mPhase[n] -= T(2)*cnst::pi*mAcc.h_rf*eta/(B2_s*mAcc.E())*mEnergy[n];
                 if (particleCollided(n)) mCollHits[n] = mStepID;
             }
         }
@@ -514,7 +533,7 @@ inline double synchrotron_frequency()
     const auto acc = ToyModel<double>::Accelerator::getLHC();
     const auto omega = std::sqrt(std::abs(hamiltonian<double>(acc, 0, 0)));
     std::cout << (omega*omega) << std::endl;
-    const auto freq_turns = omega/acc.w_revolution_freq;
+    const auto freq_turns = omega/acc.w_rev;
     return freq_turns;
 }
 

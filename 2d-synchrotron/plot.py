@@ -230,8 +230,8 @@ class PhaseSpace:
         self.plot_collimators()
         self.format_axes()
 
-        self.lost_plot = self.ax.scatter([], [], color='r', marker='x', zorder=20)
-        self.pos_plot = self.ax.scatter(self.phase[0:self.nbr_p], self.denergy[0:self.nbr_p], zorder=10)
+        self.lost_plot = self.ax.scatter([], [], color='r', marker='x', zorder=20, s=4)
+        self.pos_plot = self.ax.scatter(self.phase[0:self.nbr_p], self.denergy[0:self.nbr_p], zorder=10, s=4, color='b')
         self.active_particles = range(self.nbr_p)
         self.lost_particles = {'denergy': [], 'phase': []}
         # self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
