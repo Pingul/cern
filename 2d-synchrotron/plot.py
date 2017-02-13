@@ -75,6 +75,7 @@ def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
         return {turn : len(coll_hits[turn]) for turn in coll_hits}
     return coll_hits
 
+
 class PhaseSpace:
     """ Only works for data output by the 2d synchrotron """
 
@@ -189,6 +190,15 @@ class PhaseSpace:
         self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
         self.ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}π".format(x/math.pi)))
 
+    def categorize_particles(self, lossmap):
+        """ Seperates particle id's into two lists, 'lost' and 'alive' """
+        pbin = {'lost' : []}
+        for turn in lossmap:
+            pbin['lost'] += [loss['id'] for loss in lossmap[turn]]
+        pbin['lost'].sort()
+        pbin['alive'] = [i for i in range(self.nbr_p) if i not in pbin['lost']]
+        return pbin
+
     def plot_turn(self, turn=1):
         if turn > self.nbr_turns or turn < 0:
             raise Exception("can't plot given turn")
@@ -204,16 +214,12 @@ class PhaseSpace:
             end = turn*self.nbr_p
             self.pos_plot = self.ax.scatter(self.phase[start:end], self.denergy[start:end], zorder=10, color='b', s=4)
         else:
-            lost_particles = []
-            for turn in lossmap:
-                lost_particles += [loss['id'] for loss in lossmap[turn]]
-            lost_particles.sort()
-            live_particles = [i for i in range(self.nbr_p) if i not in lost_particles]
+            pbin = self.categorize_particles(lossmap)
 
             livez = 10
-            lostz = 9 if len(lost_particles) > len(live_particles) else 11
-            self.ax.scatter([self.phase[i] for i in live_particles], [self.denergy[i] for i in live_particles], color='b', s=4, zorder=livez)
-            self.ax.scatter([self.phase[i] for i in lost_particles], [self.denergy[i] for i in lost_particles], color='r', s=4, zorder=lostz)
+            lostz = 9 if len(pbin['lost']) > len(pbin['alive']) else 11
+            self.ax.scatter([self.phase[i] for i in pbin['alive']], [self.denergy[i] for i in pbin['alive']], color='b', s=4, zorder=livez)
+            self.ax.scatter([self.phase[i] for i in pbin['lost']], [self.denergy[i] for i in pbin['lost']], color='r', s=4, zorder=lostz)
         plt.show()
 
     def update(self, num):
@@ -380,7 +386,7 @@ def export_fitted_ramp():
 
 
 def plot_energy_oscillations():
-    nbr_turns = 500*11245
+    nbr_turns = 50*11245
     ramp = read_ramp(RAMP_FILE, nbr_turns)
     turns = np.array(range(nbr_turns))
 
@@ -410,9 +416,9 @@ def plot_energy_oscillations():
     #de_ax.axvline(x=50*11245, linewidth=1)
     #ph_ax.axvline(x=50*11245, linewidth=1)
 
-    e_ax.axvline(x=150*11245, linewidth=1, color='r')
-    de_ax.axvline(x=150*11245, linewidth=1, color='r')
-    ph_ax.axvline(x=150*11245, linewidth=1, color='r')
+    # e_ax.axvline(x=150*11245, linewidth=1, color='r')
+    # de_ax.axvline(x=150*11245, linewidth=1, color='r')
+    # ph_ax.axvline(x=150*11245, linewidth=1, color='r')
 
     fig.suptitle("LHC ramp")
 
@@ -422,14 +428,17 @@ def plot_hamiltonian(ps): # input phase space containing ps.h
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    print(ps.h.shape)
+    # print(max(ps.h[0:ps.nbr_p]))
     x = np.empty(ps.h.shape)
     for i in range(ps.nbr_turns):
         for j in range(ps.nbr_p):
-            x[i*j + j] = i
+            x[i*ps.nbr_p + j] = i
+    # print(x[0:(2*ps.nbr_p)])
 
     print("drawing {} points...".format(len(x)))
-    ax.scatter(x, ps.h, color='brown')
+    ax.scatter(x, ps.h, color='brown', s=4)
+    ax.set_xlabel("Saved turn")
+    ax.set_ylabel("Hamiltonian")
     plt.show()
 
 
