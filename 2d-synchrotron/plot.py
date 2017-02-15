@@ -170,17 +170,21 @@ class PhaseSpace:
         self.plot_trajectory(LINE_FILE)
 
     def plot_collimators(self):
-        with open(COLL_FILE, 'r') as f:
-            f.readline()
-            second_line = f.readline()
-            top_coll, bot_coll = map(float, second_line.rstrip().split(','))
-            self.collimator = {'top' : top_coll, 'bot' : bot_coll}
+        print("plot collimators")
+        try:
+            with open(COLL_FILE, 'r') as f:
+                f.readline()
+                second_line = f.readline()
+                top_coll, bot_coll = map(float, second_line.rstrip().split(','))
+                self.collimator = {'top' : top_coll, 'bot' : bot_coll}
+        except:
+            print("could not read '{}', will not plot".format(COLL_FILE))
+        else:
+            coll_hits = get_lossmap(COLL_FILE, with_attr=['id'])
+            self.coll_hits = {turn : [hit['id'] for hit in coll_hits[turn]] for turn in coll_hits}
 
-        coll_hits = get_lossmap(COLL_FILE, with_attr=['id'])
-        self.coll_hits = {turn : [hit['id'] for hit in coll_hits[turn]] for turn in coll_hits}
-
-        self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
-        self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
+            self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
+            self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
 
     def format_axes(self):
         self.ax.set_xlim(PLOT_FRAME['x'])
@@ -208,8 +212,9 @@ class PhaseSpace:
         self.plot_collimators()
         self.format_axes()
 
-        lossmap = get_lossmap(COLL_FILE, "id")
-        if not lossmap:
+        try:
+            lossmap = get_lossmap(COLL_FILE, "id")
+        except:
             start = (turn - 1)*self.nbr_p
             end = turn*self.nbr_p
             self.pos_plot = self.ax.scatter(self.phase[start:end], self.denergy[start:end], zorder=10, color='b', s=4)
@@ -248,7 +253,7 @@ class PhaseSpace:
         # self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
         self.ref_e_text = self.ax.text(-4, 1.7e9, "Frame {}".format(0), ha = 'left', va = 'center', fontsize = 15)
 
-        ani = animation.FuncAnimation(self.fig, self.update, int(len(self.denergy)/self.nbr_p), interval=50, blit=False)
+        ani = animation.FuncAnimation(self.fig, self.update, int(len(self.denergy)/self.nbr_p), interval=10, blit=False)
 
         if save_to:
             print("saving simulation to '{}'".format(save_to))
@@ -386,7 +391,7 @@ def export_fitted_ramp():
 
 
 def plot_energy_oscillations():
-    nbr_turns = 50*11245
+    nbr_turns = 500*11245
     ramp = read_ramp(RAMP_FILE, nbr_turns)
     turns = np.array(range(nbr_turns))
 
@@ -428,18 +433,47 @@ def plot_hamiltonian(ps): # input phase space containing ps.h
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    # print(max(ps.h[0:ps.nbr_p]))
-    x = np.empty(ps.h.shape)
-    for i in range(ps.nbr_turns):
-        for j in range(ps.nbr_p):
-            x[i*ps.nbr_p + j] = i
-    # print(x[0:(2*ps.nbr_p)])
+    lossmap = get_lossmap(COLL_FILE, ['id'])
+    pbin = ps.categorize_particles(lossmap)
+    series = {}
+    for key in pbin: # 'alive'/'lost'
+        nbr_p = len(pbin[key])
+        size = ps.nbr_turns*nbr_p
+        series[key] = {'x' : np.empty( (size,) ), 'y' : np.empty( (size,) )}
+        for i in range(ps.nbr_turns):
+            for j, id in enumerate(pbin[key]):
+                series[key]['x'][i*nbr_p + j] = i
+                series[key]['y'][i*nbr_p + j] = ps.h[i*ps.nbr_p + id]
 
-    print("drawing {} points...".format(len(x)))
-    ax.scatter(x, ps.h, color='brown', s=4)
+    ax.scatter(series['alive']['x'], series['alive']['y'], color='b', s=1, zorder=10)
+    ax.scatter(series['lost']['x'], series['lost']['y'], color='r', s=4)
+
+
+    # Should in theory do the same thing as the code above, but it's way slower
+    # x = np.empty(ps.h.shape)
+    # c = np.empty(ps.h.shape)
+    # for i in range(ps.nbr_turns):
+        # for j in range(ps.nbr_p):
+            # x[i*ps.nbr_p + j] = i
+            # c[i*ps.nbr_p + j] = 1 if j in pbin['alive'] else 100
+
+    # print("drawing {} points...".format(len(x)))
+    # ax.scatter(x, ps.h, c=c, s=4)
+
     ax.set_xlabel("Saved turn")
     ax.set_ylabel("Hamiltonian")
     plt.show()
+
+# def select_two_close(ps):
+    # lossmap = get_lossmap(COLL_FILE, ['id'])
+    # pbin = ps.categorize_particles(lossmap)
+    
+
+    
+    
+    
+    
+    
 
 
 
