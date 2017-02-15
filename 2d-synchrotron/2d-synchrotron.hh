@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <array>
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -86,37 +87,116 @@ public:
         return a;
     }
 
+	struct ParticleProp 
+	{ 
+		T g;	// gamma
+		T g_2;	// 1/gamma^2
+		T eta;
+		T b2;	// beta^2
+		T b;	// beta
+		T W2;	// Omega2
+	};
+	ParticleProp calcParticleProp(T de, T phase) const 
+	{
+		ParticleProp p;
+		p.g = (E() + de)/cnst::m_proton;
+    	p.g_2 = T(1)/(p.g*p.g);
+    	p.eta = p.g_2 - m_compaction;
+    	p.b2 = T(1) - p.g_2;
+    	p.b = std::sqrt(p.b2);
+    	p.W2 = w_rev*w_rev*h_rf*p.eta*V_rf/(T(2)*cnst::pi*p.b2*E())*std::cos(lag_phase()); // *cos(ph_s), no?
+		return p;
+	}
+
 
     void setE(T v, bool reset = false) { mE_pref = mE_ref; if (reset) mE_pref = v; mE_ref = v; }
     T E() const { return mE_ref; }
     T E_prev() const { return mE_pref; }
-	T lag_phase() const { return std::asin((E() - E_prev())/V_rf); }
+	T lag_phase() const { return cnst::pi - (std::asin((E() - E_prev())/V_rf)); }
 };
 
 template <typename T>
 inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
 {
-    const T rev = acc.w_rev;
-    const T gamma = (acc.E() + de)/cnst::m_proton;
-    const T gamma_2 = T(1)/(gamma*gamma);
-    const T eta = gamma_2 - acc.m_compaction;
-    const T beta2 = T(1) - gamma_2;
-    const T beta = std::sqrt(beta2);
-    const T Omega2 = rev*rev*acc.h_rf*eta*acc.V_rf/(T(2)*cnst::pi*beta*acc.E()); // *cos(ph_s), no?
+	using std::cos;
+	using std::sin;
+	using cnst::c;
+	using cnst::pi;
 
-	const T ph_s = acc.lag_phase();
-	//const T ph_s = 0.5;
-
-    //const T H = T(0.5)*beta2*pow(cnst::c*k*eta*de/acc.E(), 2) - Omega2*std::cos(ph);
-	const T H2 = T(0.5)*beta2*pow(cnst::c*acc.k_rf*eta*de/acc.E(), 2) - Omega2/std::cos(ph_s)*(std::cos(ph_s + ph) - std::cos(ph_s) + ph*std::sin(ph_s));
-	//std::cout << "H=" << H << ", H2=" << H2 << std::endl;
-    return H2;
+	auto p = acc.calcParticleProp(0.0, ph); // calculating properties for the synchronous particle
+	const T ph_s = acc.lag_phase(); // I do not know why I need to add the pi here to get things to work
+	const T phi_dot = -p.b*c*acc.k_rf*p.eta*de/acc.E();
+	std::cout << "(phi_dot=" << phi_dot << ")";
+	const T H = T(0.5)*phi_dot*phi_dot - p.W2/cos(ph_s)*(cos(ph) + ph*sin(ph_s));
+    return H;
 }
 
 template <typename T>
-inline T phasespaceLines(const Accelerator<T>& acc, T ph, T H)
+inline T separatrix(const Accelerator<T>& acc, T ph)
 {
-	
+	using std::cos;
+	using std::sin;
+	using std::sqrt;
+	using cnst::c;
+	using cnst::pi;
+
+	auto p = acc.calcParticleProp(0.0, ph);
+	const T ph_s = acc.lag_phase();
+	return  acc.E()/(T(-1)*p.b*c*acc.k_rf*p.eta)*
+			sqrt(p.W2*(T(2)/cos(ph_s)*(cos(ph) + ph*sin(ph_s) 
+			 		- cos(pi - ph_s) - (pi - ph_s)*sin(ph_s))));
+
+}
+
+template <typename T>
+inline T levelCurve(const Accelerator<T>& acc, T ph, T H) 
+{
+	using std::cos; 
+	using std::sin;
+	using std::sqrt;
+	using cnst::c;
+	using cnst::pi;
+
+	auto p = acc.calcParticleProp(0.0, ph);
+	const T ph_s = acc.lag_phase();
+	const T phi_dot = sqrt(2*H + 2*p.W2/cos(ph_s)*(cos(ph) + ph*sin(ph_s)));
+	const T de = phi_dot*acc.E()/(-p.b*c*acc.k_rf*p.eta);
+	return de;
+}
+
+template <typename T>
+inline void phasespaceLevelCurve(const Accelerator<T>& acc, std::string filePath)
+{
+	std::cout << "Writing level curves" << std::endl;
+	std::ofstream file(filePath.c_str());
+	if (!file.is_open())
+		throw std::runtime_error("could not open file");
+
+	const T ph_step = 0.01;
+	const int ph_steps = int((FRAME_X_HIGH - FRAME_X_LOW)/ph_step);
+
+	const T Hstart = hamiltonian(acc, 0.0, cnst::pi) + 1e4;
+	const T Hstep = 0.6e5;
+	const T Hstep_delta = 0.2e5;
+	const int Hsteps = 20;
+
+	int lines = 2 + 2*Hsteps;
+
+	file << lines << "," << ph_steps << std::endl;
+	for (T ph = FRAME_X_LOW; ph <= FRAME_X_HIGH; ph += ph_step) {
+		T de = separatrix(acc, ph);
+		file << std::setprecision(16) << de  << "," << ph << "," << 0.0 << std::endl
+									  << -de  << "," << ph << "," << 0.0 << std::endl;
+		
+		int n = 0;
+		T H = Hstart;
+		while (n++ < Hsteps) {
+			de = levelCurve(acc, ph, H);
+			file << std::setprecision(16) << de  << "," << ph << "," << H << std::endl
+										  << -de  << "," << ph << "," << H << std::endl;
+			H += Hstep + T(n)*Hstep_delta;
+		}
+	}
 }
 
 
@@ -247,12 +327,12 @@ struct ToyModel
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-			if (-1000 < H && H < 1000) {
-			//if (H < 0) {
+			//if (-1000 < H && H < 1000) {
+			if (H < 0) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
-            }
+			}
         }
         writeSingleDistribution(STARTDIST_FILE);
 	}
