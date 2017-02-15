@@ -102,7 +102,7 @@ inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
     const T eta = gamma_2 - acc.m_compaction;
     const T beta2 = T(1) - gamma_2;
     const T beta = std::sqrt(beta2);
-    const T Omega2 = rev*rev*acc.h_rf*eta*acc.V_rf/(T(2)*cnst::pi*beta*acc.E());
+    const T Omega2 = rev*rev*acc.h_rf*eta*acc.V_rf/(T(2)*cnst::pi*beta*acc.E()); // *cos(ph_s), no?
 
 	const T ph_s = acc.lag_phase();
 	//const T ph_s = 0.5;
@@ -113,6 +113,11 @@ inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
     return H2;
 }
 
+template <typename T>
+inline T phasespaceLines(const Accelerator<T>& acc, T ph, T H)
+{
+	
+}
 
 
 template <typename T>
@@ -149,6 +154,8 @@ struct ToyModel
             const T phase = ph_dist(generator);
             mEnergy.push_back(deltaE); 
             mPhase.push_back(phase); 
+			
+            
         }
 
         writeSingleDistribution(STARTDIST_FILE);
@@ -172,7 +179,7 @@ struct ToyModel
     
         for (int i = 0; i < n; ++i) {
             T de, phase;
-            file >> de >> skip<char> >> phase;
+            file >> de >> skip<char> >> phase >> skip; // we need to consume end of line
             mEnergy.push_back(de);
             mPhase.push_back(phase);
         }
@@ -184,6 +191,7 @@ struct ToyModel
     // For parameter passing in the next constructors
     struct LineSim {};
     struct LossAnalysis {};
+    struct LossAnalysis2 {};
     struct SixTrackTest {};
 
     ToyModel(RAMP_TYPE type, LineSim)
@@ -222,9 +230,9 @@ struct ToyModel
         }
     }
 
-    ToyModel(int n, RAMP_TYPE type, LossAnalysis)
-        : mAcc(Accelerator::getLHC()), mType(type)
-    {    
+	ToyModel(int n, RAMP_TYPE type, LossAnalysis)
+		: mAcc(Accelerator::getLHC()), mType(type)
+	{
         mEnergy.reserve(n);
         mPhase.reserve(n);
         mCollHits.assign(n, -1);
@@ -240,13 +248,38 @@ struct ToyModel
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
 			if (-1000 < H && H < 1000) {
+			//if (H < 0) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
             }
         }
         writeSingleDistribution(STARTDIST_FILE);
+	}
+
+    ToyModel(int n, RAMP_TYPE type, LossAnalysis2)
+        : mAcc(Accelerator::getLHC()), mType(type)
+    {    
+        mEnergy.reserve(n);
+        mPhase.reserve(n);
+        mCollHits.assign(n, -1);
+
+        std::random_device rdev;
+        std::mt19937 generator(rdev());
+
+        std::normal_distribution<> e_dist(11720647.5520609, 1e4);
+        std::normal_distribution<> ph_dist(6.150280636842277, 0.01);
+        int count = 0;
+        while (count < n) {
+            const T deltaE = e_dist(generator);
+            const T phase = ph_dist(generator);
+            mEnergy.push_back(deltaE); 
+            mPhase.push_back(phase); 
+            count++;
+        }
+        writeSingleDistribution(STARTDIST_FILE);
     }
+
 
     ToyModel(SixTrackTest)
         : mAcc(Accelerator::getLHC()), mType(LHC_RAMP)
