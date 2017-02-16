@@ -38,6 +38,14 @@ static constexpr const char* SIXTRACK_TEST_FILE = "calc/toymodel_track.dat";
 static constexpr const char* RAMP_FILE = "resources/LHC_ramp.dat";
 static constexpr const char* COLL_MOTOR_FILE = "resources/motor_tcp.txt";
 
+enum RAMP_TYPE
+{
+    NO_RAMP,
+    LHC_RAMP,
+    SEMI_AGGRESSIVE_RAMP,
+    AGGRESSIVE_RAMP,
+};
+
 template <typename T>
 struct Accelerator
 {
@@ -104,7 +112,7 @@ public:
     	p.eta = p.g_2 - m_compaction;
     	p.b2 = T(1) - p.g_2;
     	p.b = std::sqrt(p.b2);
-    	p.W2 = w_rev*w_rev*h_rf*p.eta*V_rf/(T(2)*cnst::pi*p.b2*E())*std::cos(lag_phase()); // *cos(ph_s), no?
+    	p.W2 = w_rev*w_rev*h_rf*p.eta*V_rf/(T(2)*cnst::pi*p.b2*E())*std::cos(lag_phase()); 
 		return p;
 	}
 
@@ -112,8 +120,8 @@ public:
     void setE(T v, bool reset = false) { mE_pref = mE_ref; if (reset) mE_pref = v; mE_ref = v; }
     T E() const { return mE_ref; }
     T E_prev() const { return mE_pref; }
-	//T lag_phase() const { return cnst::pi - (std::asin((E() - E_prev())/V_rf)); }
-	T lag_phase() const { return cnst::pi - 0.3; }
+	T lag_phase() const { return cnst::pi - (std::asin((E() - E_prev())/V_rf)); }
+	//T lag_phase() const { return cnst::pi - 0.3; }
 };
 
 template <typename T>
@@ -184,19 +192,57 @@ inline void phasespaceLevelCurve(const Accelerator<T>& acc, std::string filePath
 	}
 }
 
+template <typename T>
+inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
+{
+	using common::skip;
+
+    E_ramp.reserve(steps);
+
+    T data;
+    switch (type) {
+        default:
+        case LHC_RAMP: {
+            std::ifstream ramp_file(RAMP_FILE);
+            std::cout << "Reading '" << RAMP_FILE << "'..." << std::endl;
+            for (int i = 0; i < steps; ++i) {
+                ramp_file >> skip >> data;
+                E_ramp.push_back(data*1e6);
+            }
+            ramp_file.close();
+
+            break;
+        }
+        case AGGRESSIVE_RAMP:
+            for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*1e7);
+            break;
+        case SEMI_AGGRESSIVE_RAMP:
+            for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*3e6);
+            break;
+    }
+}
+
+template <typename T>
+inline void readCollimators(int steps, std::vector<std::pair<T, T>>& collimators, const std::vector<T>& E_ramp)
+{
+	using common::skip;
+
+    std::cout << "Reading collimators from '" << COLL_MOTOR_FILE << "'" << std::endl;
+    std::ifstream coll_file(COLL_MOTOR_FILE);
+	if (!coll_file.is_open())
+		throw std::runtime_error("could not open file");
+
+    for (int i = 0; i < steps; ++i) {
+        T bot_coll, top_coll;
+        coll_file >> skip >> bot_coll >> top_coll;
+        collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
+    }
+}
 
 template <typename T>
 struct ToyModel 
 {
     using Accelerator = Accelerator<T>;
-
-    enum RAMP_TYPE
-    {
-        NO_RAMP,
-        LHC_RAMP,
-        SEMI_AGGRESSIVE_RAMP,
-        AGGRESSIVE_RAMP,
-    };
 
     ToyModel(size_t n, RAMP_TYPE type)
         : mAcc(Accelerator::getLHC()), mType(type)
@@ -386,44 +432,6 @@ struct ToyModel
         tbb::parallel_for(tbb::blocked_range<size_t>(0, size()), op);
     }
 
-    void loadRamp(int steps, std::vector<T>& E_ramp, std::vector<std::pair<T, T>>& collimators) 
-    {
-		using common::skip;
-
-        E_ramp.reserve(steps);
-        collimators.reserve(steps);
-
-        T data;
-        switch (mType) {
-            default:
-            case LHC_RAMP: {
-                std::ifstream ramp_file(RAMP_FILE);
-                std::cout << "Reading '" << RAMP_FILE << "'..." << std::endl;
-                for (int i = 0; i < steps; ++i) {
-                    ramp_file >> skip >> data;
-                    E_ramp.push_back(data*1e6);
-                }
-                ramp_file.close();
-
-                std::ifstream coll_file(COLL_MOTOR_FILE);
-                std::cout << "Reading '" << COLL_MOTOR_FILE << "'..." << std::endl;
-                for (int i = 0; i < steps; ++i) {
-                    T bot_coll, top_coll;
-                    coll_file >> skip >> bot_coll >> top_coll;
-                    collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
-                }
-                break;
-            }
-            case AGGRESSIVE_RAMP:
-                for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*1e7);
-                break;
-            case SEMI_AGGRESSIVE_RAMP:
-                for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*3e6);
-                break;
-        }
-
-    }
-
     struct ParticleStats { T emax, emin, phmax, phmin; int pleft; };
     ParticleStats getStats() const
     {
@@ -464,7 +472,9 @@ struct ToyModel
         std::vector<T> E_ramp;
         std::vector<std::pair<T, T>> ext_collimators;
         if (mType > NO_RAMP) {
-            loadRamp(to , E_ramp, ext_collimators);
+			readRamp<T>(to, E_ramp, mType);
+			readCollimators<T>(to, ext_collimators, E_ramp);
+            //loadRamp(to , E_ramp, ext_collimators);
             mAcc.setE(E_ramp[from], true);
         }
 
@@ -590,14 +600,6 @@ private:
     RAMP_TYPE mType;
 };
 
-inline double synchrotron_frequency()
-{
-    const auto acc = ToyModel<double>::Accelerator::getLHC();
-    const auto omega = std::sqrt(std::abs(hamiltonian<double>(acc, 0, 0)));
-    std::cout << (omega*omega) << std::endl;
-    const auto freq_turns = omega/acc.w_rev;
-    return freq_turns;
-}
 
 
 }; // namespace twodsynch
