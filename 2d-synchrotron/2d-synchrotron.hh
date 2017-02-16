@@ -226,32 +226,6 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(const std::string filePath, RAMP_TYPE type)
-        : mAcc(Accelerator::getLHC()), mType(type)
-    {
-        std::cout << "Reading distribution from '" << filePath << "'" << std::endl;
-        std::ifstream file(filePath.c_str());
-        if (!file.is_open())
-            throw std::runtime_error("could not open file");
-
-		using common::skip;
-
-        int n;
-        file >> n >> skip;
-        mEnergy.reserve(n);
-        mPhase.reserve(n);
-        mCollHits.assign(n, -1);
-    
-        for (int i = 0; i < n; ++i) {
-            T de, phase;
-            file >> de >> skip<char> >> phase >> skip; // we need to consume end of line
-            mEnergy.push_back(de);
-            mPhase.push_back(phase);
-        }
-        
-        std::cout << "Initialized " << n << " particles" << std::endl;
-        writeSingleDistribution(STARTDIST_FILE);
-    }
 
     // For parameter passing in the next constructors
     struct LossAnalysis {};
@@ -317,8 +291,36 @@ struct ToyModel
         // mPhase.push_back(0);
     }
 
-    size_t size() const { return mEnergy.size(); }
 
+	//
+	// FILE IO
+	//
+    ToyModel(const std::string filePath, RAMP_TYPE type)
+        : mAcc(Accelerator::getLHC()), mType(type)
+    {
+        std::cout << "Reading distribution from '" << filePath << "'" << std::endl;
+        std::ifstream file(filePath.c_str());
+        if (!file.is_open())
+            throw std::runtime_error("could not open file");
+
+		using common::skip;
+
+        int n;
+        file >> n >> skip;
+        mEnergy.reserve(n);
+        mPhase.reserve(n);
+        mCollHits.assign(n, -1);
+    
+        for (int i = 0; i < n; ++i) {
+            T de, phase;
+            file >> de >> skip<char> >> phase >> skip; // we need to consume end of line
+            mEnergy.push_back(de);
+            mPhase.push_back(phase);
+        }
+        
+        std::cout << "Initialized " << n << " particles" << std::endl;
+        writeSingleDistribution(STARTDIST_FILE);
+    }
     void createTurnFileHeader(std::string filePath, int turns) const
     {
         std::ofstream file(filePath.c_str());
@@ -375,6 +377,9 @@ struct ToyModel
         }
     }
 
+	//
+	// SIMULATION
+	//
     void takeTimestep(int stepID) 
     {
         CalcOp op(stepID, mAcc, mEnergy, mPhase, mCollHits);
@@ -419,12 +424,6 @@ struct ToyModel
 
     }
 
-    
-    void takeTimesteps(int n, std::string filePath = "", int saveFreq = 1)
-    {
-        takeTimestepsFromTo(0, n, filePath, saveFreq);
-    }
-
     struct ParticleStats { T emax, emin, phmax, phmin; int pleft; };
     ParticleStats getStats() const
     {
@@ -442,6 +441,11 @@ struct ToyModel
             }
         }
         return ParticleStats{emax, emin, phmax, phmin, pleft};
+    }
+    
+    void takeTimesteps(int n, std::string filePath = "", int saveFreq = 1)
+    {
+        takeTimestepsFromTo(0, n, filePath, saveFreq);
     }
 
     void takeTimestepsFromTo(int from, int to, std::string filePath = "", int saveFreq = 1)
@@ -515,6 +519,7 @@ struct ToyModel
         writeSingleDistribution(ENDDIST_FILE);
     }
 
+    size_t size() const { return mEnergy.size(); }
     const std::vector<T>& getEnergy() const { return mEnergy; }
     const std::vector<T>& getPhase() const { return mPhase; }
     std::vector<int> getCollHits() const { return mCollHits; }
