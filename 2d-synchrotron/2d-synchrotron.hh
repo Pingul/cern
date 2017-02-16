@@ -126,26 +126,8 @@ inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
 	auto p = acc.calcParticleProp(0.0, ph); // calculating properties for the synchronous particle
 	const T ph_s = acc.lag_phase(); // I do not know why I need to add the pi here to get things to work
 	const T phi_dot = -p.b*c*acc.k_rf*p.eta*de/acc.E();
-	std::cout << "(phi_dot=" << phi_dot << ")";
 	const T H = T(0.5)*phi_dot*phi_dot - p.W2/cos(ph_s)*(cos(ph) + ph*sin(ph_s));
     return H;
-}
-
-template <typename T>
-inline T separatrix(const Accelerator<T>& acc, T ph)
-{
-	using std::cos;
-	using std::sin;
-	using std::sqrt;
-	using cnst::c;
-	using cnst::pi;
-
-	auto p = acc.calcParticleProp(0.0, ph);
-	const T ph_s = acc.lag_phase();
-	return  acc.E()/(T(-1)*p.b*c*acc.k_rf*p.eta)*
-			sqrt(p.W2*(T(2)/cos(ph_s)*(cos(ph) + ph*sin(ph_s) 
-			 		- cos(pi - ph_s) - (pi - ph_s)*sin(ph_s))));
-
 }
 
 template <typename T>
@@ -177,16 +159,18 @@ inline void phasespaceLevelCurve(const Accelerator<T>& acc, std::string filePath
 
 	const T Hstart = hamiltonian(acc, 0.0, cnst::pi) + 1e4;
 	const T Hstep = 0.6e5;
-	const T Hstep_delta = 0.2e5;
+	const T Hdstep = 0.2e5;
 	const int Hsteps = 20;
 
 	int lines = 2 + 2*Hsteps;
 
+	const T Hseparatrix = hamiltonian(acc, 0.0, cnst::pi - acc.lag_phase());
+
 	file << lines << "," << ph_steps << std::endl;
 	for (T ph = FRAME_X_LOW; ph <= FRAME_X_HIGH; ph += ph_step) {
-		T de = separatrix(acc, ph);
-		file << std::setprecision(16) << de  << "," << ph << "," << 0.0 << std::endl
-									  << -de  << "," << ph << "," << 0.0 << std::endl;
+		T de = levelCurve(acc, ph, Hseparatrix);
+		file << std::setprecision(16) << de  << "," << ph << "," << Hseparatrix << std::endl
+									  << -de  << "," << ph << "," << Hseparatrix << std::endl;
 		
 		int n = 0;
 		T H = Hstart;
@@ -194,7 +178,7 @@ inline void phasespaceLevelCurve(const Accelerator<T>& acc, std::string filePath
 			de = levelCurve(acc, ph, H);
 			file << std::setprecision(16) << de  << "," << ph << "," << H << std::endl
 										  << -de  << "," << ph << "," << H << std::endl;
-			H += Hstep + T(n)*Hstep_delta;
+			H += Hstep + T(n)*Hdstep;
 		}
 	}
 }
