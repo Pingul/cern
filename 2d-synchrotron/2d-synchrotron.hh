@@ -112,7 +112,8 @@ public:
     void setE(T v, bool reset = false) { mE_pref = mE_ref; if (reset) mE_pref = v; mE_ref = v; }
     T E() const { return mE_ref; }
     T E_prev() const { return mE_pref; }
-	T lag_phase() const { return cnst::pi - (std::asin((E() - E_prev())/V_rf)); }
+	//T lag_phase() const { return cnst::pi - (std::asin((E() - E_prev())/V_rf)); }
+	T lag_phase() const { return cnst::pi - 0.3; }
 };
 
 template <typename T>
@@ -253,46 +254,9 @@ struct ToyModel
     }
 
     // For parameter passing in the next constructors
-    struct LineSim {};
     struct LossAnalysis {};
     struct LossAnalysis2 {};
     struct SixTrackTest {};
-
-    ToyModel(RAMP_TYPE type, LineSim)
-        : mAcc(Accelerator::getLHC_NOCOLL()), mType(type)
-    {
-        for (T y = FRAME_Y_LOW; y < FRAME_Y_HIGH; y += FRAME_Y_HIGH/9.0) {
-            mEnergy.push_back(y);
-            mPhase.push_back(FRAME_X_LOW);
-        }
-
-        switch (mType) {
-            default:
-            case NO_RAMP:
-            case LHC_RAMP:
-                for (T x = FRAME_X_LOW; x < FRAME_X_HIGH; x += cnst::pi/4.0) {
-                    mEnergy.push_back(0.0f);
-                    mPhase.push_back(x);
-                }
-                for (T y = FRAME_Y_LOW; y < FRAME_Y_HIGH; y += FRAME_Y_HIGH/9.0) {
-                    mEnergy.push_back(y);
-                    mPhase.push_back(FRAME_X_HIGH);
-                }
-                break;
-            case AGGRESSIVE_RAMP:
-                break;
-            case SEMI_AGGRESSIVE_RAMP:
-                for (T x = -cnst::pi; x < FRAME_X_HIGH; x += 2*cnst::pi) {
-                    T d = cnst::pi/2;
-                    for (T delta = -d; delta < d; delta += cnst::pi/5) {
-                        mEnergy.push_back(0.0f);
-                        mPhase.push_back(x + delta);
-                    }
-                }
-                break;
-
-        }
-    }
 
 	ToyModel(int n, RAMP_TYPE type, LossAnalysis)
 		: mAcc(Accelerator::getLHC()), mType(type)
