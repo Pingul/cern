@@ -139,29 +139,28 @@ class PhaseSpace:
                 for i, line in enumerate(f.readlines()):
                     if i == 0:
                         nbr_series = int(line.rstrip().split(',')[0])
-                        series = [{"denergy" : [], "phase" : []} for l in range(nbr_series)]
+                        series = [{"denergy" : [], "phase" : [], "h" : 0.0} for l in range(nbr_series)]
                         continue
                     denergy, phase, h = map(float, line.rstrip("\n").split(","))
                     series[i % nbr_series]["phase"].append(phase)
                     series[i % nbr_series]["denergy"].append(denergy)
+                    series[i % nbr_series]['h'] = h
         else:
             print("using local data")
             nbr_series = self.nbr_p
-            series = [{"denergy" : [], "phase" : []} for l in range(nbr_series)]
+            series = [{"denergy" : [], "phase" : [], "h" : 0.0} for l in range(nbr_series)]
             for i, de in enumerate(self.denergy):
                 series[i % nbr_series]["phase"].append(self.phase[i])
                 series[i % nbr_series]["denergy"].append(de)
+                series[i % nbr_series]['h'] = self.h['h']
 
 
         cMap = plt.get_cmap('plasma_r')
-        cNorm = colors.Normalize(vmin=0, vmax=6e8)
+        cNorm = colors.Normalize(vmin=-5e4, vmax=4e5)
         scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cMap)
         print("plotting series")
         for trail in series:
-            mmax = abs(max(trail['denergy']))
-            mmin = abs(min(trail['denergy']))
-            v = mmax if mmax > mmin else mmin
-            colorVal = scalarMap.to_rgba(v)
+            colorVal = scalarMap.to_rgba(trail['h'])
             if randomizeColors:
                 colorVal = np.random.rand(3,)
             self.ax.plot(trail["phase"], trail["denergy"], '-', color=colorVal, zorder=1)
@@ -253,7 +252,7 @@ class PhaseSpace:
         # self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
         self.ref_e_text = self.ax.text(-4, 1.7e9, "Frame {}".format(0), ha = 'left', va = 'center', fontsize = 15)
 
-        ani = animation.FuncAnimation(self.fig, self.update, int(len(self.denergy)/self.nbr_p), interval=10, blit=False)
+        ani = animation.FuncAnimation(self.fig, self.update, int(len(self.denergy)/self.nbr_p), interval=50, blit=False)
 
         if save_to:
             print("saving simulation to '{}'".format(save_to))
