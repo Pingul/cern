@@ -97,6 +97,7 @@ public:
 
 	struct ParticleProp 
 	{ 
+		T pc;
 		T g;	// gamma
 		T g_2;	// 1/gamma^2
 		T eta;
@@ -107,7 +108,11 @@ public:
 	ParticleProp calcParticleProp(T de, T phase) const 
 	{
 		ParticleProp p;
-		p.g = (E() + de)/cnst::m_proton;
+		//p.g = (E() + de)/cnst::m_proton;
+
+		// We treat ∆E really as ∆pc
+		const T pc_E0 = (E() + de)/cnst::m_proton;
+		p.g = std::sqrt(T(1) + pc_E0*pc_E0);
     	p.g_2 = T(1)/(p.g*p.g);
     	p.eta = p.g_2 - m_compaction;
     	p.b2 = T(1) - p.g_2;
@@ -156,9 +161,9 @@ inline T levelCurve(const Accelerator<T>& acc, T ph, T H)
 }
 
 template <typename T>
-inline void phasespaceLevelCurve(const Accelerator<T>& acc, std::string filePath)
+inline void writePhasespaceFrame(const Accelerator<T>& acc, std::string filePath)
 {
-	std::cout << "Writing level curves" << std::endl;
+	std::cout << "Writing frame to '" << filePath << "'" << std::endl;
 	std::ofstream file(filePath.c_str());
 	if (!file.is_open())
 		throw std::runtime_error("could not open file");
@@ -291,12 +296,14 @@ struct ToyModel
         std::uniform_real_distribution<> e_dist(-0.5e9, 0.5e9);
         std::uniform_real_distribution<> ph_dist(0, 2*cnst::pi);
         int count = 0;
+		const T separatrix = hamiltonian(mAcc, 0.0, 0.0);
         while (count < n) {
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-			//if (-1000 < H && H < 1000) {
-			if (H < 0) {
+			const T d = 50.0;
+			if ((separatrix - d) < H && H < separatrix) {
+			//if (H < separatrix) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -451,12 +458,12 @@ struct ToyModel
         return ParticleStats{emax, emin, phmax, phmin, pleft};
     }
     
-    void takeTimesteps(int n, std::string filePath = "", int saveFreq = 1)
+    void takeTimesteps(int n, std::string filePath = "", int saveFreq = 1, bool animatedBackground = false)
     {
-        takeTimestepsFromTo(0, n, filePath, saveFreq);
+        takeTimestepsFromTo(0, n, filePath, saveFreq, animatedBackground);
     }
 
-    void takeTimestepsFromTo(int from, int to, std::string filePath = "", int saveFreq = 1)
+    void takeTimestepsFromTo(int from, int to, std::string filePath = "", int saveFreq = 1, bool animatedBackground = false)
     {
         if (to <= from)
             throw std::runtime_error("the total number of steps must be > 0");
@@ -484,6 +491,7 @@ struct ToyModel
 		common::SilentTimer timer;
 
         timer.start();
+		int frames = 0;
         for (int i = from; i < to; ++i) {
             if (mType > NO_RAMP) {
                 mAcc.setE(E_ramp[i]);
@@ -502,7 +510,16 @@ struct ToyModel
 
             int itaken = i - from;
             // reduce the memory footprint a little if it's not necessary
-            if (!filePath.empty() && (itaken + 1) % saveFreq == 0) writeDistribution(filePath);
+            if (!filePath.empty() && (itaken + 1) % saveFreq == 0) {
+				writeDistribution(filePath);
+
+				if (animatedBackground) {
+					std::stringstream ss;
+					ss << "phasespace/" << frames << "lines.dat";
+					writePhasespaceFrame(mAcc, ss.str());
+				}
+				++frames;
+			}
 
             const int d = n/10;
             if (i % d == 0) {
@@ -556,9 +573,8 @@ private:
 
         void operator()(const tbb::blocked_range<size_t>& range) const
         {
-            const T e = 1.0;
-            // const T m = 938e6;
-            const T B2_s = 1 - std::pow(cnst::m_proton/mAcc.E(), 2);
+			auto prop_s = mAcc.calcParticleProp(0.0, 0.0);
+			const T B2_s = prop_s.b2;
             for (size_t n = range.begin(), N = range.end(); n < N; ++n) {
                 if (particleInactive(n)) 
                     continue;
@@ -567,12 +583,9 @@ private:
                 T deltaRef = mAcc.E() - mAcc.E_prev();
                 mEnergy[n] -= deltaRef;
 
-                // Give the particle a kick
-                // mEnergy[n] -= mAcc.V_rf*std::sin(deltaRef/mAcc.V_rf);
-
-                mEnergy[n] += e*mAcc.V_rf*std::sin(mPhase[n]);
-                T B2 = T(1) - std::pow(cnst::m_proton/(mAcc.E() + mEnergy[n]), 2);
-                T eta = T(1) - B2 - mAcc.m_compaction;
+                mEnergy[n] += mAcc.V_rf*std::sin(mPhase[n]);
+				auto prop = mAcc.calcParticleProp(mEnergy[n], 0.0);
+				const T eta = prop.eta;
                 mPhase[n] -= T(2)*cnst::pi*mAcc.h_rf*eta/(B2_s*mAcc.E())*mEnergy[n];
                 if (particleCollided(n)) mCollHits[n] = mStepID;
             }

@@ -86,6 +86,7 @@ class PhaseSpace:
         self.phase = np.array([])
         # self.ref_energy = []
         self.ref_energy = None
+        self.background_lines = []
 
 
         if pfile:
@@ -129,7 +130,7 @@ class PhaseSpace:
     def create_plot(self):
         self.fig, self.ax = plt.subplots()
 
-    def plot_trajectory(self, filePath=None, randomizeColors=False):
+    def plot_trajectory(self, filePath=None, randomizeColors=False, redraw=False):
         print("plot trajectory '{}'".format(filePath))
         nbr_series = 0
         series = []
@@ -152,18 +153,27 @@ class PhaseSpace:
             for i, de in enumerate(self.denergy):
                 series[i % nbr_series]["phase"].append(self.phase[i])
                 series[i % nbr_series]["denergy"].append(de)
-                series[i % nbr_series]['h'] = self.h['h']
+                series[i % nbr_series]['h'] = self.h[i]
 
+        if redraw and not len(self.background_lines) == len(series):
+            raise Exception("new frame does not match series in old")
 
         cMap = plt.get_cmap('plasma_r')
         cNorm = colors.Normalize(vmin=-5e4, vmax=4e5)
         scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cMap)
         print("plotting series")
-        for trail in series:
+        for i, trail in enumerate(series):
             colorVal = scalarMap.to_rgba(trail['h'])
             if randomizeColors:
                 colorVal = np.random.rand(3,)
-            self.ax.plot(trail["phase"], trail["denergy"], '-', color=colorVal, zorder=1)
+            if redraw:
+                self.background_lines[i].set_xdata(trail["phase"])
+                self.background_lines[i].set_ydata(trail["denergy"])
+                # self.ax.set_xdata(trail["phase"])
+                # self.ax.set_ydata(trail["denergy"])
+            else:
+                line, = self.ax.plot(trail["phase"], trail["denergy"], '-', color=colorVal, zorder=1)
+                self.background_lines.append(line)
 
     def plot_background_lines(self):
         self.plot_trajectory(LINE_FILE)
@@ -226,7 +236,7 @@ class PhaseSpace:
             self.ax.scatter([self.phase[i] for i in pbin['lost']], [self.denergy[i] for i in pbin['lost']], color='r', s=4, zorder=lostz)
         plt.show()
 
-    def update(self, num):
+    def update(self, num, redrawBackground=False):
         istart = num*self.nbr_p
         lost_particles = [i for i in self.active_particles if num in self.coll_hits and i in self.coll_hits[num]]
         self.active_particles = [i for i in self.active_particles if not i in lost_particles]
@@ -239,7 +249,14 @@ class PhaseSpace:
         self.lost_particles['phase'].extend((self.phase[i + istart] for i in lost_particles))
         self.lost_plot.set_offsets([i for i in zip(self.lost_particles['phase'], self.lost_particles['denergy'])])
 
-    def animate(self, save_to=""):
+        if redrawBackground:
+            try:
+                filename = "phasespace/{}lines.dat".format(num)
+                self.plot_trajectory(filename, redraw=True)
+            except:
+                print("could not redraw frame")
+
+    def animate(self, save_to="", animateBackground=False):
         self.create_plot()
         self.plot_background_lines()
         self.plot_collimators()
@@ -249,17 +266,17 @@ class PhaseSpace:
         self.pos_plot = self.ax.scatter(self.phase[0:self.nbr_p], self.denergy[0:self.nbr_p], zorder=10, s=4, color='b')
         self.active_particles = range(self.nbr_p)
         self.lost_particles = {'denergy': [], 'phase': []}
-        # self.ref_e_text = self.ax.text(-4, 1.7e9, "E = {0:.4E}".format(self.ref_energy[0]), ha = 'left', va = 'center', fontsize = 15)
         self.ref_e_text = self.ax.text(-4, 1.7e9, "Frame {}".format(0), ha = 'left', va = 'center', fontsize = 15)
 
-        ani = animation.FuncAnimation(self.fig, self.update, int(len(self.denergy)/self.nbr_p), interval=50, blit=False)
+        ani = animation.FuncAnimation(self.fig, self.update, self.nbr_turns, fargs=(animateBackground,), interval=50, blit=False)
 
         if save_to:
             print("saving simulation to '{}'".format(save_to))
             self.fig.suptitle(save_to)
             ani.save(save_to, fps=20)
-            print("finished saving")
-        plt.show()
+            print("finished saving to '{}'".format(save_to))
+        else:
+            plt.show()
 
     def plot_energy_oscillations(self, particleID):
         raise Exception("deprecated -- removed support for 'self.ref_energy'. Read in 'ramp.txt' and convert it yourself if you want this.")
@@ -463,16 +480,24 @@ def plot_hamiltonian(ps): # input phase space containing ps.h
     ax.set_ylabel("Hamiltonian")
     plt.show()
 
-# def select_two_close(ps):
-    # lossmap = get_lossmap(COLL_FILE, ['id'])
-    # pbin = ps.categorize_particles(lossmap)
-    
 
-    
-    
-    
-    
-    
+def phasespace_frame(num, ps):
+    filename = "phasespace/{}lines.dat".format(num)
+    ps.plot_trajectory(filename, redraw=True)
+
+def phasespace_evolution():
+    frames = 300;
+
+    ps = PhaseSpace(None)
+    ps.create_plot()
+    ps.format_axes()
+    ps.plot_trajectory("phasespace/0lines.dat")
+
+    ani = animation.FuncAnimation(ps.fig, phasespace_frame, int(frames), fargs=(ps,), interval=100, blit=False)
+    mov_file = "phasespace/mov.mp4" 
+    print("saving movie to '{}'".format(mov_file))
+    ani.save(mov_file)
+    print("finished saving to '{}'".format(mov_file))
 
 
 
@@ -482,6 +507,12 @@ if __name__ == "__main__":
         print("animate trajectory")
         ps = PhaseSpace(PARTICLE_FILE)
         ps.animate(save_to=SAVE_FILE)
+    if ACTION == "animate-full":
+        print("animating trajectory and background")
+        output = "calc/animate-full.mp4"
+        print("will save movie to '{}'".format(output))
+        ps = PhaseSpace(PARTICLE_FILE)
+        ps.animate(output, animateBackground=True)
     elif ACTION == "lossmap" or ACTION == "lossmap-analysis":
         print("plot lossmap")
         plot_lossmap(SAVE_FILE)
@@ -518,5 +549,8 @@ if __name__ == "__main__":
         print("plot hamiltonian")
         ps = PhaseSpace(PARTICLE_FILE)
         plot_hamiltonian(ps)
+    elif ACTION == "phasespace-mov":
+        print("animating phasespace evolution")
+        phasespace_evolution()
     else:
         print("unrecognised action")
