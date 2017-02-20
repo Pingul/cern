@@ -112,6 +112,7 @@ class Fill:
             self.fetch()
             # self.convert_to_using_Variable()
             self.normalize_intensity()
+            self.offset_time_by_ramp()
 
 
     def fetch(self, forced=False, cache=True):
@@ -191,6 +192,12 @@ class Fill:
             if m > 0.0:
                 self.data[v].y = self.data[v].y/m
 
+    def offset_time_by_ramp(self):
+        istart = find_start_of_ramp(self.data["energy"])
+        t = self.data["energy"].x[istart]
+        for v in self.all_variables:
+            self.data[v].x -= t
+
     def has_off_momentum_loss(self, beam='b1'):
         variable = 'synch_coll_%s' % beam
         off_momentum_losses = np.array(self.data[variable].y)
@@ -249,6 +256,7 @@ class Fill:
         agap_ax = fig.add_subplot(212, sharex=intensity_axis)
         agap_ax.plot(self.data['abort_gap_int_b1'].x, moving_average(self.data['abort_gap_int_b1'].y, 10), color='g')
         agap_ax.set_ylabel("Abort gap intensity")
+        agap_ax.set_xlabel("Time (s)")
 
         plt.show()
 
@@ -264,6 +272,7 @@ class Fill:
         intensity_axis.plot(*self.data['intensity_b1'], color='b', zorder=10, linestyle='-', linewidth=1)
         intensity_axis.set_ylim([0.95, 1.005])
         intensity_axis.set_ylabel("Beam Intensity")
+        intensity_axis.set_xlabel("Time (s)")
 
         energy_axis.plot(*self.data['energy'], color='black', zorder=5)
         energy_axis.set_ylabel("Energy")
@@ -496,7 +505,7 @@ def find_spike(data): # data is normally BLM data from momentum collimators
     return [start, end]
 
 
-def find_crossover_point(betaBLM, momentumBLM):
+def find_crossover_point(fill):
     """ Look for the point after OML spike when transversal losses starts 
         to dominate the momentum losses 
 
@@ -510,18 +519,6 @@ def find_crossover_point(betaBLM, momentumBLM):
             raise Exception("could not find crossover point")
     return i
 
-
-
-def draw_histogram(title, data, binsize, xlabel='', ylabel='', color='b'):
-    maxbin = max(data) + binsize
-    minbin = min(data)
-    bins = np.arange(minbin, maxbin, binsize)
-    fig, ax = plt.subplots()
-    ax.hist(data, bins=bins, color=color)
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    plt.show()
 
 def intensity_and_OML_pruning(file_in, file_out):
     fills = fills_from_file(file_in, "OML")
@@ -651,6 +648,18 @@ def plot_collimator_ramp(ramp_file='resources/LHC_ramp.dat', collimator_file='ca
 
 #################
 ## Statistics
+
+def draw_histogram(title, data, binsize, xlabel='', ylabel='', color='b'):
+    maxbin = max(data) + binsize
+    minbin = min(data)
+    bins = np.arange(minbin, maxbin, binsize)
+    fig, ax = plt.subplots()
+    ax.hist(data, bins=bins, color=color)
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    plt.show()
+
 
 def intensity_histogram(file):
     fills = fills_from_file(file, "OML")
