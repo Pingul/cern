@@ -211,6 +211,10 @@ class Fill:
 
     def beta_coll_merge(self):
         # Should really be dealing with aligned data here
+        merge_var = "A_beta_coll_b1"
+        if merge_var in self.data.keys():
+            return
+
         beta_var = ['A_beta_coll_b_b1', 'A_beta_coll_c_b1', 'A_beta_coll_d_b1', ]
         if not False in [i in self.data.keys() for i in beta_var]:
             beta_coll = None
@@ -219,7 +223,7 @@ class Fill:
                     beta_coll = self.data[v]
                 else:
                     beta_coll.y = np.add(beta_coll.y, self.data[v].y)
-            self.data['A_beta_coll_b1'] = beta_coll
+            self.data[merge_var] = beta_coll
 
 
 
@@ -510,14 +514,15 @@ def find_crossover_point(fill):
         to dominate the momentum losses 
 
         Note: this should be used with aligned data """
-    vpeak, ipeak = imax(momentumBLM.y)
+    fill.beta_coll_merge()
+    oml = fill.data["A_synch_coll_b1"] # off-momentum-losses
+    tm = fill.data["A_beta_coll_b1"]   # transversal-losses
+    vpeak, ipeak = imax(oml.y)
 
     i = ipeak
-    while betaBLM[i].y < momentumBLM[i].y:
+    while oml.y[i] > tm.y[i]:
         i += 1
-        if i >= len(betaBLM.y):
-            raise Exception("could not find crossover point")
-    return i
+    return {'i' : i, 't' : oml.x[i]}
 
 
 def intensity_and_OML_pruning(file_in, file_out):
@@ -654,7 +659,7 @@ def draw_histogram(title, data, binsize, xlabel='', ylabel='', color='b'):
     minbin = min(data)
     bins = np.arange(minbin, maxbin, binsize)
     fig, ax = plt.subplots()
-    ax.hist(data, bins=bins, color=color)
+    ax.hist(data, bins=bins, color=color, edgecolor='black')
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -688,6 +693,23 @@ def spike_duration_histogram(file):
         durations.append(d)
 
     draw_histogram('Spike duration for {}'.format(file), durations, 10, 'Seconds', 'Count')
+    return outliers
+
+def oml_dom_duration_histogram(file):
+    """ Histogram on what durations OML dominate the transversal losses """
+    fills = fills_from_file(file, "OML")
+    durations = []
+    outliers = []
+    for nbr in fills:
+        fill = Fill(nbr)
+        
+        crossover = find_crossover_point(fill)
+        if crossover['t'] > 40:
+            outliers.append(nbr)
+        else:
+            durations.append(crossover["t"])
+
+    draw_histogram("Duration OML > transversal losses from '{}'".format(file), durations, 2, 'Duration (s) after spike with OML > TM', 'Count')
     return outliers
 
 def spike_energy_histogram(file):
