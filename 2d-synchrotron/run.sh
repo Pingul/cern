@@ -1,5 +1,5 @@
 
-possibleActions="animate lossmap energy lossmap-analysis startdist phasespace"
+possibleActions="animate animate-background lossmap energy lossmap-analysis startdist phasespace phasespace-mov lost"
 action="$1"
 arg="$2"
 

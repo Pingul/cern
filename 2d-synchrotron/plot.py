@@ -8,6 +8,7 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Rectangle
 import math
 import numpy as np
+import pandas as pd
 import itertools
 from scipy import stats
 
@@ -480,6 +481,20 @@ def plot_hamiltonian(ps): # input phase space containing ps.h
     ax.set_ylabel("Hamiltonian")
     plt.show()
 
+def plot_lost():
+    # lossmap = get_lossmap(COLL_FILE, ["id"])
+    df = pd.read_csv("calc/lost.dat", names=["id", "turn_lost", "coll_hit", "delta"])
+    fig, ax = plt.subplots()
+    ax.scatter(df["turn_lost"], df["delta"], s=4, color="b", label="turn lost vs travel time to collimator")
+    ax.scatter(df["turn_lost"], df["coll_hit"], s=4, color="r", label="turn lost vs collimator hit")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
+    ax.set_xlabel("Turn lost (s)")
+    ax.set_ylabel("Travel time/Collimator hit (s)")
+    ax.legend(loc="upper left")
+    plt.show()
+
+
 
 def phasespace_frame(num, ps):
     filename = "phasespace/{}lines.dat".format(num)
@@ -552,5 +567,8 @@ if __name__ == "__main__":
     elif ACTION == "phasespace-mov":
         print("animating phasespace evolution")
         phasespace_evolution()
+    elif ACTION == "lost":
+        print("lost plot")
+        plot_lost()
     else:
         print("unrecognised action")

@@ -255,13 +255,10 @@ struct ToyModel
         mEnergy.reserve(n);
         mPhase.reserve(n);
         mCollHits.assign(n, -1);
+		mLost.assign(n, -1);
 
         std::random_device rdev;
         std::mt19937 generator(rdev());
-
-        // Good distribution for the full frame
-        // std::normal_distribution<> e_dist(0, 0.2e9);
-        // std::normal_distribution<> ph_dist(cnst::pi, cnst::pi);
 
         std::normal_distribution<> e_dist(0, 0.15e9);
         std::normal_distribution<> ph_dist(cnst::pi, cnst::pi/5);
@@ -270,10 +267,7 @@ struct ToyModel
             const T phase = ph_dist(generator);
             mEnergy.push_back(deltaE); 
             mPhase.push_back(phase); 
-			
-            
         }
-
         writeSingleDistribution(STARTDIST_FILE);
     }
 
@@ -289,6 +283,7 @@ struct ToyModel
         mEnergy.reserve(n);
         mPhase.reserve(n);
         mCollHits.assign(n, -1);
+		mLost.assign(n, -1);
 
         std::random_device rdev;
         std::mt19937 generator(rdev());
@@ -318,6 +313,7 @@ struct ToyModel
         mEnergy.reserve(n);
         mPhase.reserve(n);
         mCollHits.assign(n, -1);
+		mLost.assign(n, -1);
 
         std::random_device rdev;
         std::mt19937 generator(rdev());
@@ -363,6 +359,7 @@ struct ToyModel
         mEnergy.reserve(n);
         mPhase.reserve(n);
         mCollHits.assign(n, -1);
+		mLost.assign(n, -1);
     
         for (int i = 0; i < n; ++i) {
             T de, phase;
@@ -430,12 +427,29 @@ struct ToyModel
         }
     }
 
+	void writeLostTurns(std::string filePath) const
+	{
+		std::cout << "Saving lost turns to '" << filePath << "'" << std::endl;
+		std::ofstream file(filePath.c_str());
+		if (!file.is_open())
+			throw std::runtime_error("could not open file");
+		else if (mLost.empty())
+			throw std::runtime_error("no data to write");
+
+		for (size_t i = 0; i < size(); ++i) {
+			if (mLost[i] == -1) continue;
+			std::stringstream ss;
+			int delta = mCollHits[i] - mLost[i];
+			file << i << "," << mLost[i] << "," << mCollHits[i] << "," << delta << std::endl;
+		}
+	}
+
 	//
 	// SIMULATION
 	//
     void takeTimestep(int stepID) 
     {
-        CalcOp op(stepID, mAcc, mEnergy, mPhase, mCollHits);
+        CalcOp op(stepID, mAcc, mEnergy, mPhase, mCollHits, mLost);
         tbb::parallel_for(tbb::blocked_range<size_t>(0, size()), op);
     }
 
@@ -513,6 +527,7 @@ struct ToyModel
             if (!filePath.empty() && (itaken + 1) % saveFreq == 0) {
 				writeDistribution(filePath);
 
+				// This is probably a little bit unnecessary
 				if (animatedBackground) {
 					std::stringstream ss;
 					ss << "phasespace/" << frames << "lines.dat";
@@ -555,8 +570,8 @@ private:
     struct CalcOp
     {
         CalcOp(int stepID, const Accelerator& acc, std::vector<T>& energy, 
-               std::vector<T>& phase, std::vector<int>& collHits)
-            : mStepID(stepID), mAcc(acc), mEnergy(energy), mPhase(phase), mCollHits(collHits)
+               std::vector<T>& phase, std::vector<int>& collHits, std::vector<int>& lost)
+            : mStepID(stepID), mAcc(acc), mEnergy(energy), mPhase(phase), mCollHits(collHits), mLost(lost)
         { }
 
         bool particleInactive(size_t index) const
@@ -570,6 +585,21 @@ private:
                     && mCollHits[index] == -1 // not previously hit
                     && (mEnergy[index] >= mAcc.coll_top || mEnergy[index] <= mAcc.coll_bot);
         }
+
+		bool particleLost(size_t index) const 
+		{
+			// The constant of motion/hamiltionian should be used here, but we've had some small
+			// discrepancies in the past, and so it's probably not too reliable. Instead, we 
+			// define a lost particle to be one that has some arbitrary (low) phase, as we then
+			// know that it is outside of the bucket.
+
+			return !mLost.empty() && 
+					mLost[index] == -1 && 
+					mPhase[index] < -0.1;
+			// Below does not work
+			//const T mSeparatrix = hamiltonian(mAcc, 0.0, cnst::pi - mAcc.lag_phase());
+			//return hamiltonian(mAcc, mPhase[index], mEnergy[index]) > mSeparatrix;
+		}
 
         void operator()(const tbb::blocked_range<size_t>& range) const
         {
@@ -588,6 +618,7 @@ private:
 				const T eta = prop.eta;
                 mPhase[n] -= T(2)*cnst::pi*mAcc.h_rf*eta/(B2_s*mAcc.E())*mEnergy[n];
                 if (particleCollided(n)) mCollHits[n] = mStepID;
+				if (particleLost(n)) mLost[n] = mStepID;
             }
         }
     private:
@@ -599,16 +630,19 @@ private:
         std::vector<T>& mPhase;
 
         std::vector<int>& mCollHits;
+		std::vector<int>& mLost;
+
     };
 
     int mStepID;
 
     Accelerator mAcc;
     // Particle properties
-    std::vector<T> mEnergy; // eV
+    std::vector<T> mEnergy; // eV -- note that this is '∆pc'
     std::vector<T> mPhase; // radians
 
-    std::vector<int> mCollHits;
+    std::vector<int> mCollHits; // Turn hitting collimator
+	std::vector<int> mLost;		// Turn considered 'lost' from the bunch
 
     RAMP_TYPE mType;
 };

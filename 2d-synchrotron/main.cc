@@ -1,26 +1,27 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <sstream>
 #include <tbb/task_scheduler_init.h>
 #include "2d-synchrotron.hh"
 
 namespace twodsynch {
 
 template <typename TModel>
-void generateLossmap(typename TModel::RAMP_TYPE type)
+void generateLossmap(RAMP_TYPE type)
 {
-	//TModel tm(2000, type, typename TModel::LossAnalysis2());
-	TModel tm("config/highlow.dat", type);
+	TModel tm(2000, type, typename TModel::LossAnalysis());
+	//TModel tm("config/2p.dat", type);
     auto freq = TModel::Accelerator::getLHC().f_rev;
-    int turns = 500*freq;
+    int turns = 50*freq;
 
     // hack...
     std::vector<double> startE(tm.getEnergy());
     std::vector<double> startPh(tm.getPhase());
     // ...end of hack
 
-	//tm.takeTimesteps(turns); 
-	tm.takeTimesteps(turns, twodsynch::PATH_FILE, freq); 
+	tm.takeTimesteps(turns); 
+	//tm.takeTimesteps(turns, twodsynch::PATH_FILE, 100); 
     tm.writeCollHits(COLL_FILE);
 
 
@@ -46,6 +47,32 @@ void generateLossmap(typename TModel::RAMP_TYPE type)
 
 }
 
+void generatePhasespaceLines()
+{
+	std::cout << "Generate phasespace lines" << std::endl;
+	auto acc = Accelerator<double>::getLHC();
+	int freq = int(acc.f_rev);
+	int seconds = 300;
+	int turns = seconds*freq;
+
+	std::vector<double> E;
+	readRamp(turns, E, LHC_RAMP);
+
+	for (int i = 0; i < seconds; ++i) {
+		int turn = i*freq;
+		acc.setE(E[turn]);
+		acc.setE(E[turn + 1]);
+		
+        // Caluclated from LHC_ramp.dat
+        const double k = 2.9491187074838457087e-07;
+        acc.V_rf = (6 + k*turn)*1e6;
+		
+		std::stringstream ss;
+		ss << "phasespace/" << i << "lines.dat";
+		writePhasespaceFrame(acc, ss.str());
+	}
+}
+
 }; // namespace twodsynch
 
 int main(int argc, char* argv[])
@@ -56,26 +83,31 @@ int main(int argc, char* argv[])
 
     typedef twodsynch::ToyModel<double> ToyModel;
 
-    //std::cout << twodsynch::synchrotron_frequency() << std::endl;
-
-    // CHANGE FOR00 DIFFERENT SIMULATIONS
-    ToyModel::RAMP_TYPE type = ToyModel::LHC_RAMP;
+    // CHANGE FOR DIFFERENT SIMULATIONS
+    twodsynch::RAMP_TYPE type = twodsynch::LHC_RAMP;
 
     if (args.size() < 2) {
         std::cout << "Not enough arguments specified" << std::endl;
     } else if (args[1] == "animate") {
-        {
-            std::cout << "Creating particle paths" << std::endl;
-            //ToyModel tm(1000, type);
-            ToyModel tm(500, type, ToyModel::LossAnalysis());
-            tm.takeTimesteps(5000, twodsynch::PATH_FILE, 10);
-            tm.writeCollHits(twodsynch::COLL_FILE);
-        }
-        //{
-            //std::cout << "Creating line segments" << std::endl;
-            //ToyModel tm(type, ToyModel::LineSim());
-            //tm.takeTimesteps(1700, twodsynch::LINE_FILE, 5);
-        //}
+        std::cout << "Short animation" << std::endl;
+        ToyModel tm(500, type, ToyModel::LossAnalysis());
+        //tm.takeTimesteps(5000, twodsynch::PATH_FILE, 10);
+        tm.takeTimesteps(5000, twodsynch::PATH_FILE, 5, false);
+        tm.writeCollHits(twodsynch::COLL_FILE);
+		writePhasespaceFrame(ToyModel::Accelerator::getLHC(), twodsynch::LINE_FILE);
+	} else if (args[1] == "animate-long") {
+        std::cout << "Long animation" << std::endl;
+        ToyModel tm(500, type, ToyModel::LossAnalysis());
+        //tm.takeTimesteps(5000, twodsynch::PATH_FILE, 10);
+        tm.takeTimesteps(300*11245, twodsynch::PATH_FILE, 11245, false);
+        tm.writeCollHits(twodsynch::COLL_FILE);
+		writePhasespaceFrame(ToyModel::Accelerator::getLHC(), twodsynch::LINE_FILE);
+	} else if (args[1] == "animate-background") {
+		// In most cases unnecessary if the background lines has already been generated once
+		std::cout << "Full animation" << std::endl;
+		ToyModel tm(500, type, ToyModel::LossAnalysis());
+		tm.takeTimesteps(300*11245, twodsynch::PATH_FILE, 11245, true);
+		tm.writeCollHits(twodsynch::COLL_FILE);
     } else if (args[1] == "energy") {
         std::cout << "Simulating 1 particle" << std::endl;
         ToyModel tm(1, type);
@@ -92,18 +124,9 @@ int main(int argc, char* argv[])
         std::cout << "Start distribution" << std::endl;
         ToyModel tm(2000, type, ToyModel::LossAnalysis());
     } else if (args[1] == "phasespace") {
-		phasespaceLevelCurve(ToyModel::Accelerator::getLHC(), twodsynch::LINE_FILE);
-
-        //int turn = std::stoi(args[2]);
-
-        //// Just need a small starting distribution
-        //{
-            //ToyModel tm(1, type, ToyModel::LossAnalysis());
-        //}
-
-        //std::cout << "Creating line segments for turn " << turn << std::endl;
-        //ToyModel tm(type, ToyModel::LineSim());
-        //tm.takeTimestepsFromTo(turn, 1700 + turn, twodsynch::LINE_FILE, 5);
+		writePhasespaceFrame(ToyModel::Accelerator::getLHC(), twodsynch::LINE_FILE);
+	} else if (args[1] == "phasespace-mov") {
+		twodsynch::generatePhasespaceLines();
     } else if (args[1] == "restart") {
         if (args.size() < 3)
             std::cout << "Must provide file path" << std::endl;
@@ -111,17 +134,11 @@ int main(int argc, char* argv[])
             ToyModel tm(args[2], type);
             tm.takeTimesteps(20*11245, twodsynch::PATH_FILE, 4);
         }
-	} else if (args[1] == "test") {
-		using twodsynch::cnst::pi;
-
-		auto acc = ToyModel::Accelerator::getLHC();
-		double ph = pi;
-		for (double de = 0; de < 1e8; de += 1e7) {
-			double H = hamiltonian(acc, de, ph);
-			std::cout << de << " -> " << std::setprecision(32) << H << " -> " << levelCurve(acc, ph, H) << std::endl;
-		}
-		std::cout << hamiltonian(acc, 0.0, pi) << std::endl;
-
+	} else if (args[1] == "lost") {
+		ToyModel tm(1000, type, ToyModel::LossAnalysis());
+		tm.takeTimesteps(60*11245);
+		tm.writeCollHits(twodsynch::COLL_FILE);
+		tm.writeLostTurns("calc/lost.dat");
     } else {
         std::cout << "No action with name '" << args[1] << "' found" << std::endl;
     }
