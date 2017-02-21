@@ -487,7 +487,6 @@ def find_start_of_ramp(energy):
 
 def find_spike(data): # data is normally BLM data from momentum collimators
     ddata = np.abs(np.gradient(data))
-    mov_average = moving_average(ddata, 10)
     threshold = 1e-7
 
     vpeak, ipeak = imax(data)
@@ -495,7 +494,8 @@ def find_spike(data): # data is normally BLM data from momentum collimators
     found_start = found_end = False
     while not found_start and start > 0:
         start -= 1
-        if ddata[start] < threshold and data[start] < vpeak/5e1:
+        # if ddata[start] < threshold and data[start] < vpeak/5e1:
+        if ddata[start] < 1e-5:
             found_start = True
 
     while not found_end and end < len(ddata) - 1:
@@ -709,8 +709,37 @@ def oml_dom_duration_histogram(file):
         else:
             durations.append(crossover["t"])
 
-    draw_histogram("Duration OML > transversal losses from '{}'".format(file), durations, 2, 'Duration (s) after spike with OML > TM', 'Count')
+    draw_histogram("Duration OML > transversal losses from '{}'".format(file), durations, 1, 'Duration (s) after spike with OML > TM', 'Count')
     return outliers
+
+def fills_bar_graph(file):
+    """ """
+    fills = fills_from_file(file, "OML")
+    oml_dom_duration = []
+    time_till_spike = []
+    total_duration = []
+    for nbr in fills:
+        fill = Fill(nbr)
+
+        crossover = find_crossover_point(fill)
+        if crossover['t'] < 40:
+            oml = fill.data['synch_coll_b1']
+            ispike = np.argmax(oml.y)
+            tspike = oml.x[ispike]
+            time_till_spike.append(tspike)
+
+            oml_dom_duration.append(crossover["t"] - tspike)
+
+            total_duration.append(crossover['t'])
+
+    fig, ax = plt.subplots()
+    ax.bar(range(len(oml_dom_duration)), time_till_spike, label='Time (s) till spike')
+    ax.bar(range(len(oml_dom_duration)), oml_dom_duration, bottom=time_till_spike, label='Time (s) where OML > TM')
+    ax.legend(loc="upper right")
+    ax.set_xlabel("Range id")
+    ax.set_ylabel("Duration (s)")
+    plt.show()
+
 
 def spike_energy_histogram(file):
     fills = fills_from_file(file, "OML")
