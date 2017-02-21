@@ -112,7 +112,7 @@ class Fill:
             self.fetch()
             # self.convert_to_using_Variable()
             self.normalize_intensity()
-            self.offset_time_by_ramp()
+            self.offset_time()
 
 
     def fetch(self, forced=False, cache=True):
@@ -192,9 +192,16 @@ class Fill:
             if m > 0.0:
                 self.data[v].y = self.data[v].y/m
 
-    def offset_time_by_ramp(self):
-        istart = find_start_of_ramp(self.data["energy"])
-        t = self.data["energy"].x[istart]
+    def offset_time(self, by="oml"):
+        if by == "oml":
+            istart = find_oml_spike(self)[0]
+            t = self.data['synch_coll_b1'].x[istart]
+        elif by == "ramp":
+            istart = find_start_of_ramp(self.data["energy"])
+            t = self.data["energy"].x[istart]
+        else:
+            raise Exception("don't recognize offset type")
+
         for v in self.all_variables:
             self.data[v].x -= t
 
@@ -244,7 +251,8 @@ class Fill:
         energy_axis.set_ylabel("Energy")
 
         oml = self.data['synch_coll_b1']
-        spike, tail = find_spike(oml.y)
+        # spike, tail = find_spike(oml.y)
+        spike, tail = find_oml_spike(self)
         blm_axis.axvspan(oml.x[spike], oml.x[tail], facecolor='b', alpha=0.2)
 
         fig.subplots_adjust(right=0.8)
@@ -282,7 +290,8 @@ class Fill:
         energy_axis.set_ylabel("Energy")
 
         oml = self.data['synch_coll_b1']
-        spike, tail = find_spike(oml.y)
+        spike, tail = find_oml_spike(self)
+        # spike, tail = find_spike(oml.y)
 
         fig.subplots_adjust(right=0.8)
         blm_axis.spines['right'].set_position(('axes', 1.15))
@@ -319,7 +328,8 @@ class Fill:
 
         oml = self.data['synch_coll_b1']
         avg = moving_average(oml.y, 10)
-        spike, tail = find_spike(oml.y)
+        # spike, tail = find_spike(oml.y)
+        spike, tail = find_oml_spike(self)
         blm_axis.plot(*oml, color='g', linestyle='--', zorder=2, label='momentum loss')
         blm_axis.plot(oml.x, avg, color='r', linestyle='-', zorder=2, label='average momentum loss')
         blm_axis.axvspan(oml.x[spike], oml.x[tail], facecolor='b', alpha=0.2)
@@ -448,6 +458,51 @@ def plot_from(file, status_string='*'):
             if inp == 'q':
                 break
 
+def edit_event(e, axvspan, fill, fill_list):
+    if e.key == "right":
+        fill_list[fill.nbr][0] += 1
+    if e.key == "left":
+        fill_list[fill.nbr][0] -= 1
+    oml = fill.data['synch_coll_b1']
+
+    with open("fills/spikes.dat", 'wb') as f:
+        pickle.dump(fill_list, f)
+
+    # I literally have no idea how this works, reference
+    # http://stackoverflow.com/questions/35551903/update-location-of-axvspan-with-matplotlib
+    arr = axvspan.get_xy()
+    start = oml.x[fill_list[fill.nbr][0]]
+    end = oml.x[fill_list[fill.nbr][1]]
+    arr[:, 0] = [start, start, end, end, start]
+    axvspan.set_xy(arr)
+    plt.draw()
+    
+
+def edit_spike_for_fills(file, status_string='OML'):
+    fills = fills_from_file(file, status_string)
+    fill_list = {}
+
+    c = 0
+    for nbr in fills:
+        fill = Fill(nbr)
+
+        oml = fill.data['synch_coll_b1']
+        start, end = find_oml_spike(fill)
+        fill_list[nbr] = [start, end]
+
+        fig, ax = plt.subplots()
+        ax.plot(*oml, c='r')
+        ax.set_yscale('log')
+        ax.set_xlabel("t (s)")
+        axvspan = ax.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
+        ax.set_xlim([oml.x[start] - 20, oml.x[start] + 20])
+        fig.canvas.mpl_connect('key_press_event', lambda event : edit_event(event, axvspan, fill, fill_list))
+        plt.show()
+    
+    with open("fills/spikes.dat", 'rb') as f:
+        print(pickle.loads(f.read()))
+
+
 def plot_energy_ramp(fill_nbr):
     fill = Fill(fill_nbr)
 
@@ -486,6 +541,15 @@ def find_start_of_ramp(energy):
 
 
 def find_spike(data): # data is normally BLM data from momentum collimators
+    raise Exception("changed name to 'find_oml_spike' instead")
+
+def find_oml_spike(fill): 
+    with open('fills/spikes.dat', 'rb') as f:
+        spike_list = pickle.loads(f.read())
+        if fill.nbr in spike_list:
+            return spike_list[fill.nbr]
+
+    data = fill.data['synch_coll_b1'].y
     ddata = np.abs(np.gradient(data))
     threshold = 1e-7
 
@@ -542,7 +606,8 @@ def intensity_and_OML_pruning(file_in, file_out):
 
         fill.beta_coll_merge()
         oml_data = fill.data['synch_coll_b1']
-        smin, smax = find_spike(oml_data.y) 
+        # smin, smax = find_spike(oml_data.y) 
+        smin, smax = find_oml_spike(fill) 
         dur = oml_data.x[smax] - oml_data.x[smin]
 
         if dur < 100 or dur > 300:
@@ -685,8 +750,9 @@ def spike_duration_histogram(file):
     for nbr in fills:
         fill = Fill(nbr)
 
-        losses = fill.data['synch_coll_b1'].y
-        spike_start, spike_end = find_spike(np.array(losses))
+        # losses = fill.data['synch_coll_b1'].y
+        # spike_start, spike_end = find_spike(np.array(losses))
+        spike_start, spike_end = find_oml_spike(fill)
         d = fill.data['synch_coll_b1'].x[spike_end] - fill.data['synch_coll_b1'].x[spike_start]
         if d < 70 or d > 300:
             outliers.append(nbr)
@@ -713,7 +779,7 @@ def oml_dom_duration_histogram(file):
     return outliers
 
 def fills_bar_graph(file):
-    """ """
+    """ Bar graph displaying the 'time till max spike' + 'time where OML > TM' for all fills in file """
     fills = fills_from_file(file, "OML")
     oml_dom_duration = []
     time_till_spike = []
@@ -741,9 +807,8 @@ def fills_bar_graph(file):
     plt.show()
 
 
-def spike_energy_histogram(file):
+def max_spike_histogram(file):
     fills = fills_from_file(file, "OML")
-    spike_energy = []
     spike_time = []
 
     for nbr in fills:
@@ -751,18 +816,8 @@ def spike_energy_histogram(file):
 
         losses = fill.data['synch_coll_b1']
         ispike = np.argmax(losses.y)
-        tspike = losses.x[ispike]
+        spike_time.append(losses.x[ispike])
 
-        energy = fill.data['energy']
-        ienergy = bisect.bisect_left(energy.x, tspike)
-
-        iramp = find_start_of_ramp(energy)
-        delta_e = energy.y[ienergy] - energy.y[iramp]
-        delta_t = energy.x[ienergy] - energy.x[iramp]
-        spike_energy.append(delta_e)
-        spike_time.append(delta_t)
-
-    draw_histogram('Spike energy for {}'.format(file), spike_energy, 0.13, 'Delta E (GeV) from start of ramp', 'Count', 'y')
     draw_histogram('Max spike event for {}'.format(file), spike_time, 1.0, 'Delta t (s) from start of ramp till spike', 'Count')
 
 def beta_vs_synch_blm(file):
@@ -786,7 +841,8 @@ def beta_vs_synch_blm(file):
             notok += 1
             continue
 
-        smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+        # smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+        smin, smax = find_oml_spike(fill) 
         tmax = fill.data['synch_coll_b1'].x[smax]
         tmin = fill.data['synch_coll_b1'].x[smin]
         bmin, bmax = subset_indices(fill.data['A_beta_coll_b1'].x, tmin, tmax)
@@ -841,7 +897,8 @@ def intensity_vs_OML(file):
     for nbr in fills:
         fill = Fill(nbr, False)
         fill.fetch()
-        smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+        # smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+        smin, smax = find_oml_spike(fill) 
         ssubset = fill.data['synch_coll_b1'].y[smin:smax]
 
         maxint = max(fill.data['intensity_b1'][1])
@@ -885,7 +942,8 @@ def abort_gap_vs_OML(file):
     for nbr in fills:
         fill = Fill(nbr, False)
         fill.fetch()
-        smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+        # smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+        smin, smax = find_oml_spike(fill) 
         tmax = fill.data['synch_coll_b1'].x[smax]
         tmin = fill.data['synch_coll_b1'].x[smin]
         agmin, agmax = subset_indices(fill.data['abort_gap_int_b1'].x, tmin, tmax)
@@ -931,7 +989,8 @@ def abort_gap_vs_BLM(file):
         fill.fetch()
         fill.beta_coll_merge()
 
-        smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+        # smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
+        smin, smax = find_oml_spike(fill) 
         tmax = fill.data['synch_coll_b1'].x[smax]
         tmin = fill.data['synch_coll_b1'].x[smin]
         agmin, agmax = subset_indices(fill.data['abort_gap_int_b1'].x, tmin, tmax)
