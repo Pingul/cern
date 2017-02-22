@@ -33,6 +33,8 @@ def imax(data):
     i = max(range(len(data)), key = data.__getitem__)
     return (data[i], i)
 
+
+
 class Fill:
 
     class STATUS:
@@ -217,6 +219,7 @@ class Fill:
         return max_loss/mean_loss > 10
 
     def beta_coll_merge(self):
+        """ The merged variable 'A_beta_coll_b1' will be created """
         # Should really be dealing with aligned data here
         merge_var = "A_beta_coll_b1"
         if merge_var in self.data.keys():
@@ -231,6 +234,12 @@ class Fill:
                 else:
                     beta_coll.y = np.add(beta_coll.y, self.data[v].y)
             self.data[merge_var] = beta_coll
+
+    def oml(self, aligned=False):
+        if aligned:
+            return self.data['A_synch_coll_b1']
+        else:
+            return self.data['synch_coll_b1']
 
 
 
@@ -579,14 +588,113 @@ def find_crossover_point(fill):
 
         Note: this should be used with aligned data """
     fill.beta_coll_merge()
-    oml = fill.data["A_synch_coll_b1"] # off-momentum-losses
-    tm = fill.data["A_beta_coll_b1"]   # transversal-losses
+    oml = fill.data["synch_coll_b1"] # off-momentum-losses
+    tl = fill.data["A_beta_coll_b1"]   # transversal-losses
     vpeak, ipeak = imax(oml.y)
 
     i = ipeak
-    while oml.y[i] > tm.y[i]:
+    while oml.y[i] > tl.y[i]:
         i += 1
     return {'i' : i, 't' : oml.x[i]}
+
+
+def merge_variable(fills, var):
+    xmax, xmin = 0, 0
+    for fill in fills:
+        xmin = min(min(fill.data[var].x), xmin)
+        xmax = max(max(fill.data[var].x), xmax)
+
+    # The x-series
+    newx = np.arange(xmin, xmax + 1, 1, dtype=np.int) # using int's to maybe make comparisons more safe
+
+    # Will store the average values of y
+    avgy = np.zeros(newx.size, dtype=np.float)
+    norm = np.zeros(newx.size, dtype=np.float) # we use this to basically take the average value at each timestamp
+
+    # Will store maximum and minimum values of y
+    maxy = np.zeros(newx.size, dtype=np.float)
+    miny = 1.0e10*np.ones(newx.size, dtype=np.float)
+
+    for fill in fills:
+        x_i = fill.data[var].x.astype(np.int)
+        index_map = np.searchsorted(newx, x_i)
+
+        np.add.at(avgy, index_map, fill.data[var].y)
+        np.add.at(norm, index_map, 1.0)
+
+        np.maximum.at(maxy, index_map, fill.data[var].y)
+        np.minimum.at(miny, index_map, fill.data[var].y)
+
+    # delete empty values (where no data was written)
+    to_delete = np.where(norm < 0.5)
+    newx = np.delete(newx, to_delete)
+    maxy = np.delete(maxy, to_delete)
+    miny = np.delete(miny, to_delete)
+    norm = np.delete(norm, to_delete)
+    avgy = np.delete(avgy, to_delete)
+    avgy /= norm
+
+    newx = newx.astype(dtype=float)
+
+    return {
+            "average" : Fill.Variable([newx, avgy]),
+            "max" : Fill.Variable([newx, maxy]),
+            "min" : Fill.Variable([newx, miny])
+            }
+
+
+def aggregate_fill(fill_list):
+    fills = []
+    for nbr in fill_list:
+        fill = Fill(nbr)
+        fill.beta_coll_merge()
+        fills.append(fill)
+        
+    var = ["synch_coll_b1", "A_beta_coll_b1", "energy", "intensity_b1"]
+
+    fill = Fill(-1, fetch=False)
+    for v in var:
+        merged = merge_variable(fills, v)
+        fill.data[v] = merged["average"]
+
+    return fill
+
+
+def plot_aggregate_fill(fill_list):
+    """ Create an aggregate fill of the given variables  """
+
+    fills = []
+    for nbr in fill_list:
+        fill = Fill(nbr)
+        fill.beta_coll_merge()
+        fills.append(fill)
+        
+    var = ["synch_coll_b1", "A_beta_coll_b1", "energy"]
+    merged = {}
+    for v in var:
+        merged[v] = merge_variable(fills, v)
+
+    fig, ax = plt.subplots()
+    ax.set_yscale("log")
+    e_ax = ax.twinx()
+
+    v = "synch_coll_b1"
+    ax.plot(*merged[v]["average"], zorder=10, color='red', label='OML')
+    ax.fill_between(*merged[v]["max"], merged[v]["min"].y, color='red', alpha='0.3')
+
+    v = "A_beta_coll_b1"
+    ax.plot(*merged[v]["average"], zorder=9, color='green', label='TL')
+    ax.fill_between(*merged[v]["max"], merged[v]["min"].y, color='green', alpha='0.2')
+
+    e_ax.plot(*merged["energy"]["average"], zorder=5, color='black', label='energy')
+    e_ax.set_ylabel("Reference energy (GeV)")
+    ax.set_xlabel("t (s)")
+    ax.set_ylabel("BLM signal")
+    ax.legend(loc="upper right")
+    ax.set_xlim([-20, 60])
+    # ax.axvspan(0.0, 13.55, facecolor='b', zorder=0, alpha=0.1)
+    plt.title("Aggregate fill 2016")
+    plt.show()
 
 
 def intensity_and_OML_pruning(file_in, file_out):
