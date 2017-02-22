@@ -118,13 +118,10 @@ class Fill:
 
 
     def fetch(self, forced=False, cache=True):
-        store_file = store_file_for_fill(self.nbr)
         to_fetch = self.variables
         fetch_aligned = forced
-        if not forced and os.path.isfile(store_file):
-            print('loading {}'.format(self.nbr))
-            with open(store_file, 'rb') as f:
-                self.unpack(pickle.loads(f.read()))
+        if not forced and os.path.isfile(store_file_for_fill(self.nbr)):
+            self.load_cache()
 
             non_cached_variables = []
             for v in self.all_variables:
@@ -169,10 +166,8 @@ class Fill:
                 var_name = next(name for name in self.aligned_variables.keys() if self.aligned_variables[name] == d_var)
                 self.data[var_name] = Fill.Variable(np.array([x_data, data[d_var]]))
 
-        if cache:
-            print('caching {}'.format(self.nbr))
-            with open(store_file, 'wb') as f:
-                pickle.dump(self.pack(), f)
+        if cache: 
+            self.cache()
 
     def pack(self):
         return {
@@ -187,6 +182,16 @@ class Fill:
         self.data = dump['data']
         self.meta = dump['meta']
         self.status = dump['status']
+
+    def cache(self):
+        print('caching {}'.format(self.nbr))
+        with open(store_file_for_fill(self.nbr), 'wb') as f:
+            pickle.dump(self.pack(), f)
+
+    def load_cache(self):
+        print('loading {}'.format(self.nbr))
+        with open(store_file_for_fill(self.nbr), 'rb') as f:
+            self.unpack(pickle.loads(f.read()))
 
     def normalize_intensity(self):
         for v in ['intensity_b1']:
@@ -643,7 +648,19 @@ def merge_variable(fills, var):
             }
 
 
-def aggregate_fill(fill_list):
+def aggregate_fill(fill_list=[], from_cache=False):
+    """ Create an aggregate fill of the fill ids. If reading from cache, 
+        the fill_list can be empty. """
+
+    if not fill_list and not from_cache:
+        raise Exception("'fill_list' can't be empty if not to read from cache'")
+
+    aggr_id = 0
+    fill = Fill(aggr_id, fetch=False)
+    if from_cache:
+        fill.load_cache()
+        return fill
+
     fills = []
     for nbr in fill_list:
         fill = Fill(nbr)
@@ -651,18 +668,16 @@ def aggregate_fill(fill_list):
         fills.append(fill)
         
     var = ["synch_coll_b1", "A_beta_coll_b1", "energy", "intensity_b1"]
-
-    fill = Fill(-1, fetch=False)
     for v in var:
         merged = merge_variable(fills, v)
         fill.data[v] = merged["average"]
-
     return fill
 
 
 def plot_aggregate_fill(fill_list):
-    """ Create an aggregate fill of the given variables  """
 
+    # We can't reuse the 'aggregate_fill' function above, as we want to plot more
+    # than for a normal fill (min, max, average)
     fills = []
     for nbr in fill_list:
         fill = Fill(nbr)
