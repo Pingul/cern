@@ -5,76 +5,6 @@
 #include <tbb/task_scheduler_init.h>
 #include "2d-synchrotron.hh"
 
-namespace twodsynch {
-
-template <typename TModel>
-void generateLossmap(RAMP_TYPE type)
-{
-    TModel tm(2000, type, typename TModel::LossAnalysis());
-    //TModel tm("config/2p.dat", type);
-    auto freq = TModel::Accelerator::getLHC().f_rev;
-    int turns = 50*freq;
-
-    // hack...
-    std::vector<double> startE(tm.getEnergy());
-    std::vector<double> startPh(tm.getPhase());
-    // ...end of hack
-
-    tm.takeTimesteps(turns); 
-    //tm.takeTimesteps(turns, twodsynch::PATH_FILE, 100); 
-    tm.writeCollHits(COLL_FILE);
-
-
-    int ilastHit, tlastHit = -1;
-    auto hits = tm.getCollHits();
-    for (int i = 0; i < hits.size(); ++i) {
-        if (hits[i] > tlastHit) {
-            tlastHit = hits[i];
-            ilastHit = i;
-        }
-    }
-
-    if (tlastHit == -1)
-        std::cout << "No losses" << std::endl;
-    else {
-        auto energy = tm.getEnergy();
-        std::cout 
-            << "Latest hit:\n\tparticle " << ilastHit << ", turn " << tlastHit 
-            << "(approx. after " << std::setprecision(3) << (double(tlastHit)/freq) << " s)\n"
-            << "\tstarting H=" << std::setprecision(16) << twodsynch::hamiltonian(TModel::Accelerator::getLHC(),
-            startE[ilastHit], startPh[ilastHit]) << std::endl;
-    }
-
-}
-
-void generatePhasespaceLines(int seconds)
-{
-    // will generate 1 per second
-    std::cout << "Generate phasespace lines" << std::endl;
-    auto acc = Accelerator<double>::getLHC();
-    int freq = int(acc.f_rev);
-    int turns = seconds*freq;
-
-    std::vector<double> E;
-    readRamp(turns, E, LHC_RAMP);
-
-    for (int i = 0; i < seconds; ++i) {
-        int turn = i*freq;
-        acc.setE(E[turn]);
-        acc.setE(E[turn + 1]);
-        
-        // Caluclated from LHC_ramp.dat
-        const double k = 2.9491187074838457087e-07;
-        acc.V_rf = (6 + k*turn)*1e6;
-        
-        std::stringstream ss;
-        ss << "phasespace/" << i << "lines.dat";
-        writePhasespaceFrame(acc, ss.str());
-    }
-}
-
-}; // namespace twodsynch
-
 int main(int argc, char* argv[])
 {
     std::vector<std::string> args(argv, argv + argc);
@@ -117,14 +47,17 @@ int main(int argc, char* argv[])
         tm.writeCollHits(twodsynch::COLL_FILE);
     } else if (args[1] == "lossmap-analysis" || args[1] == "lossmap") {
         std::cout << "Loss pattern analysis" << std::endl;
-        twodsynch::generateLossmap<ToyModel>(type);
+        //ToyModel lossmodel(1000, type, ToyModel::LossAnalysis());
+        ToyModel lossmodel("test_lost.dat", type, ToyModel::LossAnalysisMultiplied());
+        lossmodel.runLossmap(30);
     } else if (args[1] == "sixtrack-comp") {
         std::cout << "Sixtrack comparison" << std::endl;
         ToyModel tm( (ToyModel::SixTrackTest()) );
         tm.takeTimesteps(30000, twodsynch::SIXTRACK_TEST_FILE);
     } else if (args[1] == "startdist") {
         std::cout << "Start distribution" << std::endl;
-        ToyModel tm(2000, type, ToyModel::LossAnalysis());
+        ToyModel lossmodel("test_lost.dat", type, ToyModel::LossAnalysisMultiplied());
+        //ToyModel tm(2000, type, ToyModel::LossAnalysis());
     } else if (args[1] == "phasespace") {
         writePhasespaceFrame(ToyModel::Accelerator::getLHC(), twodsynch::LINE_FILE);
     } else if (args[1] == "phasespace-mov") {
@@ -138,13 +71,12 @@ int main(int argc, char* argv[])
         }
     } else if (args[1] == "lost") {
         ToyModel tm(1000, type, ToyModel::LossAnalysis());
-        tm.takeTimesteps(20*11245);
+        tm.takeTimesteps(40*11245);
         tm.writeCollHits(twodsynch::COLL_FILE);
         tm.writeLostTurns("calc/lost.dat");
     } else if (args[1] == "test") {
         auto acc = twodsynch::Accelerator<double>::getLHC();
         acc.setE(7000e9, true);
-        auto p = acc.calcParticleProp(0.0, 0.0);
         std::cout << "Default rev frequency: " << acc.f_rev << std::endl;
     } else {
         std::cout << "No action with name '" << args[1] << "' found" << std::endl;

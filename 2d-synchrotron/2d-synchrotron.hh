@@ -253,10 +253,7 @@ struct ToyModel
     ToyModel(size_t n, RAMP_TYPE type)
         : mAcc(Accelerator::getLHC()), mType(type)
     {
-        mEnergy.reserve(n);
-        mPhase.reserve(n);
-        mCollHits.assign(n, -1);
-        mLost.assign(n, -1);
+        initStorage(n);
 
         std::random_device rdev;
         std::mt19937 generator(rdev());
@@ -275,16 +272,13 @@ struct ToyModel
 
     // For parameter passing in the next constructors
     struct LossAnalysis {};
-    struct LossAnalysis2 {};
+    struct LossAnalysisMultiplied {};
     struct SixTrackTest {};
 
     ToyModel(int n, RAMP_TYPE type, LossAnalysis)
         : mAcc(Accelerator::getLHC()), mType(type)
     {
-        mEnergy.reserve(n);
-        mPhase.reserve(n);
-        mCollHits.assign(n, -1);
-        mLost.assign(n, -1);
+        initStorage(n);
 
         std::random_device rdev;
         std::mt19937 generator(rdev());
@@ -297,7 +291,7 @@ struct ToyModel
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-            if ((separatrix - 100) < H && H < (separatrix + 500)) {
+            if ((separatrix - 500) < H && H < (separatrix + 100)) {
             //if (H < separatrix) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
@@ -307,13 +301,10 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(int n, RAMP_TYPE type, LossAnalysis2)
+    ToyModel(int n, RAMP_TYPE type, LossAnalysisMultiplied)
         : mAcc(Accelerator::getLHC()), mType(type)
     {    
-        mEnergy.reserve(n);
-        mPhase.reserve(n);
-        mCollHits.assign(n, -1);
-        mLost.assign(n, -1);
+        initStorage(n);
 
         std::random_device rdev;
         std::mt19937 generator(rdev());
@@ -331,6 +322,36 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
+    ToyModel(const std::string filePath, RAMP_TYPE type)
+        : mAcc(Accelerator::getLHC()), mType(type)
+    {
+        readDistribution(filePath);
+        std::cout << "Initialized " << size() << " particles" << std::endl;
+        writeSingleDistribution(STARTDIST_FILE);
+    }
+
+    ToyModel(const std::string filePath, RAMP_TYPE type, LossAnalysisMultiplied)
+        : mAcc(Accelerator::getLHC()), mType(type)
+    {
+        readDistribution(filePath);
+        size_t s = size();
+
+        int mult = 6;
+        initStorage(mult*s);
+
+        std::random_device rdev;
+        std::mt19937 generator(rdev());
+        for (int i = 0; i < s; ++i) {
+            std::normal_distribution<> e_dist(mEnergy[i], 1e5);
+            std::normal_distribution<> ph_dist(mPhase[i], 0.01);
+            for (int j = 1; j < mult; ++j) {
+                mEnergy.push_back(e_dist(generator));
+                mPhase.push_back(ph_dist(generator));
+            }
+        }
+        std::cout << "Initialized " << size() << " particles" << std::endl;
+        writeSingleDistribution(STARTDIST_FILE);
+    }
 
     ToyModel(SixTrackTest)
         : mAcc(Accelerator::getLHC()), mType(LHC_RAMP)
@@ -340,12 +361,20 @@ struct ToyModel
         // mPhase.push_back(0);
     }
 
+    void initStorage(int n)
+    {
+        mEnergy.reserve(n);
+        mPhase.reserve(n);
+        mCollHits.assign(n, -1);
+        mLost.assign(n, -1);
+    }
+
 
     //
     // FILE IO
     //
-    ToyModel(const std::string filePath, RAMP_TYPE type)
-        : mAcc(Accelerator::getLHC()), mType(type)
+
+    void readDistribution(std::string filePath)
     {
         std::cout << "Reading distribution from '" << filePath << "'" << std::endl;
         std::ifstream file(filePath.c_str());
@@ -356,10 +385,7 @@ struct ToyModel
 
         int n;
         file >> n >> skip;
-        mEnergy.reserve(n);
-        mPhase.reserve(n);
-        mCollHits.assign(n, -1);
-        mLost.assign(n, -1);
+        initStorage(n);
     
         for (int i = 0; i < n; ++i) {
             T de, phase;
@@ -367,10 +393,9 @@ struct ToyModel
             mEnergy.push_back(de);
             mPhase.push_back(phase);
         }
-        
-        std::cout << "Initialized " << n << " particles" << std::endl;
-        writeSingleDistribution(STARTDIST_FILE);
+        std::cout << "Read " << size() << " particles" << std::endl;
     }
+
     void createTurnFileHeader(std::string filePath, int turns) const
     {
         std::ofstream file(filePath.c_str());
@@ -495,7 +520,6 @@ struct ToyModel
         common::SilentTimer timer;
 
         timer.start();
-        int frames = 0;
         for (int i = 0; i < n; ++i) {
             if (mType > NO_RAMP) {
                 mAcc.setE(E_ramp[i]);
@@ -539,6 +563,32 @@ struct ToyModel
         std::cout << dur.ms << "ms" << std::endl;
 
         writeSingleDistribution(ENDDIST_FILE);
+    }
+
+    void runLossmap(int seconds)
+    {
+        double freq = mAcc.f_rev;
+        int turns = seconds*freq;
+    
+        takeTimesteps(turns); 
+        //tm.takeTimesteps(turns, twodsynch::PATH_FILE, 100); 
+        writeCollHits(COLL_FILE);
+    
+        int ilast = -1;
+        for (int i = 0; i < mCollHits.size(); ++i) {
+            if (mCollHits[i] > mCollHits[ilast]) 
+                ilast = i;
+        }
+    
+        int tlast = mCollHits[ilast];
+        if (tlast == -1)
+            std::cout << "No losses" << std::endl;
+        else {
+            std::cout 
+                << "Latest hit:\n\tparticle " << ilast << ", turn " << tlast 
+                << "(approx. after " << std::setprecision(3) << (double(tlast)/freq) << " s)\n";
+        }
+    
     }
 
     size_t size() const { return mEnergy.size(); }
@@ -628,6 +678,30 @@ private:
     RAMP_TYPE mType;
 };
 
+void generatePhasespaceLines(int seconds)
+{
+    // will generate 1 per second
+    std::cout << "Generate phasespace lines" << std::endl;
+    auto acc = Accelerator<double>::getLHC();
+    int freq = int(acc.f_rev);
+    int turns = seconds*freq;
 
+    std::vector<double> E;
+    readRamp(turns, E, LHC_RAMP);
+
+    for (int i = 0; i < seconds; ++i) {
+        int turn = i*freq;
+        acc.setE(E[turn]);
+        acc.setE(E[turn + 1]);
+        
+        // Caluclated from LHC_ramp.dat
+        const double k = 2.9491187074838457087e-07;
+        acc.V_rf = (6 + k*turn)*1e6;
+        
+        std::stringstream ss;
+        ss << "phasespace/" << i << "lines.dat";
+        writePhasespaceFrame(acc, ss.str());
+    }
+}
 
 }; // namespace twodsynch
