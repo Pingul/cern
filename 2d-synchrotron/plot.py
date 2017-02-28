@@ -23,8 +23,10 @@ ENDDIST_FILE = "calc/enddist.dat"
 RAMP_FILE = "resources/LHC_ramp.dat"
 
 PLOT_FRAME = {
-    'x' : [-2*math.pi, 4*math.pi],
-    'y' : [-2e9, 2e9]
+    'x' : [-0.1*math.pi, 2.1*math.pi],
+    'y' : [-0.4e9, 0.4e9]
+    # 'x' : [-2*math.pi, 4*math.pi],
+    # 'y' : [-2e9, 2e9]
 }
 
 SAVE_FILE = ''
@@ -38,9 +40,11 @@ def moving_average(sequence, N):
     average = np.convolve(sequence, np.ones((N,))/N, mode='same')
     return average
 
-def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
-    # the default attributes are the only one that gets recognised
-    # no values only gives nbr of losses each turn
+def get_lossmap(collfile):
+    """ Returns data as
+        lossmap = { turn : [particles_lost] }
+        
+    """
 
     print("creating lossmap")
     hits = []
@@ -50,32 +54,16 @@ def get_lossmap(collfile, with_attr=['id', 'phase', 'e']):
             if i < 2: 
                 continue
             line_c = line.rstrip().split(',')
-            pID, turn = map(int, line_c[0:2])
-            phase, e = map(float, line_c[2:4])
-            hits.append([turn, pID, phase, e])
+            pid, turn = map(int, line_c[0:2])
+            hits.append([turn, pid])
 
     hits.sort(key=lambda x: x[0])
     coll_hits = {} 
     for hit in hits:
-        turn, pID, phase, e = hit
-
-        val = {}
-        if 'id' in with_attr:
-            val['id'] = pID
-        if 'phase' in with_attr:
-            val['phase'] = phase
-        if 'e' in with_attr:
-            val['e'] = e
-
-        try:
-            coll_hits[turn].append(val)
-        except Exception as e:
-            coll_hits[turn] = [val]
-
-    if not with_attr:
-        return {turn : len(coll_hits[turn]) for turn in coll_hits}
+        turn, pid = hit
+        try: coll_hits[turn].append(pid)
+        except: coll_hits[turn] = [pid]
     return coll_hits
-
 
 class PhaseSpace:
     """ Only works for data output by the 2d synchrotron """
@@ -190,9 +178,7 @@ class PhaseSpace:
         except:
             print("could not read '{}', will not plot".format(COLL_FILE))
         else:
-            coll_hits = get_lossmap(COLL_FILE, with_attr=['id'])
-            self.coll_hits = {turn : [hit['id'] for hit in coll_hits[turn]] for turn in coll_hits}
-
+            self.coll_hits = get_lossmap(COLL_FILE)
             self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
             self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
 
@@ -204,38 +190,37 @@ class PhaseSpace:
         self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
         self.ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}π".format(x/math.pi)))
 
-    def categorize_particles(self, lossmap):
-        """ Seperates particle id's into two lists, 'lost' and 'alive' """
-        pbin = {'lost' : []}
+    def categorize_particles(self, lossmap, sec=0.0):
+        """ Seperates particle id's into two lists, 'lost' and 'alive' after time 'sec'.
+            Particles are 'discarded' if they got lost before 'sec'. """
+        pbin = {'lost' : [], 'discarded' : []}
         for turn in lossmap:
-            pbin['lost'] += [loss['id'] for loss in lossmap[turn]]
+            if turn >= 11245.0*sec:
+                pbin['lost'] += [loss for loss in lossmap[turn] if loss < self.nbr_p]
+            else:
+                pbin['discarded'] += [loss for loss in lossmap[turn] if loss < self.nbr_p]
         pbin['lost'].sort()
-        pbin['alive'] = [i for i in range(self.nbr_p) if i not in pbin['lost']]
+        pbin['discarded'].sort()
+        pbin['alive'] = [i for i in range(self.nbr_p) if i not in pbin['lost'] and i not in pbin['discarded']]
         return pbin
 
-    def plot_turn(self, turn=1):
-        if turn > self.nbr_turns or turn < 0:
-            raise Exception("can't plot given turn")
-
+    def plot_particles(self, pbin=None):
         self.create_plot()
         self.plot_background_lines()
         self.plot_collimators()
         self.format_axes()
-
-        try:
-            lossmap = get_lossmap(COLL_FILE, "id")
-        except:
-            start = (turn - 1)*self.nbr_p
-            end = turn*self.nbr_p
-            self.pos_plot = self.ax.scatter(self.phase[start:end], self.denergy[start:end], zorder=10, color='b', s=4)
+        
+        if pbin:
+            print("lost:", len(pbin['lost']), 'alive:', len(pbin['alive']))
+            live_z = 10
+            lost_z = 9 if len(pbin['lost']) > len(pbin['alive']) else 11
+            self.ax.scatter([self.phase[i] for i in pbin['alive']], [self.denergy[i] for i in pbin['alive']], color='b', s=2, zorder=live_z)
+            self.ax.scatter([self.phase[i] for i in pbin['lost']], [self.denergy[i] for i in pbin['lost']], color='r', s=2, zorder=lost_z)
+            self.ax.scatter([self.phase[i] for i in pbin['discarded']], [self.denergy[i] for i in pbin['discarded']], color='gray', s=2, zorder=5)
         else:
-            pbin = self.categorize_particles(lossmap)
-
-            livez = 10
-            lostz = 9 if len(pbin['lost']) > len(pbin['alive']) else 11
-            self.ax.scatter([self.phase[i] for i in pbin['alive']], [self.denergy[i] for i in pbin['alive']], color='b', s=4, zorder=livez)
-            self.ax.scatter([self.phase[i] for i in pbin['lost']], [self.denergy[i] for i in pbin['lost']], color='r', s=4, zorder=lostz)
+            self.ax.scatter(self.phase, self.denergy, color='magenta', s=4)
         plt.show()
+        
 
     def update(self, num, redrawBackground=False):
         istart = num*self.nbr_p
@@ -267,14 +252,16 @@ class PhaseSpace:
         self.pos_plot = self.ax.scatter(self.phase[0:self.nbr_p], self.denergy[0:self.nbr_p], zorder=10, s=4, color='b')
         self.active_particles = range(self.nbr_p)
         self.lost_particles = {'denergy': [], 'phase': []}
-        self.ref_e_text = self.ax.text(-4, 1.7e9, "Frame {}".format(0), ha = 'left', va = 'center', fontsize = 15)
+        self.ref_e_text = self.ax.text(0.05, 0.95, 
+                "Frame {}".format(0), fontsize=15,
+                ha='left', va='top', transform=self.ax.transAxes)
 
         ani = animation.FuncAnimation(self.fig, self.update, self.nbr_turns, fargs=(animateBackground,), interval=50, blit=False)
 
         if save_to:
             print("saving simulation to '{}'".format(save_to))
             self.fig.suptitle(save_to)
-            ani.save(save_to, fps=20)
+            ani.save(save_to, fps=20, dpi=500)
             print("finished saving to '{}'".format(save_to))
         else:
             plt.show()
@@ -291,88 +278,56 @@ class PhaseSpace:
         ax.plot(turns, ref_e, color='black')
         plt.show()
 
-def plot_lossmap_phase():
-    lossmap = get_lossmap(COLL_FILE, with_attr=['id', 'phase'])
 
-    turns = []
-    phase = []
-    pid = []
-
-    for turn in lossmap:
-        for loss in lossmap[turn]:
-            turns.append(turn)
-            phase.append(loss['phase'])
-            pid.append(loss['id'])
-
-    fig, ax = plt.subplots()
-    ax.scatter(turns, phase)
-    ax.set_xlabel("Time (kturns)")
-    ax.set_ylabel("Phase")
-    ax.set_xlim([0, max(lossmap.keys()) + 100])
-    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
-    fig.suptitle("Lossmap time vs phase")
-
-    plt.show()
-
-
-def plot_lossmap(save_to=''):
-    lossmap = get_lossmap(COLL_FILE, with_attr=[])
-
-    if len(lossmap) == 0:
+def plot_lossmap(lossmaps, labels=[], save_to=''):
+    """
+        lossmaps = [lossmap1, lossmap2, ...] 
+    """
+    if len(lossmaps) == 0:
         raise Exception("no losses found")
 
-    max_turn_loss = max(lossmap.keys())
-    nbr_p = 0
-    coll = {'top' : 0, 'bot' : 0}
-    with open(COLL_FILE, 'r') as f:
-        first_line = f.readline()
-        nbr_p = int(first_line.rstrip())
-        second_line = f.readline()
-        coll['top'], coll['bot'] = map(float, second_line.rstrip().split(','))
-
-
-    turns = np.array(range(max_turn_loss + 100))
-    secs = np.array([turn/11245.0 for turn in turns])
-    losses = np.array([lossmap[turn] if turn in lossmap else 0 for turn in turns])
-    ramp = np.array(read_ramp(RAMP_FILE, len(turns))['e'])
-
-    n = nbr_p
-    intensity = np.empty(len(losses))
-    for i, v in enumerate(losses):
-        n -= v
-        intensity[i] = float(n)/nbr_p
-
-    average_losses = moving_average(losses, int(1.3*11245))
-    # average_losses = moving_average(losses, 1125)
-
+    ps = PhaseSpace(STARTDIST_FILE)
+    max_turn = 0
+    for lm in lossmaps:
+        max_turn = max(max_turn, max(lm.keys()))
+    turns = np.array(range(max_turn + 100))
 
     # Plotting
-    fig, intensity_ax = plt.subplots()
-    fig.subplots_adjust(right=0.8)
+    fig, loss_ax = plt.subplots()
 
-    intensity_ax.plot(turns, intensity, color='b', label='intensity')
-    intensity_ax.set_xlabel("Time (kturns)")
-    intensity_ax.set_ylabel("Intensity")
-    intensity_ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-    # intensity_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}".format(x/11245.0)))
-    intensity_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
-
-    e_ax = intensity_ax.twinx()
-    ramp_line = e_ax.plot(turns, ramp, color='black', zorder=0, label='LHC energy ramp')[0]
-    e_ax.set_ylabel("E (GeV)")
-    e_ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
-    top_coll = Rectangle((0, 0), 1, 1, fc='w', fill=False, edgecolor='none', linewidth=0)
-    bot_coll = Rectangle((0, 0), 1, 1, fc='w', fill=False, edgecolor='none', linewidth=0)
-    e_ax.legend([ramp_line, top_coll, bot_coll], (ramp_line.get_label(), "Top coll:∆{:.2E}".format(coll['top']), "Bot coll:∆{:.2E}".format(coll['bot'])), loc='upper right')
-
-    loss_ax = intensity_ax.twinx()
-    loss_ax.plot(turns, average_losses, color='r', linestyle='--', label='∆loss')
+    # LOSSES
+    # tot_loss = np.empty(len(turns))
+    color_list = plt.cm.Set3(np.linspace(0, 1, len(lossmaps)))
+    for i, lm in enumerate(lossmaps):
+        # lm = lossmaps[action]
+        losses = np.array([len(lm[turn]) if turn in lm else 0 for turn in turns])
+        # tot_loss += losses
+        avg_loss = moving_average(losses, int(1.3*11245))
+        loss_ax.plot(turns, avg_loss, color=color_list[i], label=(labels[i] if len(labels) > i else ""), zorder=3)
     loss_ax.set_ylabel("Losses (∆particles/1.3s)")
+    loss_ax.set_xlabel("t (s)")
+    loss_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}".format(x/11245.0)))
     loss_ax.spines['right'].set_position(('axes', 1.15))
-    if max(losses) > 0:
-        loss_ax.set_yscale('log')
+    loss_ax.set_yscale('log')
+    loss_ax.legend(loc='upper right')
 
-    fig.suptitle("Toy model lossmap")
+    # INTENSITY
+    # n = ps.nbr_p
+    # intensity = np.empty(len(tot_loss))
+    # for i, v in enumerate(tot_loss):
+        # n -= v
+        # intensity[i] = float(n)/ps.nbr_p
+    # intensity_ax = loss_ax.twinx()
+    # intensity_ax.plot(turns, intensity, color='b', label='intensity', linestyle='--', zorder=1)
+    # intensity_ax.set_ylabel("Intensity")
+
+    # # RAMP
+    ramp = np.array(read_ramp(RAMP_FILE, len(turns))['e'])
+    e_ax = loss_ax.twinx()
+    e_ax.plot(turns, ramp, color='gray', zorder=0, label='LHC energy ramp')
+    e_ax.set_axis_off()
+
+    fig.suptitle("Toy model off-momentum lossmap")
     if (save_to): 
         print("saving plot to {}".format(save_to))
         plt.savefig(save_to) 
@@ -406,6 +361,13 @@ def export_fitted_ramp():
         for i, v in enumerate(ramp['e_fitted']):
             f.write("{} {:.16f}\n".format(i, v/1e6))
 
+def export_particles(phasespace, plist, save_file):
+    print("writing {} particles to '{}'".format(len(plist), save_file))
+    with open(save_file, 'w') as f:
+        f.write("{},1\n".format(len(plist)))
+        for pid in plist:
+            f.write("{},{},{}\n".format(phasespace.denergy[pid], phasespace.phase[pid], phasespace.h[pid]))
+
 
 def plot_energy_oscillations():
     nbr_turns = 500*11245
@@ -434,14 +396,6 @@ def plot_energy_oscillations():
     ph_ax.plot(turns, phase, color='gray')
     ph_ax.set_ylabel("φ_s (rad)")
 
-    #e_ax.axvline(x=50*11245, linewidth=1)
-    #de_ax.axvline(x=50*11245, linewidth=1)
-    #ph_ax.axvline(x=50*11245, linewidth=1)
-
-    # e_ax.axvline(x=150*11245, linewidth=1, color='r')
-    # de_ax.axvline(x=150*11245, linewidth=1, color='r')
-    # ph_ax.axvline(x=150*11245, linewidth=1, color='r')
-
     fig.suptitle("LHC ramp")
 
     plt.show()
@@ -450,7 +404,7 @@ def plot_hamiltonian(ps): # input phase space containing ps.h
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    lossmap = get_lossmap(COLL_FILE, ['id'])
+    lossmap = get_lossmap(COLL_FILE)
     pbin = ps.categorize_particles(lossmap)
     series = {}
     for key in pbin: # 'alive'/'lost'
@@ -485,14 +439,23 @@ def plot_lost():
     # lossmap = get_lossmap(COLL_FILE, ["id"])
     df = pd.read_csv("calc/lost.dat", names=["id", "turn_lost", "coll_hit", "delta"])
     fig, ax = plt.subplots()
-    ax.scatter(df["turn_lost"], df["delta"], s=4, color="b", label="turn lost vs travel time to collimator")
-    ax.scatter(df["turn_lost"], df["coll_hit"], s=4, color="r", label="turn lost vs collimator hit")
+    ax.scatter(df["turn_lost"], df["delta"], s=4, color="b", label="travel time to collimator")
+    ax.scatter(df["turn_lost"], df["coll_hit"], s=4, color="r", label="collimator hit")
     ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
     ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
-    ax.set_xlabel("Turn lost (s)")
-    ax.set_ylabel("Travel time/Collimator hit (s)")
+    ax.set_xlabel("t (s) when found outside of bucket")
+    ax.set_ylabel("t (s)")
     ax.legend(loc="upper left")
     plt.show()
+
+def plot_distribution(file_path):
+    """ Plot the first frame of a given file. Will color particles depending if they eventually got lost or not """
+
+    ps = PhaseSpace(file_path)
+    # lossmap = get_lossmap(COLL_FILE, "id")
+    # pbin = ps.categorize_particles(lossmap)
+    ps.plot_particles()
+
 
 
 
@@ -530,19 +493,40 @@ if __name__ == "__main__":
         ps.animate(output, animateBackground=True)
     elif ACTION == "lossmap" or ACTION == "lossmap-analysis":
         print("plot lossmap")
-        plot_lossmap(SAVE_FILE)
-        # plot_lossmap_phase()
+        lossmap = get_lossmap(COLL_FILE)
+        plot_lossmap([lossmap], SAVE_FILE)
+    elif ACTION == "separated-lossmap":
+        print("plot one series for each action value of the lossmap")
+        ps = PhaseSpace(STARTDIST_FILE)
+        lossmap = get_lossmap(COLL_FILE)
+        div_lossmaps = {}
+        for turn in lossmap:
+            for pid in lossmap[turn]:
+                h = int(ps.h[pid])
+                if not h in div_lossmaps: 
+                    div_lossmaps[h] = {}
+                lossm = div_lossmaps[h]
+                if not turn in lossm:
+                    lossm[turn] = []
+                lossm[turn].append(pid)
+        # lossmaps = [div_lossmaps[action] for action in div_lossmaps]
+        labels = sorted(div_lossmaps.keys())
+        lossmaps = [div_lossmaps[l] for l in labels]
+        plot_lossmap(lossmaps, labels)
     elif ACTION == "energy":
         print("plot energy oscillations")
         plot_energy_oscillations()
     elif ACTION == "startdist":
         print("plot start distribution")
+        losses_from_sec = float(argv[2]) if len(argv) > 2 else 0.0
         ps = PhaseSpace(STARTDIST_FILE)
-        ps.plot_turn()
-    elif ACTION == "enddist":
-        print("plot end distribution")
-        ps = PhaseSpace(ENDDIST_FILE)
-        ps.plot_turn()
+        lossmap = get_lossmap(COLL_FILE)
+        pbin = ps.categorize_particles(lossmap, losses_from_sec)
+        ps.plot_particles(pbin)
+    elif ACTION == "dist":
+        print("plot dist")
+        if not len(argv) > 2: raise Exception("need to give a file path to plot")
+        plot_distribution(argv[2])
     elif ACTION == "phasespace":
         print("plot phase space")
         ps = PhaseSpace(pfile=None)
