@@ -42,6 +42,7 @@ enum RAMP_TYPE
 {
     NO_RAMP,
     LHC_RAMP,
+    EXTENDED_LHC_RAMP,
     SEMI_AGGRESSIVE_RAMP,
     AGGRESSIVE_RAMP,
 };
@@ -146,6 +147,12 @@ inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
 }
 
 template <typename T>
+inline T separatrix(const Accelerator<T>& acc)
+{
+    return hamiltonian(acc, 0.0, cnst::pi - acc.lag_phase());
+}
+
+template <typename T>
 inline T levelCurve(const Accelerator<T>& acc, T ph, T H) 
 {
     using std::cos; 
@@ -179,7 +186,7 @@ inline void writePhasespaceFrame(const Accelerator<T>& acc, std::string filePath
 
     int lines = 2 + 2*Hsteps;
 
-    const T Hseparatrix = hamiltonian(acc, 0.0, cnst::pi - acc.lag_phase());
+    const T Hseparatrix = separatrix<T>(acc);
 
     file << lines << "," << ph_steps << std::endl;
     for (T ph = FRAME_X_LOW; ph <= FRAME_X_HIGH; ph += ph_step) {
@@ -217,6 +224,23 @@ inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
             }
             ramp_file.close();
 
+            break;
+        }
+        case EXTENDED_LHC_RAMP: {
+            int extra_steps = 150; // A particle close to the separatrix takes ~600 turns to go around
+            readRamp(steps - extra_steps, E_ramp, LHC_RAMP);
+            std::vector<T> extension(extra_steps, 450e9); 
+            E_ramp.insert(E_ramp.begin(), extension.begin(), extension.end());
+
+            std::cout << "--- VERIFY EXTENSION DATA ----" << std::endl;
+            for (int i = 0; i < 50; ++i) {
+                for (int j = 0; j < 8; ++j) {
+                    int index = i*8 + j;
+                    std::cout << std::setw(20) << std::setprecision(16) << E_ramp[index];
+                }
+                std::cout << std::endl;
+            }
+            std::cout << "------------------------------" << std::endl;
             break;
         }
         case AGGRESSIVE_RAMP:
@@ -273,6 +297,7 @@ struct ToyModel
     // For parameter passing in the next constructors
     struct LossAnalysis {};
     struct LossAnalysisMultiplied {};
+    struct LossAnalysisAction {};
     struct SixTrackTest {};
 
     ToyModel(int n, RAMP_TYPE type, LossAnalysis)
@@ -319,6 +344,33 @@ struct ToyModel
             mPhase.push_back(phase); 
             count++;
         }
+        writeSingleDistribution(STARTDIST_FILE);
+    }
+
+    ToyModel(RAMP_TYPE type, LossAnalysisAction)
+        : mAcc(Accelerator::getLHC()), mType(type)
+    {
+        const int n = 500;
+        const T sep = separatrix(mAcc);
+        std::vector<T> d_actions = {-1000.0, /*-900.0, -850.0, -800.0, -700.0*/};
+        initStorage(2*n*d_actions.size());
+
+        std::random_device rdev;
+        std::mt19937 generator(rdev());
+        for (T action : d_actions) {
+            action += sep;
+            std::uniform_real_distribution<> dist(0.0, 2*cnst::pi);
+            for (T sign : std::vector<T>({-1.0, 1.0})) {
+                for (int i = 0; i < n; ++i) {
+                    const T phase = dist(generator);
+                    const T energy = levelCurve(mAcc, phase, action);
+                    if (std::isnan(energy)) { --i; continue; }
+                    mEnergy.push_back(sign*energy);
+                    mPhase.push_back(phase);
+                }
+            }
+        }
+        std::cout << "Initialized " << size() << " particles" << std::endl;
         writeSingleDistribution(STARTDIST_FILE);
     }
 
@@ -491,13 +543,13 @@ struct ToyModel
         return ParticleStats{emax, emin, phmax, phmin, pleft};
     }
 
-    void takeTimestep(int stepID) 
+    void simulateTurn(int stepID) 
     {
         CalcOp op(stepID, mAcc, mEnergy, mPhase, mCollHits, mLost);
         tbb::parallel_for(tbb::blocked_range<size_t>(0, size()), op);
     }
     
-    void takeTimesteps(int n, std::string filePath = "", int saveFreq = 1)
+    void simulateTurns(int n, std::string filePath = "", int saveFreq = 1)
     {
         if (filePath.empty())
             std::cout << "Will not save particle path data" << std::endl;
@@ -534,7 +586,7 @@ struct ToyModel
                 }
             }
 
-            takeTimestep(i);
+            simulateTurn(i);
 
             // reduce the memory footprint a little if it's not necessary
             if (!filePath.empty() && (i + 1) % saveFreq == 0)
@@ -570,8 +622,8 @@ struct ToyModel
         double freq = mAcc.f_rev;
         int turns = seconds*freq;
     
-        takeTimesteps(turns); 
-        //tm.takeTimesteps(turns, twodsynch::PATH_FILE, 100); 
+        simulateTurns(turns); 
+        //tm.simulateTurns(turns, twodsynch::PATH_FILE, 100); 
         writeCollHits(COLL_FILE);
     
         int ilast = -1;
