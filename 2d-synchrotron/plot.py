@@ -81,26 +81,11 @@ class PhaseSpace:
         if pfile:
             print("reading in particles from '{}'".format(pfile))
             with open(pfile, 'r') as file:
-                # This does not work... why?
-                # self.nbr_p, self.nbr_turns = map(int, file.readline().rstrip('\n').split(','))
-                # for i in range(self.nbr_turns):
-                    # line = file.readline().strip()
-                    # if not line: break # EOF
-                    # e_ref = float(line.strip())
-                    # self.ref_energy.append(e_ref)
-                    # for j in range(self.nbr_p):
-                        # line = file.readline().strip()
-                        # denergy, phase = map(float, line.split(','))
-                        # self.denergy.append(denergy)
-                        # self.phase.append(phase)
-
+                self.nbr_p , self.nbr_turns = map(int, file.readline().strip().split(','))
+                self.denergy = np.empty(self.nbr_p*self.nbr_turns)
+                self.phase = np.empty(self.nbr_p*self.nbr_turns)
+                self.h = np.empty(self.nbr_p*self.nbr_turns)
                 for i, line in enumerate(file.readlines()):
-                    if i == 0:
-                        self.nbr_p, self.nbr_turns = map(int, line.rstrip('\n').split(','))
-                        self.denergy = np.empty(self.nbr_p*self.nbr_turns)
-                        self.phase = np.empty(self.nbr_p*self.nbr_turns)
-                        self.h = np.empty(self.nbr_p*self.nbr_turns)
-                        continue
                     denergy, phase, h = map(float, line.rstrip('\n').split(','))
                     self.denergy[i - 1] = denergy
                     self.phase[i - 1] = phase
@@ -121,28 +106,18 @@ class PhaseSpace:
 
     def plot_trajectory(self, filePath=None, randomizeColors=False, redraw=False):
         print("plot trajectory '{}'".format(filePath))
-        nbr_series = 0
-        series = []
+        phasespace = self
         if filePath is not None:
-            print("reading file '{}'".format(filePath))
-            with open(filePath, 'r') as f:
-                for i, line in enumerate(f.readlines()):
-                    if i == 0:
-                        nbr_series = int(line.rstrip().split(',')[0])
-                        series = [{"denergy" : [], "phase" : [], "h" : 0.0} for l in range(nbr_series)]
-                        continue
-                    denergy, phase, h = map(float, line.rstrip("\n").split(","))
-                    series[i % nbr_series]["phase"].append(phase)
-                    series[i % nbr_series]["denergy"].append(denergy)
-                    series[i % nbr_series]['h'] = h
+            phasespace = PhaseSpace(filePath)
         else:
             print("using local data")
-            nbr_series = self.nbr_p
-            series = [{"denergy" : [], "phase" : [], "h" : 0.0} for l in range(nbr_series)]
-            for i, de in enumerate(self.denergy):
-                series[i % nbr_series]["phase"].append(self.phase[i])
-                series[i % nbr_series]["denergy"].append(de)
-                series[i % nbr_series]['h'] = self.h[i]
+
+        nbr_series = self.nbr_p
+        series = [{"denergy" : [], "phase" : [], "h" : 0.0} for l in range(nbr_series)]
+        for i, de in enumerate(phasespace.denergy):
+            series[i % nbr_series]["phase"].append(phasespace.phase[i])
+            series[i % nbr_series]["denergy"].append(de)
+            series[i % nbr_series]['h'] = phasespace.h[i]
 
         if redraw and not len(self.background_lines) == len(series):
             raise Exception("new frame does not match series in old")
@@ -158,8 +133,6 @@ class PhaseSpace:
             if redraw:
                 self.background_lines[i].set_xdata(trail["phase"])
                 self.background_lines[i].set_ydata(trail["denergy"])
-                # self.ax.set_xdata(trail["phase"])
-                # self.ax.set_ydata(trail["denergy"])
             else:
                 line, = self.ax.plot(trail["phase"], trail["denergy"], '-', color=colorVal, zorder=1)
                 self.background_lines.append(line)
@@ -452,11 +425,7 @@ def plot_distribution(file_path):
     """ Plot the first frame of a given file. Will color particles depending if they eventually got lost or not """
 
     ps = PhaseSpace(file_path)
-    # lossmap = get_lossmap(COLL_FILE, "id")
-    # pbin = ps.categorize_particles(lossmap)
     ps.plot_particles()
-
-
 
 
 def phasespace_frame(num, ps):
@@ -554,5 +523,31 @@ if __name__ == "__main__":
     elif ACTION == "lost":
         print("lost plot")
         plot_lost()
+    elif ACTION == "derivative":
+        print("derivative plot")
+        ps = PhaseSpace(PARTICLE_FILE)
+        separatrix = PhaseSpace(LINE_FILE)
+
+        print("turns:", ps.nbr_turns, "particles:", ps.nbr_p)
+        x = range(ps.nbr_turns)
+
+        fig, ax = plt.subplots()
+        color_list = plt.cm.Set3(np.linspace(0, 1, ps.nbr_p))
+        for i in range(ps.nbr_p):
+            rng = range(i, ps.nbr_p*ps.nbr_turns, ps.nbr_p)
+            e = [ps.denergy[i] for i in rng]
+            ph = [ps.phase[i] for i in rng]
+            deriv = np.gradient(e)/np.gradient(ph)
+            ax.plot(x, deriv, color=color_list[i], label="{:.2f}:{:.2f}".format(ps.phase[i], ps.denergy[i]/1.0e9))
+        ax.legend(loc='upper right')
+        ax.set_xlabel("Frame")
+        ax.set_ylabel("dE/dφ (eV/rad)")
+        plt.title("Particle derivative")
+        plt.show()
     else:
         print("unrecognised action")
+
+
+
+# yellow: stable
+# blue: unstable
