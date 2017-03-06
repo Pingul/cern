@@ -139,23 +139,17 @@ inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
     using cnst::c;
     using cnst::pi;
 
-    auto p = acc.calcParticleProp(0.0, ph); // calculating properties for the synchronous particle
-    const T ph_s = acc.lag_phase(); // I do not know why I need to add the pi here to get things to work
-    const T phi_dot = -p.b*c*acc.k_rf*p.eta*de/acc.E();
-    const T H = T(0.5)*phi_dot*phi_dot - p.W2/cos(ph_s)*(cos(ph) + ph*sin(ph_s));
+    auto p = acc.calcParticleProp(de, ph);
+    const T ph_s = acc.lag_phase();
+    const T A = -T(0.5)*acc.h_rf*p.eta/(p.b2*acc.E());
+    const T H = A*de*de + acc.V_rf/(T(2)*pi)*(cos(ph) - cos(ph_s) + (ph - ph_s)*sin(ph_s));
     return H;
-}
-
-template <typename T>
-inline T separatrix(const Accelerator<T>& acc)
-{
-    return hamiltonian(acc, 0.0, cnst::pi - acc.lag_phase());
 }
 
 template <typename T>
 inline T levelCurve(const Accelerator<T>& acc, T ph, T H) 
 {
-    using std::cos; 
+    using std::cos;
     using std::sin;
     using std::sqrt;
     using cnst::c;
@@ -163,9 +157,15 @@ inline T levelCurve(const Accelerator<T>& acc, T ph, T H)
 
     auto p = acc.calcParticleProp(0.0, ph);
     const T ph_s = acc.lag_phase();
-    const T phi_dot = sqrt(2*H + 2*p.W2/cos(ph_s)*(cos(ph) + ph*sin(ph_s)));
-    const T de = phi_dot*acc.E()/(-p.b*c*acc.k_rf*p.eta);
+    const T A = -T(0.5)*acc.h_rf*p.eta/(p.b2*acc.E());
+    const T de = sqrt(T(1.0)/A*(H - acc.V_rf/(T(2)*pi)*(cos(ph) - cos(ph_s) + (ph - ph_s)*sin(ph_s))));
     return de;
+}
+
+template <typename T>
+inline T separatrix(const Accelerator<T>& acc)
+{
+    return hamiltonian<T>(acc, 0.0, cnst::pi - acc.lag_phase());
 }
 
 template <typename T>
@@ -176,13 +176,14 @@ inline void writePhasespaceFrame(const Accelerator<T>& acc, std::string filePath
     if (!file.is_open())
         throw std::runtime_error("could not open file");
 
-    const T ph_step = 0.01;
-    const int ph_steps = int((FRAME_X_HIGH - FRAME_X_LOW)/ph_step);
+    const T ph_step = 0.005;
+    const int ph_steps = std::ceil((FRAME_X_HIGH - FRAME_X_LOW)/ph_step);
 
-    const T Hstart = hamiltonian(acc, 0.0, cnst::pi) + 1e4;
-    const T Hstep = 0.6e5;
-    const T Hdstep = 0.2e5;
+    const T Hstart = hamiltonian<T>(acc, 0.0, cnst::pi) + 5e4;
+    const T Hstep = 2.0e5;
+    const T Hdstep = 1.0e5;
     const int Hsteps = 20;
+    //const int Hsteps = 0;
 
     int lines = 2 + 2*Hsteps;
 
@@ -296,8 +297,8 @@ struct ToyModel
 
     // For parameter passing in the next constructors
     struct LossAnalysis {};
-    struct LossAnalysisMultiplied {};
     struct LossAnalysisAction {};
+    struct LossAnalysisAction2 {};
     struct SixTrackTest {};
 
     ToyModel(int n, RAMP_TYPE type, LossAnalysis)
@@ -311,13 +312,12 @@ struct ToyModel
         std::uniform_real_distribution<> e_dist(-0.5e9, 0.5e9);
         std::uniform_real_distribution<> ph_dist(0, 2*cnst::pi);
         int count = 0;
-        const T separatrix = hamiltonian(mAcc, 0.0, 0.0);
+        const T sep = separatrix<T>(mAcc);
         while (count < n) {
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-            if ((separatrix - 500) < H && H < (separatrix + 100)) {
-            //if (H < separatrix) {
+            if ((sep - 1e5) < H && (H < sep)) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -326,39 +326,20 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(int n, RAMP_TYPE type, LossAnalysisMultiplied)
-        : mAcc(Accelerator::getLHC()), mType(type)
-    {    
-        initStorage(n);
-
-        std::random_device rdev;
-        std::mt19937 generator(rdev());
-
-        std::normal_distribution<> e_dist(11720647.5520609, 1e4);
-        std::normal_distribution<> ph_dist(6.150280636842277, 0.01);
-        int count = 0;
-        while (count < n) {
-            const T deltaE = e_dist(generator);
-            const T phase = ph_dist(generator);
-            mEnergy.push_back(deltaE); 
-            mPhase.push_back(phase); 
-            count++;
-        }
-        writeSingleDistribution(STARTDIST_FILE);
-    }
-
     ToyModel(RAMP_TYPE type, LossAnalysisAction)
         : mAcc(Accelerator::getLHC()), mType(type)
     {
-        const int n = 500;
+        const int n = 20;
         const T sep = separatrix(mAcc);
-        std::vector<T> d_actions = {-1000.0, /*-900.0, -850.0, -800.0, -700.0*/};
+        std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
         initStorage(2*n*d_actions.size());
 
         std::random_device rdev;
         std::mt19937 generator(rdev());
         for (T action : d_actions) {
             action += sep;
+            //std::uniform_real_distribution<> dist(0.1, 0.9*cnst::pi);
+            //for (T sign : std::vector<T>({1.0})) {
             std::uniform_real_distribution<> dist(0.0, 2*cnst::pi);
             for (T sign : std::vector<T>({-1.0, 1.0})) {
                 for (int i = 0; i < n; ++i) {
@@ -374,33 +355,28 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(const std::string filePath, RAMP_TYPE type)
+    ToyModel(RAMP_TYPE type, LossAnalysisAction2)
         : mAcc(Accelerator::getLHC()), mType(type)
     {
-        readDistribution(filePath);
+        const int n = 10;
+        initStorage(n);
+        const T ph = T(1)*cnst::pi;
+        const T sep = separatrix(mAcc);
+        for (int i = 0; i < n; ++i) {
+            const T de = levelCurve(mAcc, ph, sep - 100*T(i));
+            mPhase.push_back(ph);
+            mEnergy.push_back(de);
+        }
+
         std::cout << "Initialized " << size() << " particles" << std::endl;
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(const std::string filePath, RAMP_TYPE type, LossAnalysisMultiplied)
+    
+    ToyModel(const std::string filePath, RAMP_TYPE type)
         : mAcc(Accelerator::getLHC()), mType(type)
     {
         readDistribution(filePath);
-        size_t s = size();
-
-        int mult = 6;
-        initStorage(mult*s);
-
-        std::random_device rdev;
-        std::mt19937 generator(rdev());
-        for (int i = 0; i < s; ++i) {
-            std::normal_distribution<> e_dist(mEnergy[i], 1e5);
-            std::normal_distribution<> ph_dist(mPhase[i], 0.01);
-            for (int j = 1; j < mult; ++j) {
-                mEnergy.push_back(e_dist(generator));
-                mPhase.push_back(ph_dist(generator));
-            }
-        }
         std::cout << "Initialized " << size() << " particles" << std::endl;
         writeSingleDistribution(STARTDIST_FILE);
     }
@@ -528,7 +504,7 @@ struct ToyModel
     ParticleStats getStats() const
     {
         T emax, emin, phmax, phmin;
-        emin = phmin = std::numeric_limits<double>::max();
+        emin = phmin = std::numeric_limits<T>::max();
         emax = phmax = -emin;
         int pleft = 0;
         for (int i = 0; i < size(); ++i) {
@@ -593,9 +569,8 @@ struct ToyModel
                 writeDistribution(filePath);
 
             const int d = n/10;
-            if (i % d == 0) {
+            if (d > 0 && i % d == 0) {
                 int percent = 10*i/d;
-                //std::cout << "\t" << std::setw(9) << i << " of " << n << " turns (" << percent << "%)" << std::endl;
                 ParticleStats stats = getStats();
                 std::cout << "\t" << std::setw(9) << i << " of " << n << " turns (" << percent << "%).";
 
@@ -619,11 +594,11 @@ struct ToyModel
 
     void runLossmap(int seconds)
     {
-        double freq = mAcc.f_rev;
+        T freq = mAcc.f_rev;
         int turns = seconds*freq;
     
-        simulateTurns(turns); 
-        //tm.simulateTurns(turns, twodsynch::PATH_FILE, 100); 
+        //simulateTurns(turns); 
+        simulateTurns(turns, twodsynch::PATH_FILE, 100); 
         writeCollHits(COLL_FILE);
     
         int ilast = -1;
@@ -685,20 +660,25 @@ private:
 
         void operator()(const tbb::blocked_range<size_t>& range) const
         {
-            auto prop_s = mAcc.calcParticleProp(0.0, 0.0);
-            const T B2_s = prop_s.b2;
+            //auto prop_s = mAcc.calcParticleProp(0.0, 0.0);
+            //const T B2_s = prop_s.b2;
             for (size_t n = range.begin(), N = range.end(); n < N; ++n) {
                 if (particleInactive(n)) 
                     continue;
+                
+                using std::sin;
+                using cnst::pi;
 
                 // We changed the reference energy before, update the ∆E accordingly
                 T deltaRef = mAcc.E() - mAcc.E_prev();
                 mEnergy[n] -= deltaRef;
 
-                mEnergy[n] += mAcc.V_rf*std::sin(mPhase[n]);
-                auto prop = mAcc.calcParticleProp(mEnergy[n], 0.0);
-                const T eta = prop.eta;
-                mPhase[n] -= T(2)*cnst::pi*mAcc.h_rf*eta/(B2_s*mAcc.E())*mEnergy[n];
+                int Ns = 100;
+                for (int i = 0; i < Ns; ++i) {
+                    mEnergy[n] += mAcc.V_rf/T(Ns)*sin(mPhase[n]);
+                    auto p = mAcc.calcParticleProp(mEnergy[n], 0.0);
+                    mPhase[n] -= T(2)*pi*mAcc.h_rf*p.eta/(T(Ns)*p.b2*mAcc.E())*mEnergy[n];
+                }
 
                 if (particleCollided(n)) mCollHits[n] = mStepID;
                 if (particleLost(n)) mLost[n] = mStepID;
