@@ -112,9 +112,9 @@ class PhaseSpace:
         else:
             print("using local data")
 
-        nbr_series = self.nbr_p
+        nbr_series = phasespace.nbr_p
         series = [{"denergy" : [], "phase" : [], "h" : 0.0} for l in range(nbr_series)]
-        for i, de in enumerate(phasespace.denergy):
+        for i, de in enumerate(phasespace.denergy[:-1]):
             series[i % nbr_series]["phase"].append(phasespace.phase[i])
             series[i % nbr_series]["denergy"].append(de)
             series[i % nbr_series]['h'] = phasespace.h[i]
@@ -123,13 +123,14 @@ class PhaseSpace:
             raise Exception("new frame does not match series in old")
 
         cMap = plt.get_cmap('plasma_r')
-        cNorm = colors.Normalize(vmin=-5e4, vmax=4e5)
+        cNorm = colors.Normalize(vmin=0, vmax=4e6)
         scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cMap)
         print("plotting series")
+        color_list = plt.cm.Set3(np.linspace(0, 1, len(series)))
         for i, trail in enumerate(series):
             colorVal = scalarMap.to_rgba(trail['h'])
             if randomizeColors:
-                colorVal = np.random.rand(3,)
+                colorVal = color_list[i]
             if redraw:
                 self.background_lines[i].set_xdata(trail["phase"])
                 self.background_lines[i].set_ydata(trail["denergy"])
@@ -252,6 +253,28 @@ class PhaseSpace:
         plt.show()
 
 
+def separate_lossmap(bins, lossmap, phasespace):
+    """ Separate the lossmap on the action values. The function will bin particles into 'bins' size 
+        lossmaps.
+
+        returns ([lossmaps], [action values])
+    """
+    div_lossmaps = {}
+    for turn in lossmap:
+        for pid in lossmap[turn]:
+            h = int(phasespace.h[pid]) 
+            h -= h % bins
+            if not h in div_lossmaps: 
+                div_lossmaps[h] = {}
+            lossm = div_lossmaps[h]
+            if not turn in lossm:
+                lossm[turn] = []
+            lossm[turn].append(pid)
+    # lossmaps = [div_lossmaps[action] for action in div_lossmaps]
+    labels = sorted(div_lossmaps.keys())
+    lossmaps = [div_lossmaps[l] for l in labels]
+    return (lossmaps, labels)
+
 def plot_lossmap(lossmaps, labels=[], save_to=''):
     """
         lossmaps = [lossmap1, lossmap2, ...] 
@@ -282,7 +305,8 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
     loss_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}".format(x/11245.0)))
     loss_ax.spines['right'].set_position(('axes', 1.15))
     loss_ax.set_yscale('log')
-    loss_ax.legend(loc='upper right')
+    if len(labels) > 0:
+        loss_ax.legend(loc='upper right')
 
     # INTENSITY
     # n = ps.nbr_p
@@ -448,6 +472,7 @@ def phasespace_evolution():
 
 
 
+
 if __name__ == "__main__":
     ACTION = argv[1]
     if ACTION == "animate":
@@ -468,19 +493,7 @@ if __name__ == "__main__":
         print("plot one series for each action value of the lossmap")
         ps = PhaseSpace(STARTDIST_FILE)
         lossmap = get_lossmap(COLL_FILE)
-        div_lossmaps = {}
-        for turn in lossmap:
-            for pid in lossmap[turn]:
-                h = int(ps.h[pid])
-                if not h in div_lossmaps: 
-                    div_lossmaps[h] = {}
-                lossm = div_lossmaps[h]
-                if not turn in lossm:
-                    lossm[turn] = []
-                lossm[turn].append(pid)
-        # lossmaps = [div_lossmaps[action] for action in div_lossmaps]
-        labels = sorted(div_lossmaps.keys())
-        lossmaps = [div_lossmaps[l] for l in labels]
+        lossmaps, labels = separate_lossmap(500, lossmap, ps)
         plot_lossmap(lossmaps, labels)
     elif ACTION == "energy":
         print("plot energy oscillations")
@@ -511,6 +524,7 @@ if __name__ == "__main__":
         ps = PhaseSpace(PARTICLE_FILE)
         ps.create_plot()
         ps.format_axes()
+        ps.plot_background_lines()
         ps.plot_trajectory(randomizeColors=True)
         plt.show()
     elif ACTION == "ham":
@@ -526,7 +540,6 @@ if __name__ == "__main__":
     elif ACTION == "derivative":
         print("derivative plot")
         ps = PhaseSpace(PARTICLE_FILE)
-        separatrix = PhaseSpace(LINE_FILE)
 
         print("turns:", ps.nbr_turns, "particles:", ps.nbr_p)
         x = range(ps.nbr_turns)
@@ -539,7 +552,8 @@ if __name__ == "__main__":
             ph = [ps.phase[i] for i in rng]
             deriv = np.gradient(e)/np.gradient(ph)
             ax.plot(x, deriv, color=color_list[i], label="{:.2f}:{:.2f}".format(ps.phase[i], ps.denergy[i]/1.0e9))
-        ax.legend(loc='upper right')
+
+        # ax.legend(loc='upper right')
         ax.set_xlabel("Frame")
         ax.set_ylabel("dE/dφ (eV/rad)")
         plt.title("Particle derivative")
