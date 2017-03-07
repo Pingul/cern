@@ -147,7 +147,7 @@ inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
 }
 
 template <typename T>
-inline T levelCurve(const Accelerator<T>& acc, T ph, T H) 
+inline T levelCurve(const Accelerator<T>& acc, T ph, T H, T sign=1.0) 
 {
     using std::cos;
     using std::sin;
@@ -155,10 +155,16 @@ inline T levelCurve(const Accelerator<T>& acc, T ph, T H)
     using cnst::c;
     using cnst::pi;
 
-    auto p = acc.calcParticleProp(0.0, ph);
+    sign = sign/std::abs(sign);
+
     const T ph_s = acc.lag_phase();
-    const T A = -T(0.5)*acc.h_rf*p.eta/(p.b2*acc.E());
-    const T de = sqrt(T(1.0)/A*(H - acc.V_rf/(T(2)*pi)*(cos(ph) - cos(ph_s) + (ph - ph_s)*sin(ph_s))));
+    const T threshold = 0.005;
+    T de = 0.0;
+    do {
+        const auto p = acc.calcParticleProp(de, ph);
+        const T A = -T(0.5)*acc.h_rf*p.eta/(p.b2*acc.E());
+        de = sign*sqrt(T(1.0)/A*(H - acc.V_rf/(T(2)*pi)*(cos(ph) - cos(ph_s) + (ph - ph_s)*sin(ph_s))));
+    } while (std::abs(hamiltonian(acc, de, ph) - H) > threshold);
     return de;
 }
 
@@ -332,21 +338,23 @@ struct ToyModel
         const int n = 20;
         const T sep = separatrix(mAcc);
         std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
+        //std::vector<T> d_actions;
+        //for (int i = 0; i < 50; ++i) {
+            //d_actions.push_back(-T(200*i));
+        //}
         initStorage(2*n*d_actions.size());
 
         std::random_device rdev;
         std::mt19937 generator(rdev());
         for (T action : d_actions) {
             action += sep;
-            //std::uniform_real_distribution<> dist(0.1, 0.9*cnst::pi);
-            //for (T sign : std::vector<T>({1.0})) {
             std::uniform_real_distribution<> dist(0.0, 2*cnst::pi);
             for (T sign : std::vector<T>({-1.0, 1.0})) {
                 for (int i = 0; i < n; ++i) {
                     const T phase = dist(generator);
-                    const T energy = levelCurve(mAcc, phase, action);
+                    const T energy = levelCurve(mAcc, phase, action, sign);
                     if (std::isnan(energy)) { --i; continue; }
-                    mEnergy.push_back(sign*energy);
+                    mEnergy.push_back(energy);
                     mPhase.push_back(phase);
                 }
             }
