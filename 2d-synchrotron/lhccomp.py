@@ -10,54 +10,101 @@ sys.path.append("/Users/swretbor/Workspace/collimation/proj/lhcstat")
 import plot as lm
 import oml
 
-from scipy import interpolate
 
+from scipy import interpolate
+from scipy.optimize import nnls 
+from sklearn import linear_model
 from bisect import bisect_left
 
 BLM_INT = int(1.3*11245.0)
 
 def compare_to_aggregate():
-    lossmap = lm.get_lossmap(lm.COLL_FILE)
+    tm_lossmap = lm.get_lossmap(lm.COLL_FILE)
 
-    turns = range(max(lossmap.keys()))
+    turns = range(min(tm_lossmap.keys()) - BLM_INT, max(tm_lossmap.keys()) + BLM_INT)
     secs = np.array([turn/11245.0 for turn in turns])
-    ramp = np.array(lm.read_ramp(lm.RAMP_FILE, len(turns))['e'])/1.0e9
+    # ramp = np.array(lm.read_ramp(lm.RAMP_FILE, len(turns))['e'])/1.0e9
 
-    losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
-    avg_losses = lm.moving_average(losses, BLM_INT)
+    losses = np.array([len(tm_lossmap[turn]) if turn in tm_lossmap else 0 for turn in turns])
+    synch_avg_losses = lm.moving_average(losses, BLM_INT)
 
     aggr_fill = oml.aggregate_fill(from_cache=True)
-    secs_aligned = align(secs, avg_losses, aggr_fill)
+    secs = align(secs, synch_avg_losses, aggr_fill)
 
-    # OPTIMIZE
-    with open("opt_losses.dat", 'rb') as f:
-        opt_losses = pickle.loads(f.read())
 
-    # opt_losses = optimize(secs_aligned, losses, aggr_fill)
-    # with open("opt_losses.dat", 'wb') as f:
-        # pickle.dump(opt_losses, f)
+    # fitting y = coef*x
+    ps = lm.PhaseSpace(lm.STARTDIST_FILE)
+    lossmaps, labels = lm.separate_lossmap(tm_lossmap, ps)
+    # lossmaps = [tm_lossmap]
+    x = []
+    for lossmap in lossmaps:
+        losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
+        avg_loss = lm.moving_average(losses, BLM_INT)
+        x.append(avg_loss)
 
-    # opt_lossmap = regenerate_lossmap(opt_losses, lossmap)
-    # print(opt_lossmap)
+    # Note: we fit in log space
+    xt = np.transpose(x)
+    y = interpolate.interp1d(*aggr_fill.oml())(secs)
 
-    # avg_losses = lm.moving_average(opt_losses, BLM_INT)
+    method = 4
+    if method == 1:
+        print("log:sklearn")
+        xt[xt<=0] = sys.float_info.min
+        xt = np.log(xt)
+        y = np.log(y)
+
+        clf = linear_model.LinearRegression()
+        clf.fit(xt, y)
+        coef = clf.coef_
+    elif method == 2:
+        print("log:nnls")
+        xt[xt<=0] = sys.float_info.min
+        xt = np.log(xt)
+        y = np.log(y)
+
+        coef = nnls(xt, y)[0]
+    elif method == 3:
+        print("log:numpy")
+        xt[xt<=0] = sys.float_info.min
+        xt = np.log(xt)
+        y = np.log(y)
+
+        coef = np.linalg.lstsq(xt, y)[0]
+    elif method == 4:
+        print("nnls")
+        coef = nnls(xt, y)[0]
+
+    print("coefficients")
+    for i, c in enumerate(coef):
+        print("\t{:>5} = {:<10.3f} (H = {})".format("a{}".format(i), c, labels[i]))
+    x_fit = np.sum(coef*xt, axis=1)
+
+    if method <= 3:
+        x_fit = np.exp(x_fit)
+
 
     # Plotting
     fig, loss_ax = plt.subplots()
+    # color_list = plt.cm.Set3(np.linspace(0, 1, len(lossmaps)))
+    # for i, lossmap in enumerate(lossmaps):
+        # loss_ax.plot(secs, x[i], color=color_list[i], label=(labels[i] if len(labels) > i else ""), zorder=3)
 
-    loss_ax.plot(secs_aligned, avg_losses, color='orange', zorder=5, label='2d-synchrotron')
+    loss_ax.plot(secs, x_fit,  color='green', label="least square fit", linestyle='--', zorder=6)
+    loss_ax.plot(secs, synch_avg_losses, color='orange', zorder=5, label='2d-synchrotron')
+    # loss_ax.plot(secs, y, color='b', linestyle='--', zorder=10)
     loss_ax.plot(*aggr_fill.oml(), color='red', label='LHC data')
     loss_ax.set_ylabel("Losses (∆particles/1.3s)")
     loss_ax.set_xlabel("t (s)")
     loss_ax.set_yscale('log')
     loss_ax.axvspan(0.0, 13.55, facecolor='b', zorder=0, alpha=0.1)
+    # loss_ax.axvspan(secs[0], secs[-1], facecolor='orange', zorder=1, alpha=0.15)
     loss_ax.legend(loc="upper right")
 
     e_ax = loss_ax.twinx()
     e_ax.set_xlabel("t (s)")
     # e_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
 
-    e_ax.plot(secs_aligned, ramp, color='gray', linestyle='--', zorder=4, label='LHC energy ramp')[0]
+    # e_ax.plot(secs, ramp, color='gray', linestyle='--', zorder=4, label='LHC energy ramp')[0]
     e_ax.plot(*aggr_fill.data["energy"], color='black')
     e_ax.set_ylabel("E (GeV)")
 
