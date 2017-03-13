@@ -323,7 +323,7 @@ struct ToyModel
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-            if ((sep - 1e5) < H && (H < sep)) {
+            if ((sep - 5000) < H && H < (sep + 2000)) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -335,13 +335,13 @@ struct ToyModel
     ToyModel(RAMP_TYPE type, LossAnalysisAction)
         : mAcc(Accelerator::getLHC()), mType(type)
     {
-        const int n = 20;
+        const int n = 30;
         const T sep = separatrix(mAcc);
-        std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
-        //std::vector<T> d_actions;
-        //for (int i = 0; i < 50; ++i) {
-            //d_actions.push_back(-T(200*i));
-        //}
+        //std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
+        std::vector<T> d_actions;
+        for (int i = 1; i <= 50; ++i) {
+            d_actions.push_back(T(200*i));
+        }
         initStorage(2*n*d_actions.size());
 
         std::random_device rdev;
@@ -606,7 +606,7 @@ struct ToyModel
         int turns = seconds*freq;
     
         //simulateTurns(turns); 
-        simulateTurns(turns, twodsynch::PATH_FILE, 100); 
+        simulateTurns(turns, twodsynch::PATH_FILE, 11245); 
         writeCollHits(COLL_FILE);
     
         int ilast = -1;
@@ -666,6 +666,11 @@ private:
             //return hamiltonian(mAcc, mPhase[index], mEnergy[index]) > mSeparatrix;
         }
 
+        bool isPreviouslyLost(size_t index) const
+        {
+            return !mLost.empty() && mLost[index] > -1;
+        }
+
         void operator()(const tbb::blocked_range<size_t>& range) const
         {
             //auto prop_s = mAcc.calcParticleProp(0.0, 0.0);
@@ -678,12 +683,16 @@ private:
                 using cnst::pi;
 
                 // We changed the reference energy before, update the ∆E accordingly
+                // This constitutes the sin(lag_phase) term in actual stepping function
                 T deltaRef = mAcc.E() - mAcc.E_prev();
-                mEnergy[n] -= deltaRef;
+                //mEnergy[n] -= deltaRef;
 
                 int Ns = 100;
+                // Particles outside of the bucket does not need to be tracked as carefully
+                if (isPreviouslyLost(n)) Ns = 1;
+
                 for (int i = 0; i < Ns; ++i) {
-                    mEnergy[n] += mAcc.V_rf/T(Ns)*sin(mPhase[n]);
+                    mEnergy[n] += (mAcc.V_rf*(sin(mPhase[n])) - deltaRef)/T(Ns);
                     auto p = mAcc.calcParticleProp(mEnergy[n], 0.0);
                     mPhase[n] -= T(2)*pi*mAcc.h_rf*p.eta/(T(Ns)*p.b2*mAcc.E())*mEnergy[n];
                 }
