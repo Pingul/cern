@@ -6,8 +6,10 @@ arg="$2"
 workingdir=`pwd`
 resultdir="$workingdir/calc"
 moviedir="$workingdir/movies"
-cache="$workingdir/simulations/cache/$(date +%Y.%m%.%d.%H.%M.%S)"
+cache="$workingdir/simulations/cache/$action-$(date +%Y.%m%.%d.%H.%M.%S)"
+stdout=$resultdir/stdout.txt
 
+echo "2D-SYNCHROTRON $(date +%Y.%m%.%d.%H.%M.%S)\n\tAction: $action\n\tArg: $arg\n***************" > $stdout
 
 actionOK=0
 for a in $possibleActions
@@ -18,18 +20,18 @@ do
 done
 
 if [ "$actionOK" == 0 ]; then
-    echo " --- $action is not a valid action, choose from "
-    echo " --- \t$possibleActions"
+    echo " --- $action is not a valid action, choose from " | tee -a $stdout
+    echo " --- \t$possibleActions" | tee -a $stdout
 else
-    echo " --- Running '$action $arg'..."
-    echo " --- Compiling c++... "
+    echo " --- Running '$action $arg'..." | tee -a $stdout
+    echo " --- Compiling c++... " | tee -a $stdout
     make 
-    echo " --- Running c++... "
-    echo " --- Caching data in '$cache'."
+    echo " --- Running c++... " | tee -a $stdout
+    echo " --- Caching data in '$cache'." | tee -a $stdout
 
     mkdir $cache
-    ./main $action $arg | tee $resultdir/stdout.txt
+    ./main $action $arg | tee -a $stdout
     cp $resultdir/* $cache
-    echo " --- Plotting...  "
-    python3.5 plot.py $action $arg
+    echo " --- Plotting...  " | tee -a $stdout
+    python3.5 -u plot.py $action $arg | tee -a $stdout
 fi
