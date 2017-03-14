@@ -17,6 +17,8 @@ from sklearn import linear_model
 from bisect import bisect_left
 
 BLM_INT = int(1.3*11245.0)
+H_SEPARATRIX = 1909859.317103239
+# BLM_INT = int(1)
 
 def compare_to_aggregate():
     tm_lossmap = lm.get_lossmap(lm.COLL_FILE)
@@ -34,12 +36,22 @@ def compare_to_aggregate():
 
     # fitting y = coef*x
     ps = lm.PhaseSpace(lm.STARTDIST_FILE)
-    lossmaps, labels = lm.separate_lossmap(tm_lossmap, ps)
-    # lossmaps = [tm_lossmap]
+    lossmaps, a_values = lm.separate_lossmap(tm_lossmap, ps)
+    a_values = np.array(a_values)
+    a_values -= round(H_SEPARATRIX)
+
+    prune = True
+    if prune:
+        H_threshold = -8000
+        to_delete = np.where(a_values < H_threshold)
+        lossmaps = np.delete(lossmaps, to_delete)
+        a_values = np.delete(a_values, to_delete)
+
     x = []
     for lossmap in lossmaps:
         losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
-        avg_loss = lm.moving_average(losses, BLM_INT)
+        # avg_loss = lm.moving_average(losses, BLM_INT)
+        avg_loss = losses
         x.append(avg_loss)
 
     # Note: we fit in log space
@@ -76,41 +88,49 @@ def compare_to_aggregate():
 
     print("coefficients")
     for i, c in enumerate(coef):
-        print("\t{:>5} = {:<10.3f} (H = {})".format("a{}".format(i), c, labels[i]))
+        print("\t{:>5} = {:<10.3f} (H = {})".format("a{}".format(i), c, a_values[i]))
     x_fit = np.sum(coef*xt, axis=1)
+    x_fit = lm.moving_average(x_fit, BLM_INT)
 
     if method <= 3:
         x_fit = np.exp(x_fit)
 
 
-    # Plotting
+    # Plotting lossmap fit
     fig, loss_ax = plt.subplots()
-    # color_list = plt.cm.Set3(np.linspace(0, 1, len(lossmaps)))
-    # for i, lossmap in enumerate(lossmaps):
-        # loss_ax.plot(secs, x[i], color=color_list[i], label=(labels[i] if len(labels) > i else ""), zorder=3)
 
     loss_ax.plot(secs, x_fit,  color='green', label="least square fit", linestyle='--', zorder=6)
     loss_ax.plot(secs, synch_avg_losses, color='orange', zorder=5, label='2d-synchrotron')
-    # loss_ax.plot(secs, y, color='b', linestyle='--', zorder=10)
     loss_ax.plot(*aggr_fill.oml(), color='red', label='LHC data')
     loss_ax.set_ylabel("Losses (∆particles/1.3s)")
     loss_ax.set_xlabel("t (s)")
     loss_ax.set_yscale('log')
     loss_ax.axvspan(0.0, 13.55, facecolor='b', zorder=0, alpha=0.1)
-    # loss_ax.axvspan(secs[0], secs[-1], facecolor='orange', zorder=1, alpha=0.15)
     loss_ax.legend(loc="upper right")
 
     e_ax = loss_ax.twinx()
     e_ax.set_xlabel("t (s)")
-    # e_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1000.0)))
-
-    # e_ax.plot(secs, ramp, color='gray', linestyle='--', zorder=4, label='LHC energy ramp')[0]
     e_ax.plot(*aggr_fill.data["energy"], color='black')
     e_ax.set_ylabel("E (GeV)")
 
     loss_ax.set_xlim([-10, 40])
-
     fig.suptitle("Aggregate vs 2d-synchrotron")
+
+    # Plotting coefficients
+    fig, ax = plt.subplots()
+    ax.bar(range(len(coef)), coef)
+    ax.set_xticks(range(len(coef)))
+    ax.set_xticklabels(a_values, rotation='vertical')
+    ax.set_ylabel("Value")
+    ax.set_xlabel("∆H")
+    index = bisect_left(a_values, 0)
+    ax.axvspan(index, index + 0.05, facecolor='r', zorder=0, alpha=0.2)
+    ax.text(index, max(coef)/2.0, "Separatrix", fontsize=10, 
+            ha='center', va='center', rotation='vertical', color='r')
+    
+    plt.title("Optimized action value coefficients")
+    plt.tight_layout()
+
     plt.show()
 
 def align(secs, losses, aggr_fill):
@@ -119,7 +139,8 @@ def align(secs, losses, aggr_fill):
     vloss_peak, iloss_peak = oml.imax(losses)
     vfill_peak, ifill_peak = oml.imax(aggr_fill.oml().y)
     delta = secs[iloss_peak] - aggr_fill.oml().x[ifill_peak]
-    print("shift by", delta, "seconds")
+    print("peaks\n\taggregate: {:.2f}\n\t2d-synch : {:.2f}\n\tdelta    : {:.2f}"
+            .format(secs[iloss_peak], aggr_fill.oml().x[ifill_peak], delta))
     return secs - delta
 
 def optimize(secs, losses, aggr_fill):
