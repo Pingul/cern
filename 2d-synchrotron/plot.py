@@ -14,12 +14,15 @@ from scipy import stats
 
 from sys import argv
 
-## Some global definitions
-PARTICLE_FILE = "calc/particles.dat"
-LINE_FILE = "calc/lines.dat"
-COLL_FILE = "calc/coll.dat"
-STARTDIST_FILE = "calc/startdist.dat"
-ENDDIST_FILE = "calc/enddist.dat"
+# DIR = "calc/"
+# DIR = "simulations/cache/2017.03.13.14.26.09/"
+DIR = "simulations/store/5k_H8000/"
+
+PARTICLE_FILE = DIR + "particles.dat"
+LINE_FILE = DIR + "lines.dat"
+COLL_FILE = DIR + "coll.dat"
+STARTDIST_FILE = DIR + "startdist.dat"
+ENDDIST_FILE = DIR + "enddist.dat"
 RAMP_FILE = "resources/LHC_ramp.dat"
 
 PLOT_FRAME = {
@@ -28,6 +31,8 @@ PLOT_FRAME = {
     # 'x' : [-2*math.pi, 4*math.pi],
     # 'y' : [-2e9, 2e9]
 }
+
+H_SEPARATRIX = 1909859.317103239 # Taken from 2d-synchrotron.hh
 
 SAVE_FILE = ''
 if (len(argv) > 2):
@@ -43,7 +48,6 @@ def moving_average(sequence, N):
 def get_lossmap(collfile):
     """ Returns data as
         lossmap = { turn : [particles_lost] }
-        
     """
 
     print("creating lossmap")
@@ -165,7 +169,7 @@ class PhaseSpace:
         self.ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}π".format(x/math.pi)))
 
     def categorize_particles(self, lossmap, sec=0.0):
-        """ Seperates particle id's into two lists, 'lost' and 'alive' after time 'sec'.
+        """ Seperates particle id's into three lists, 'lost' and 'alive' after time 'sec'.
             Particles are 'discarded' if they got lost before 'sec'. """
         pbin = {'lost' : [], 'discarded' : []}
         for turn in lossmap:
@@ -253,7 +257,7 @@ class PhaseSpace:
         plt.show()
 
 
-def separate_lossmap(bins, lossmap, phasespace):
+def separate_lossmap(lossmap, phasespace):
     """ Separate the lossmap on the action values. The function will bin particles into 'bins' size 
         lossmaps.
 
@@ -263,7 +267,6 @@ def separate_lossmap(bins, lossmap, phasespace):
     for turn in lossmap:
         for pid in lossmap[turn]:
             h = int(phasespace.h[pid]) 
-            h -= h % bins
             if not h in div_lossmaps: 
                 div_lossmaps[h] = {}
             lossm = div_lossmaps[h]
@@ -271,9 +274,9 @@ def separate_lossmap(bins, lossmap, phasespace):
                 lossm[turn] = []
             lossm[turn].append(pid)
     # lossmaps = [div_lossmaps[action] for action in div_lossmaps]
-    labels = sorted(div_lossmaps.keys())
-    lossmaps = [div_lossmaps[l] for l in labels]
-    return (lossmaps, labels)
+    a_values = sorted(div_lossmaps.keys())
+    lossmaps = [div_lossmaps[l] for l in a_values]
+    return (lossmaps, a_values)
 
 def plot_lossmap(lossmaps, labels=[], save_to=''):
     """
@@ -292,17 +295,21 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
     fig, loss_ax = plt.subplots()
 
     # LOSSES
-    # tot_loss = np.empty(len(turns))
-    color_list = plt.cm.Set3(np.linspace(0, 1, len(lossmaps)))
+    if len(lossmaps) == 1:
+        color_list = 'r'
+    else:
+        color_list = plt.cm.Set3(np.linspace(0, 1, len(lossmaps)))
+
     for i, lm in enumerate(lossmaps):
         # lm = lossmaps[action]
         losses = np.array([len(lm[turn]) if turn in lm else 0 for turn in turns])
-        # tot_loss += losses
-        avg_loss = moving_average(losses, int(1.3*11245))
-        loss_ax.plot(turns, avg_loss, color=color_list[i], label=(labels[i] if len(labels) > i else ""), zorder=3)
-    loss_ax.set_ylabel("Losses (∆particles/1.3s)")
+        # avg_loss = moving_average(losses, int(1.3*11245))
+        avg_loss = losses
+        loss_ax.plot(turns, avg_loss, color=color_list[i], label=(labels[i] if len(labels) > i else ""), zorder=3, alpha=0.9)
+    # loss_ax.set_ylabel("Losses (∆particles/1.3s)")
+    loss_ax.set_ylabel("Losses (∆particles/turn)")
     loss_ax.set_xlabel("t (s)")
-    loss_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}".format(x/11245.0)))
+    loss_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
     loss_ax.spines['right'].set_position(('axes', 1.15))
     loss_ax.set_yscale('log')
     if len(labels) > 0:
@@ -320,6 +327,7 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
 
     # # RAMP
     ramp = np.array(read_ramp(RAMP_FILE, len(turns))['e'])
+    ramp = np.gradient(ramp)
     e_ax = loss_ax.twinx()
     e_ax.plot(turns, ramp, color='gray', zorder=0, label='LHC energy ramp')
     e_ax.set_axis_off()
@@ -397,7 +405,10 @@ def plot_energy_oscillations():
 
     plt.show()
 
-def plot_hamiltonian(ps): # input phase space containing ps.h
+def plot_hamiltonian_evolution(ps): # input phase space containing ps.h
+    """ ps : PhaseSpace
+            Should be time dependent (e.g. 'ps = PhaseSpace(PARTICLE_FILE)')
+    """
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
@@ -431,6 +442,35 @@ def plot_hamiltonian(ps): # input phase space containing ps.h
     ax.set_xlabel("Saved turn")
     ax.set_ylabel("Hamiltonian")
     plt.show()
+
+def plot_hamiltonian_lost_dist(ps, lm, time=16.5):
+    """ ps : PhaseSpace
+            Should be the start distribution. 
+        lm : lossmap
+    """
+    pbin = ps.categorize_particles(lm, time)
+    fig, ax = plt.subplots()
+    data = {}
+    for key in sorted(pbin): # sorted to make sure we get the same colors all the time
+        data[key] = {}
+        for pid in pbin[key]:
+            h = round(ps.h[pid] - H_SEPARATRIX)
+            if h in data[key]: data[key][h] += 1
+            else: data[key][h] = 1
+        
+        if key == 'lost':
+            label = "lost after {} s".format(time)
+        elif key == 'discarded':
+            label = "lost before {} s".format(time)
+        else:
+            label = key
+        ax.scatter(list(data[key].keys()), list(data[key].values()), label=label)
+    ax.legend(loc='upper left')
+    ax.set_ylabel("Particles")
+    ax.set_xlabel("∆H")
+    plt.title("Hamiltonian lost distribution")
+    plt.show()
+
 
 def plot_lost():
     # lossmap = get_lossmap(COLL_FILE, ["id"])
@@ -472,7 +512,6 @@ def phasespace_evolution():
 
 
 
-
 if __name__ == "__main__":
     ACTION = argv[1]
     if ACTION == "animate":
@@ -493,7 +532,7 @@ if __name__ == "__main__":
         print("plot one series for each action value of the lossmap")
         ps = PhaseSpace(STARTDIST_FILE)
         lossmap = get_lossmap(COLL_FILE)
-        lossmaps, labels = separate_lossmap(500, lossmap, ps)
+        lossmaps, labels = separate_lossmap(lossmap, ps)
         plot_lossmap(lossmaps, labels)
     elif ACTION == "energy":
         print("plot energy oscillations")
@@ -530,7 +569,7 @@ if __name__ == "__main__":
     elif ACTION == "ham":
         print("plot hamiltonian")
         ps = PhaseSpace(PARTICLE_FILE)
-        plot_hamiltonian(ps)
+        plot_hamiltonian_evolution(ps)
     elif ACTION == "phasespace-mov":
         print("animating phasespace evolution")
         phasespace_evolution()
@@ -558,6 +597,28 @@ if __name__ == "__main__":
         ax.set_ylabel("dE/dφ (eV/rad)")
         plt.title("Particle derivative")
         plt.show()
+    elif ACTION == "action-dist":
+        print("plot action distribution")
+        input_file = STARTDIST_FILE
+        if len(argv) == 3: input_file = argv[2]
+        ps = PhaseSpace(input_file)
+        
+
+        fig, ax = plt.subplots()
+        hmax = max(ps.h)
+        hmin = min(ps.h)
+        bins = np.arange(hmin, hmax, 10.0)
+        ax.hist(np.array(ps.h, dtype=np.int), bins=bins, edgecolor='white')
+        ax.set_title("Action value H starting distribution")
+        ax.set_xlabel("∆H")
+        ax.set_ylabel("#")
+        plt.show()
+    elif ACTION == "ham-lostdist":
+        print("ploting hamiltonian lost distribution")
+        ps = PhaseSpace(STARTDIST_FILE)
+        lm = get_lossmap(COLL_FILE)
+        plot_hamiltonian_lost_dist(ps, lm, 16.5)
+        
     else:
         print("unrecognised action")
 
