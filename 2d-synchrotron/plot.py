@@ -1,12 +1,7 @@
 # coding=utf-8
-import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import matplotlib.cm as cmx
-from matplotlib.ticker import FormatStrFormatter
 from matplotlib.ticker import FuncFormatter
-from matplotlib.patches import Rectangle
-import math
 import numpy as np
 import pandas as pd
 import itertools
@@ -18,29 +13,12 @@ from lossmap import *
 from settings import *
 
 
-SAVE_FILE = ''
-if (len(argv) > 2):
-    SAVE_FILE = argv[2]
-
 def moving_average(sequence, N):
     """ Moving average given the sequence. Returns an list equal in length
     to the one given """
 
     average = np.convolve(sequence, np.ones((N,))/N, mode='same')
     return average
-
-def export_fitted_ramp():
-    ramp = read_ramp(RAMP_FILE, 500000)
-    with open("ramp_fitted.txt", 'w') as f:
-        for i, v in enumerate(ramp['e_fitted']):
-            f.write("{} {:.16f}\n".format(i, v/1e6))
-
-def export_particles(phasespace, plist, save_file):
-    print("writing {} particles to '{}'".format(len(plist), save_file))
-    with open(save_file, 'w') as f:
-        f.write("{},1\n".format(len(plist)))
-        for pid in plist:
-            f.write("{},{},{}\n".format(phasespace.denergy[pid], phasespace.phase[pid], phasespace.h[pid]))
 
 
 def plot_energy_oscillations():
@@ -72,7 +50,7 @@ def plot_energy_oscillations():
 
     fig.suptitle("LHC ramp")
 
-    plt.show()
+    plt.show(:
 
 def plot_hamiltonian_evolution(ps): # input phase space containing ps.h
     """ ps : PhaseSpace
@@ -180,6 +158,9 @@ def phasespace_evolution():
     print("finished saving to '{}'".format(mov_file))
 
 
+SAVE_FILE = ''
+if (len(argv) > 2):
+    SAVE_FILE = argv[2]
 
 if __name__ == "__main__":
     ACTION = argv[1]
@@ -227,6 +208,9 @@ if __name__ == "__main__":
             plt.savefig(SAVE_FILE)
         else:
             plt.show()
+    elif ACTION == "phasespace-mov":
+        print("animating phasespace evolution")
+        phasespace_evolution()
     elif ACTION == "trajectory":
         print("plot particle trajectory")
         ps = PhaseSpace(PARTICLE_FILE)
@@ -239,9 +223,11 @@ if __name__ == "__main__":
         print("plot hamiltonian")
         ps = PhaseSpace(PARTICLE_FILE)
         plot_hamiltonian_evolution(ps)
-    elif ACTION == "phasespace-mov":
-        print("animating phasespace evolution")
-        phasespace_evolution()
+    elif ACTION == "ham-lostdist":
+        print("ploting hamiltonian lost distribution")
+        ps = PhaseSpace(STARTDIST_FILE)
+        lm = get_lossmap(COLL_FILE)
+        plot_hamiltonian_lost_dist(ps, lm, 16.5)
     elif ACTION == "lost":
         print("lost plot")
         plot_lost()
@@ -282,11 +268,6 @@ if __name__ == "__main__":
         ax.set_xlabel("∆H")
         ax.set_ylabel("#")
         plt.show()
-    elif ACTION == "ham-lostdist":
-        print("ploting hamiltonian lost distribution")
-        ps = PhaseSpace(STARTDIST_FILE)
-        lm = get_lossmap(COLL_FILE)
-        plot_hamiltonian_lost_dist(ps, lm, 16.5)
         
     else:
         print("unrecognised action")
