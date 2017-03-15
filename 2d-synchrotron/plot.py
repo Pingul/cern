@@ -13,14 +13,6 @@ from lossmap import *
 from settings import *
 
 
-def moving_average(sequence, N):
-    """ Moving average given the sequence. Returns an list equal in length
-    to the one given """
-
-    average = np.convolve(sequence, np.ones((N,))/N, mode='same')
-    return average
-
-
 def plot_energy_oscillations():
     nbr_turns = 500*11245
     ramp = read_ramp(RAMP_FILE, nbr_turns)

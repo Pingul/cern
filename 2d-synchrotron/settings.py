@@ -25,3 +25,4 @@ PLOT_FRAME = {
 
 ## Constants
 H_SEPARATRIX = 1909859.317103239 # Taken from 2d-synchrotron.hh
+BLM_INT = int(1.3*11245.0)
