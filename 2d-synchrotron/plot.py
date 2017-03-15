@@ -42,7 +42,7 @@ def plot_energy_oscillations():
 
     fig.suptitle("LHC ramp")
 
-    plt.show(:
+    plt.show()
 
 def plot_hamiltonian_evolution(ps): # input phase space containing ps.h
     """ ps : PhaseSpace
