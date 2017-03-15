@@ -12,7 +12,13 @@ from settings import *
 from math import pi
 
 class PhaseSpace:
-    """ Only works for data output by the 2d synchrotron """
+    """ Only works for data output by the 2d synchrotron
+        
+        Intended for two things:
+            1. Conveniently store the data from the 2d synchrotron
+            2. Plot things related to the phase space
+        Thus, there is some mish-mash of functions below
+    """
 
     def __init__(self, pfile, rfile=None):
         self.nbr_p = 0
