@@ -1,18 +1,20 @@
-#tbbinc=/afs/cern.ch/user/s/swretbor/test/tbb/include
-#tbblib=/afs/cern.ch/user/s/swretbor/test/tbb/build/linux_intel64_gcc_cc4.8.4_libc2.12_kernel2.6.32_release
-UNAME := $(shell uname)
-
 CC = clang++
 CPLUS_FLAGS +=-Wall -pedantic
 INCLUDE_FLAGS = -I/opt/local/include -I../common
 LIBRARY_PATHS = -L/opt/local/lib 
 LIBRARIES = -ltbb
 
+UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
+	# This is meant for simulations on lxplus
 	LIBRARY_PATHS += -L$(TBB_LIBRARY_RELEASE)
 	INCLUDE_FLAGS += -I$(TBB_INCLUDE)
 	CC = g++
-	CPLUS_FLAGS += -static-libstdc++ -DIO_TO_DIR
+	# Not linking statically to libstdc++ crashes for some reason
+	CPLUS_FLAGS += -static-libstdc++
+	# IO_TO_DIR makes the 2d-synchrotron look for input and put output in the same directly as the binary
+	# was called
+	CPLUS_FLAGS += -DIO_TO_DIR
 endif
 
 ifeq ($(UNAME), Darwin)
