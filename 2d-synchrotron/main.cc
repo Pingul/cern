@@ -25,14 +25,14 @@ int main(int argc, char* argv[])
         ToyModel tm(type, ToyModel::LossAnalysisAction2());
         tm.simulateTurns(1000, twodsynch::PATH_FILE, 1);
         tm.writeCollHits(twodsynch::COLL_FILE);
-        writePhasespaceFrame(ToyModel::Accelerator::getLHC(), twodsynch::LINE_FILE);
+        writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
     } else if (args[1] == "animate-long") {
         std::cout << "Long animation" << std::endl;
         ToyModel tm(500, type, ToyModel::LossAnalysis());
         //tm.simulateTurns(5000, twodsynch::PATH_FILE, 10);
         tm.simulateTurns(300*11245, twodsynch::PATH_FILE, 11245);
         tm.writeCollHits(twodsynch::COLL_FILE);
-        writePhasespaceFrame(ToyModel::Accelerator::getLHC(), twodsynch::LINE_FILE);
+        writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
     } else if (args[1] == "animate-background") {
         // In most cases unnecessary if the background lines has already been generated once
         int seconds = 300;
@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
         std::cout << "Loss pattern analysis" << std::endl;
         ToyModel lossmodel(type, ToyModel::LossAnalysisAction());
         //ToyModel lossmodel(500, type, ToyModel::LossAnalysis());
-        lossmodel.runLossmap(20);
+        lossmodel.runLossmap(50);
     } else if (args[1] == "sixtrack-comp") {
         std::cout << "Sixtrack comparison" << std::endl;
         ToyModel tm( (ToyModel::SixTrackTest()) );
@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
         ToyModel lossmodel(type, ToyModel::LossAnalysisAction());
         //ToyModel tm(2000, type, ToyModel::LossAnalysis());
     } else if (args[1] == "phasespace") {
-        writePhasespaceFrame(ToyModel::Accelerator::getLHC(), twodsynch::LINE_FILE);
+        writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
     } else if (args[1] == "phasespace-mov") {
         twodsynch::generatePhasespaceLines(300);
     } else if (args[1] == "restart") {

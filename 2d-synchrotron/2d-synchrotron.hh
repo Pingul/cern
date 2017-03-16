@@ -13,6 +13,9 @@
 #include "common.hh"
 #include "timer.hh"
 
+#define RESOURCE_DIR "."
+#define OUTPUT_DIR "."
+
 namespace twodsynch {
 
 namespace cnst {
@@ -28,15 +31,15 @@ static constexpr double FRAME_X_HIGH = 4*cnst::pi;
 static constexpr double FRAME_Y_LOW = -2e9;
 static constexpr double FRAME_Y_HIGH = 2e9;
 
-static constexpr const char* PATH_FILE = "calc/particles.dat";
-static constexpr const char* LINE_FILE = "calc/lines.dat";
-static constexpr const char* COLL_FILE = "calc/coll.dat";
-static constexpr const char* STARTDIST_FILE = "calc/startdist.dat";
-static constexpr const char* ENDDIST_FILE = "calc/enddist.dat";
-static constexpr const char* SIXTRACK_TEST_FILE = "calc/toymodel_track.dat";
+static constexpr const char* PATH_FILE = OUTPUT_DIR"/particles.dat";
+static constexpr const char* LINE_FILE = OUTPUT_DIR"/lines.dat";
+static constexpr const char* COLL_FILE = OUTPUT_DIR"/coll.dat";
+static constexpr const char* STARTDIST_FILE = OUTPUT_DIR"/startdist.dat";
+static constexpr const char* ENDDIST_FILE = OUTPUT_DIR"/enddist.dat";
+static constexpr const char* SIXTRACK_TEST_FILE = OUTPUT_DIR"/toymodel_track.dat";
 // static constexpr const char* RAMP_FILE = "resources/ramp.txt";
-static constexpr const char* RAMP_FILE = "resources/LHC_ramp.dat";
-static constexpr const char* COLL_MOTOR_FILE = "resources/motor_tcp.txt";
+static constexpr const char* RAMP_FILE = RESOURCE_DIR"/LHC_ramp.dat";
+static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
 
 enum RAMP_TYPE
 {
@@ -279,10 +282,10 @@ inline void readCollimators(int steps, std::vector<std::pair<T, T>>& collimators
 template <typename T>
 struct ToyModel 
 {
-    using Accelerator = Accelerator<T>;
+    using Acc = Accelerator<T>;
 
     ToyModel(size_t n, RAMP_TYPE type)
-        : mAcc(Accelerator::getLHC()), mType(type)
+        : mAcc(Acc::getLHC()), mType(type)
     {
         initStorage(n);
 
@@ -308,7 +311,7 @@ struct ToyModel
     struct SixTrackTest {};
 
     ToyModel(int n, RAMP_TYPE type, LossAnalysis)
-        : mAcc(Accelerator::getLHC()), mType(type)
+        : mAcc(Acc::getLHC()), mType(type)
     {
         initStorage(n);
 
@@ -333,14 +336,14 @@ struct ToyModel
     }
 
     ToyModel(RAMP_TYPE type, LossAnalysisAction)
-        : mAcc(Accelerator::getLHC()), mType(type)
+        : mAcc(Acc::getLHC()), mType(type)
     {
-        const int n = 30;
+        const int n = 20;
         const T sep = separatrix(mAcc);
         //std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
         std::vector<T> d_actions;
-        for (int i = 1; i <= 50; ++i) {
-            d_actions.push_back(T(200*i));
+        for (int i = 1; i <= 80; ++i) {
+            d_actions.push_back(T(-8000 + 100*i));
         }
         initStorage(2*n*d_actions.size());
 
@@ -364,7 +367,7 @@ struct ToyModel
     }
 
     ToyModel(RAMP_TYPE type, LossAnalysisAction2)
-        : mAcc(Accelerator::getLHC()), mType(type)
+        : mAcc(Acc::getLHC()), mType(type)
     {
         const int n = 10;
         initStorage(n);
@@ -382,7 +385,7 @@ struct ToyModel
 
     
     ToyModel(const std::string filePath, RAMP_TYPE type)
-        : mAcc(Accelerator::getLHC()), mType(type)
+        : mAcc(Acc::getLHC()), mType(type)
     {
         readDistribution(filePath);
         std::cout << "Initialized " << size() << " particles" << std::endl;
@@ -390,7 +393,7 @@ struct ToyModel
     }
 
     ToyModel(SixTrackTest)
-        : mAcc(Accelerator::getLHC()), mType(LHC_RAMP)
+        : mAcc(Acc::getLHC()), mType(LHC_RAMP)
     {
         mEnergy.push_back(T(0.41646726612503554e6));
         mPhase.push_back(cnst::pi);
@@ -634,7 +637,7 @@ struct ToyModel
 private:
     struct CalcOp
     {
-        CalcOp(int stepID, const Accelerator& acc, std::vector<T>& energy, 
+        CalcOp(int stepID, const Acc& acc, std::vector<T>& energy, 
                std::vector<T>& phase, std::vector<int>& collHits, std::vector<int>& lost)
             : mStepID(stepID), mAcc(acc), mEnergy(energy), mPhase(phase), mCollHits(collHits), mLost(lost)
         {}
@@ -704,7 +707,7 @@ private:
     private:
         int mStepID;
 
-        const Accelerator& mAcc;
+        const Acc& mAcc;
 
         std::vector<T>& mEnergy;
         std::vector<T>& mPhase;
@@ -716,7 +719,7 @@ private:
 
     int mStepID;
 
-    Accelerator mAcc;
+    Acc mAcc;
     // Particle properties
     std::vector<T> mEnergy; // eV -- note that this is '∆pc'
     std::vector<T> mPhase; // radians
