@@ -86,13 +86,18 @@ public:
         acc.mE_pref = acc.mE_ref;
         acc.V_rf = T(6e6); // V
         //acc.f_rf = T(398765412.66);
-        acc.f_rf = T(400.8e6);
+        //acc.f_rf = T(400.8e6);
         acc.h_rf = T(35640);
         acc.k_rf = acc.h_rf*T(2)*cnst::pi/acc.C;
         acc.m_compaction = T(0.0003225);
         acc.coll_top = T(0.5e9); // ∆eV
         acc.coll_bot = T(-0.5e9);
-        acc.f_rev = T(acc.f_rf/acc.h_rf); // Hz
+        
+        auto p = acc.calcParticleProp(0.0, 0.0); // This is ok: we only want b
+        acc.f_rev = p.b*cnst::c/acc.C;
+        acc.f_rf = acc.f_rev*acc.h_rf;
+
+        //acc.f_rev = T(acc.f_rf/acc.h_rf); // Hz
         acc.w_rev = 2*cnst::pi*acc.f_rev; // Hz
         return acc;
     }

@@ -5,8 +5,8 @@ from collections import namedtuple
 from math import pi
 import numpy as np
 
-C_DIV_FREQ = 299793458.0/398765412.66*1e3 # converting to mm 
-
+F_RF = 400788731.3727857
+C_DIV_FREQ = 299793458.0/F_RF*1e3 # converting to mm 
 def phi_to_z(phi):
     return (pi - phi)/(2.0*pi)*C_DIV_FREQ
 
@@ -50,7 +50,7 @@ def comp():
             energy = phase = 0
             while turn_it < turn:
                 line = f.readline()
-                energy, phase = map(float, line.rstrip().split(','))
+                energy, phase, h = map(float, line.rstrip().split(','))
                 turn_it += 1
             toymodel.e.append(energy/1e6 + e_ramp[turn_it - 1])
             toymodel.de.append(energy/1e6)
@@ -125,4 +125,5 @@ def comp():
     plt.show()
 
 
-comp()
+if __name__ == "__main__":
+    comp()
