@@ -13,8 +13,13 @@
 #include "common.hh"
 #include "timer.hh"
 
+#ifdef IO_TO_DIR
 #define RESOURCE_DIR "."
 #define OUTPUT_DIR "."
+#else
+#define RESOURCE_DIR "resources"
+#define OUTPUT_DIR "calc"
+#endif
 
 namespace twodsynch {
 

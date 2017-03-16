@@ -2,8 +2,6 @@
 #tbblib=/afs/cern.ch/user/s/swretbor/test/tbb/build/linux_intel64_gcc_cc4.8.4_libc2.12_kernel2.6.32_release
 UNAME := $(shell uname)
 
-$(warning NAME: $(UNAME))
-
 CC = clang++
 CPLUS_FLAGS +=-Wall -pedantic
 INCLUDE_FLAGS = -I/opt/local/include -I../common
@@ -14,11 +12,11 @@ ifeq ($(UNAME), Linux)
 	LIBRARY_PATHS += -L$(TBB_LIBRARY_RELEASE)
 	INCLUDE_FLAGS += -I$(TBB_INCLUDE)
 	CC = g++
-	CPLUS_FLAGS += -static-libstdc++
+	CPLUS_FLAGS += -static-libstdc++ -DIO_TO_DIR
 endif
 
 ifeq ($(UNAME), Darwin)
-	CPLUS_FLAGS += -std=c++11 -stdlib=libc++
+	CPLUS_FLAGS += -std=c++11 -stdlib=libc++ 
 endif
 
 all: main
