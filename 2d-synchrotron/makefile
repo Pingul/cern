@@ -17,6 +17,10 @@ ifeq ($(UNAME), Linux)
 	CPLUS_FLAGS += -static-libstdc++
 endif
 
+ifeq ($(UNAME), Darwin)
+	CPLUS_FLAGS += -std=c++11 -stdlib=libc++
+endif
+
 all: main
 
 main: main.cc 2d-synchrotron.hh ../common/timer.cc

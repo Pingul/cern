@@ -1,377 +1,16 @@
 # coding=utf-8
-import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import matplotlib.cm as cmx
-from matplotlib.ticker import FormatStrFormatter
 from matplotlib.ticker import FuncFormatter
-from matplotlib.patches import Rectangle
-import math
 import numpy as np
 import pandas as pd
 import itertools
-from scipy import stats
 
 from sys import argv
 
-# DIR = "calc/"
-# DIR = "simulations/cache/2017.03.13.14.26.09/"
-DIR = "simulations/store/5k_H8000/"
-
-PARTICLE_FILE = DIR + "particles.dat"
-LINE_FILE = DIR + "lines.dat"
-COLL_FILE = DIR + "coll.dat"
-STARTDIST_FILE = DIR + "startdist.dat"
-ENDDIST_FILE = DIR + "enddist.dat"
-RAMP_FILE = "resources/LHC_ramp.dat"
-
-PLOT_FRAME = {
-    'x' : [-0.1*math.pi, 2.1*math.pi],
-    'y' : [-0.4e9, 0.4e9]
-    # 'x' : [-2*math.pi, 4*math.pi],
-    # 'y' : [-2e9, 2e9]
-}
-
-H_SEPARATRIX = 1909859.317103239 # Taken from 2d-synchrotron.hh
-
-SAVE_FILE = ''
-if (len(argv) > 2):
-    SAVE_FILE = argv[2]
-
-def moving_average(sequence, N):
-    """ Moving average given the sequence. Returns an list equal in length
-    to the one given """
-
-    average = np.convolve(sequence, np.ones((N,))/N, mode='same')
-    return average
-
-def get_lossmap(collfile):
-    """ Returns data as
-        lossmap = { turn : [particles_lost] }
-    """
-
-    print("creating lossmap")
-    hits = []
-    with open(collfile, 'r') as f:
-        print("reading collimation file '{}'".format(collfile))
-        for i, line in enumerate(f):
-            if i < 2: 
-                continue
-            line_c = line.rstrip().split(',')
-            pid, turn = map(int, line_c[0:2])
-            hits.append([turn, pid])
-
-    hits.sort(key=lambda x: x[0])
-    coll_hits = {} 
-    for hit in hits:
-        turn, pid = hit
-        try: coll_hits[turn].append(pid)
-        except: coll_hits[turn] = [pid]
-    return coll_hits
-
-class PhaseSpace:
-    """ Only works for data output by the 2d synchrotron """
-
-    def __init__(self, pfile, rfile=None):
-        self.nbr_p = 0
-        self.nbr_turns = 0
-        self.denergy = np.array([])
-        self.phase = np.array([])
-        # self.ref_energy = []
-        self.ref_energy = None
-        self.background_lines = []
-
-
-        if pfile:
-            print("reading in particles from '{}'".format(pfile))
-            with open(pfile, 'r') as file:
-                self.nbr_p , self.nbr_turns = map(int, file.readline().strip().split(','))
-                self.denergy = np.empty(self.nbr_p*self.nbr_turns)
-                self.phase = np.empty(self.nbr_p*self.nbr_turns)
-                self.h = np.empty(self.nbr_p*self.nbr_turns)
-                for i, line in enumerate(file.readlines()):
-                    denergy, phase, h = map(float, line.rstrip('\n').split(','))
-                    self.denergy[i - 1] = denergy
-                    self.phase[i - 1] = phase
-                    self.h[i - 1] = h
-
-        if rfile:
-            raise Exception("removed support for ramp file")
-            # print("reading in energy from '{}'".format(rfile))
-            # with open(rfile, 'r') as file:
-                # for i, line in enumerate(file.readlines()):
-                    # if i >= self.nbr_turns:
-                        # break
-                    # ref_e = float(line.split()[-1])
-                    # self.ref_energy.append(ref_e)
-
-    def create_plot(self):
-        self.fig, self.ax = plt.subplots()
-
-    def plot_trajectory(self, filePath=None, randomizeColors=False, redraw=False):
-        print("plot trajectory '{}'".format(filePath))
-        phasespace = self
-        if filePath is not None:
-            phasespace = PhaseSpace(filePath)
-        else:
-            print("using local data")
-
-        nbr_series = phasespace.nbr_p
-        series = [{"denergy" : [], "phase" : [], "h" : 0.0} for l in range(nbr_series)]
-        for i, de in enumerate(phasespace.denergy[:-1]):
-            series[i % nbr_series]["phase"].append(phasespace.phase[i])
-            series[i % nbr_series]["denergy"].append(de)
-            series[i % nbr_series]['h'] = phasespace.h[i]
-
-        if redraw and not len(self.background_lines) == len(series):
-            raise Exception("new frame does not match series in old")
-
-        cMap = plt.get_cmap('plasma_r')
-        cNorm = colors.Normalize(vmin=0, vmax=4e6)
-        scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cMap)
-        print("plotting series")
-        color_list = plt.cm.Set3(np.linspace(0, 1, len(series)))
-        for i, trail in enumerate(series):
-            colorVal = scalarMap.to_rgba(trail['h'])
-            if randomizeColors:
-                colorVal = color_list[i]
-            if redraw:
-                self.background_lines[i].set_xdata(trail["phase"])
-                self.background_lines[i].set_ydata(trail["denergy"])
-            else:
-                line, = self.ax.plot(trail["phase"], trail["denergy"], '-', color=colorVal, zorder=1)
-                self.background_lines.append(line)
-
-    def plot_background_lines(self):
-        self.plot_trajectory(LINE_FILE)
-
-    def plot_collimators(self):
-        print("plot collimators")
-        try:
-            with open(COLL_FILE, 'r') as f:
-                f.readline()
-                second_line = f.readline()
-                top_coll, bot_coll = map(float, second_line.rstrip().split(','))
-                self.collimator = {'top' : top_coll, 'bot' : bot_coll}
-        except:
-            print("could not read '{}', will not plot".format(COLL_FILE))
-        else:
-            self.coll_hits = get_lossmap(COLL_FILE)
-            self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
-            self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
-
-    def format_axes(self):
-        self.ax.set_xlim(PLOT_FRAME['x'])
-        self.ax.set_ylim(PLOT_FRAME['y'])
-        self.ax.set_xlabel("Phase (radians)")
-        self.ax.set_ylabel("∆E (GeV)")
-        self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
-        self.ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}π".format(x/math.pi)))
-
-    def categorize_particles(self, lossmap, sec=0.0):
-        """ Seperates particle id's into three lists, 'lost' and 'alive' after time 'sec'.
-            Particles are 'discarded' if they got lost before 'sec'. """
-        pbin = {'lost' : [], 'discarded' : []}
-        for turn in lossmap:
-            if turn >= 11245.0*sec:
-                pbin['lost'] += [loss for loss in lossmap[turn] if loss < self.nbr_p]
-            else:
-                pbin['discarded'] += [loss for loss in lossmap[turn] if loss < self.nbr_p]
-        pbin['lost'].sort()
-        pbin['discarded'].sort()
-        pbin['alive'] = [i for i in range(self.nbr_p) if i not in pbin['lost'] and i not in pbin['discarded']]
-        return pbin
-
-    def plot_particles(self, pbin=None):
-        self.create_plot()
-        self.plot_background_lines()
-        self.plot_collimators()
-        self.format_axes()
-        
-        if pbin:
-            print("lost:", len(pbin['lost']), 'alive:', len(pbin['alive']))
-            live_z = 10
-            lost_z = 9 if len(pbin['lost']) > len(pbin['alive']) else 11
-            self.ax.scatter([self.phase[i] for i in pbin['alive']], [self.denergy[i] for i in pbin['alive']], color='b', s=2, zorder=live_z)
-            self.ax.scatter([self.phase[i] for i in pbin['lost']], [self.denergy[i] for i in pbin['lost']], color='r', s=2, zorder=lost_z)
-            self.ax.scatter([self.phase[i] for i in pbin['discarded']], [self.denergy[i] for i in pbin['discarded']], color='gray', s=2, zorder=5)
-        else:
-            self.ax.scatter(self.phase, self.denergy, color='magenta', s=4)
-        plt.show()
-        
-
-    def update(self, num, redrawBackground=False):
-        istart = num*self.nbr_p
-        lost_particles = [i for i in self.active_particles if num in self.coll_hits and i in self.coll_hits[num]]
-        self.active_particles = [i for i in self.active_particles if not i in lost_particles]
-
-        # self.ref_e_text.set_text("E = {0:.8E}".format(self.ref_energy[num]))
-        self.ref_e_text.set_text("Frame {}".format(num))
-        self.pos_plot.set_offsets([(self.phase[i + istart], self.denergy[i + istart]) for i in self.active_particles])
-
-        self.lost_particles['denergy'].extend((self.denergy[i + istart] for i in lost_particles))
-        self.lost_particles['phase'].extend((self.phase[i + istart] for i in lost_particles))
-        self.lost_plot.set_offsets([i for i in zip(self.lost_particles['phase'], self.lost_particles['denergy'])])
-
-        if redrawBackground:
-            try:
-                filename = "phasespace/{}lines.dat".format(num)
-                self.plot_trajectory(filename, redraw=True)
-            except:
-                print("could not redraw frame")
-
-    def animate(self, save_to="", animateBackground=False):
-        self.create_plot()
-        self.plot_background_lines()
-        self.plot_collimators()
-        self.format_axes()
-
-        self.lost_plot = self.ax.scatter([], [], color='r', marker='x', zorder=20, s=4)
-        self.pos_plot = self.ax.scatter(self.phase[0:self.nbr_p], self.denergy[0:self.nbr_p], zorder=10, s=4, color='b')
-        self.active_particles = range(self.nbr_p)
-        self.lost_particles = {'denergy': [], 'phase': []}
-        self.ref_e_text = self.ax.text(0.05, 0.95, 
-                "Frame {}".format(0), fontsize=15,
-                ha='left', va='top', transform=self.ax.transAxes)
-
-        ani = animation.FuncAnimation(self.fig, self.update, self.nbr_turns, fargs=(animateBackground,), interval=50, blit=False)
-
-        if save_to:
-            print("saving simulation to '{}'".format(save_to))
-            self.fig.suptitle(save_to)
-            ani.save(save_to, fps=20, dpi=500)
-            print("finished saving to '{}'".format(save_to))
-        else:
-            plt.show()
-
-    def plot_energy_oscillations(self, particleID):
-        raise Exception("deprecated -- removed support for 'self.ref_energy'. Read in 'ramp.txt' and convert it yourself if you want this.")
-
-        turns = [i for i in range(self.nbr_turns) if i % 10 == 0]
-        energy = [(e + self.denergy[i]) for i, e in enumerate(self.ref_energy) if i in turns]
-        ref_e = [e for i, e in enumerate(self.ref_energy) if i in turns]
-
-        fig, ax = plt.subplots()
-        ax.plot(turns, energy, color='b')
-        ax.plot(turns, ref_e, color='black')
-        plt.show()
-
-
-def separate_lossmap(lossmap, phasespace):
-    """ Separate the lossmap on the action values. The function will bin particles into 'bins' size 
-        lossmaps.
-
-        returns ([lossmaps], [action values])
-    """
-    div_lossmaps = {}
-    for turn in lossmap:
-        for pid in lossmap[turn]:
-            h = int(phasespace.h[pid]) 
-            if not h in div_lossmaps: 
-                div_lossmaps[h] = {}
-            lossm = div_lossmaps[h]
-            if not turn in lossm:
-                lossm[turn] = []
-            lossm[turn].append(pid)
-    # lossmaps = [div_lossmaps[action] for action in div_lossmaps]
-    a_values = sorted(div_lossmaps.keys())
-    lossmaps = [div_lossmaps[l] for l in a_values]
-    return (lossmaps, a_values)
-
-def plot_lossmap(lossmaps, labels=[], save_to=''):
-    """
-        lossmaps = [lossmap1, lossmap2, ...] 
-    """
-    if len(lossmaps) == 0:
-        raise Exception("no losses found")
-
-    ps = PhaseSpace(STARTDIST_FILE)
-    max_turn = 0
-    for lm in lossmaps:
-        max_turn = max(max_turn, max(lm.keys()))
-    turns = np.array(range(max_turn + 100))
-
-    # Plotting
-    fig, loss_ax = plt.subplots()
-
-    # LOSSES
-    if len(lossmaps) == 1:
-        color_list = 'r'
-    else:
-        color_list = plt.cm.Set3(np.linspace(0, 1, len(lossmaps)))
-
-    for i, lm in enumerate(lossmaps):
-        # lm = lossmaps[action]
-        losses = np.array([len(lm[turn]) if turn in lm else 0 for turn in turns])
-        # avg_loss = moving_average(losses, int(1.3*11245))
-        avg_loss = losses
-        loss_ax.plot(turns, avg_loss, color=color_list[i], label=(labels[i] if len(labels) > i else ""), zorder=3, alpha=0.9)
-    # loss_ax.set_ylabel("Losses (∆particles/1.3s)")
-    loss_ax.set_ylabel("Losses (∆particles/turn)")
-    loss_ax.set_xlabel("t (s)")
-    loss_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
-    loss_ax.spines['right'].set_position(('axes', 1.15))
-    loss_ax.set_yscale('log')
-    if len(labels) > 0:
-        loss_ax.legend(loc='upper right')
-
-    # INTENSITY
-    # n = ps.nbr_p
-    # intensity = np.empty(len(tot_loss))
-    # for i, v in enumerate(tot_loss):
-        # n -= v
-        # intensity[i] = float(n)/ps.nbr_p
-    # intensity_ax = loss_ax.twinx()
-    # intensity_ax.plot(turns, intensity, color='b', label='intensity', linestyle='--', zorder=1)
-    # intensity_ax.set_ylabel("Intensity")
-
-    # # RAMP
-    ramp = np.array(read_ramp(RAMP_FILE, len(turns))['e'])
-    ramp = np.gradient(ramp)
-    e_ax = loss_ax.twinx()
-    e_ax.plot(turns, ramp, color='gray', zorder=0, label='LHC energy ramp')
-    e_ax.set_axis_off()
-
-    fig.suptitle("Toy model off-momentum lossmap")
-    if (save_to): 
-        print("saving plot to {}".format(save_to))
-        plt.savefig(save_to) 
-    plt.show()
-
-def read_ramp(file, nbr_turns):
-    e = np.empty(nbr_turns)
-    with open(file, 'r') as f:
-        for i, line in enumerate(f.readlines()):
-            if i >= nbr_turns: break
-            e[i] = float(line.rstrip().split()[1])*1e6
-
-    turns = range(nbr_turns)
-    #de = np.gradient(e)
-    de = np.diff(e) # size n - 1
-    de = np.append(de, de[-1])
-
-    slope, intercept, r_value, p_value, std_err = stats.linregress(turns, de)
-    de_fitted = [slope*turn + intercept for turn in turns]
-    e_fitted = []
-    s = 0
-    for v in de_fitted:
-        s += v
-        e_fitted.append(s + 450e9)
-
-    return {'e' : e, 'e_fitted' : e_fitted, 'de' : de, 'de_fitted' : de_fitted}
-
-def export_fitted_ramp():
-    ramp = read_ramp(RAMP_FILE, 500000)
-    with open("ramp_fitted.txt", 'w') as f:
-        for i, v in enumerate(ramp['e_fitted']):
-            f.write("{} {:.16f}\n".format(i, v/1e6))
-
-def export_particles(phasespace, plist, save_file):
-    print("writing {} particles to '{}'".format(len(plist), save_file))
-    with open(save_file, 'w') as f:
-        f.write("{},1\n".format(len(plist)))
-        for pid in plist:
-            f.write("{},{},{}\n".format(phasespace.denergy[pid], phasespace.phase[pid], phasespace.h[pid]))
+from phasespace import PhaseSpace
+from lossmap import *
+from settings import *
 
 
 def plot_energy_oscillations():
@@ -511,19 +150,22 @@ def phasespace_evolution():
     print("finished saving to '{}'".format(mov_file))
 
 
+SAVE_FILE = ''
+if (len(argv) > 2):
+    SAVE_FILE = argv[2]
 
 if __name__ == "__main__":
     ACTION = argv[1]
     if ACTION == "animate":
         print("animate trajectory")
         ps = PhaseSpace(PARTICLE_FILE)
-        ps.animate(save_to=SAVE_FILE)
+        ps.animate(get_lossmap(COLL_FILE), save_to=SAVE_FILE)
     if ACTION == "animate-full":
         print("animating trajectory and background")
         output = "calc/animate-full.mp4"
         print("will save movie to '{}'".format(output))
         ps = PhaseSpace(PARTICLE_FILE)
-        ps.animate(output, animateBackground=True)
+        ps.animate(get_lossmap(COLL_FILE), output, animateBackground=True)
     elif ACTION == "lossmap" or ACTION == "lossmap-analysis":
         print("plot lossmap")
         lossmap = get_lossmap(COLL_FILE)
@@ -558,6 +200,9 @@ if __name__ == "__main__":
             plt.savefig(SAVE_FILE)
         else:
             plt.show()
+    elif ACTION == "phasespace-mov":
+        print("animating phasespace evolution")
+        phasespace_evolution()
     elif ACTION == "trajectory":
         print("plot particle trajectory")
         ps = PhaseSpace(PARTICLE_FILE)
@@ -570,9 +215,11 @@ if __name__ == "__main__":
         print("plot hamiltonian")
         ps = PhaseSpace(PARTICLE_FILE)
         plot_hamiltonian_evolution(ps)
-    elif ACTION == "phasespace-mov":
-        print("animating phasespace evolution")
-        phasespace_evolution()
+    elif ACTION == "ham-lostdist":
+        print("ploting hamiltonian lost distribution")
+        ps = PhaseSpace(STARTDIST_FILE)
+        lm = get_lossmap(COLL_FILE)
+        plot_hamiltonian_lost_dist(ps, lm, 16.5)
     elif ACTION == "lost":
         print("lost plot")
         plot_lost()
@@ -613,16 +260,6 @@ if __name__ == "__main__":
         ax.set_xlabel("∆H")
         ax.set_ylabel("#")
         plt.show()
-    elif ACTION == "ham-lostdist":
-        print("ploting hamiltonian lost distribution")
-        ps = PhaseSpace(STARTDIST_FILE)
-        lm = get_lossmap(COLL_FILE)
-        plot_hamiltonian_lost_dist(ps, lm, 16.5)
         
     else:
         print("unrecognised action")
-
-
-
-# yellow: stable
-# blue: unstable

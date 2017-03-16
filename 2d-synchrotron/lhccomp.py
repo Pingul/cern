@@ -1,13 +1,12 @@
 
-from matplotlib.ticker import FormatStrFormatter
-from matplotlib.ticker import FuncFormatter
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
+
+import lossmap as lm
+from phasespace import PhaseSpace
 
 import sys
 sys.path.append("/Users/swretbor/Workspace/collimation/proj/lhcstat")
-import plot as lm
 import oml
 
 
@@ -16,31 +15,30 @@ from scipy.optimize import nnls
 from sklearn import linear_model
 from bisect import bisect_left
 
-BLM_INT = int(1.3*11245.0)
-H_SEPARATRIX = 1909859.317103239
-# BLM_INT = int(1)
+from settings import *
 
 def compare_to_aggregate():
     tm_lossmap = lm.get_lossmap(lm.COLL_FILE)
 
-    turns = range(min(tm_lossmap.keys()) - BLM_INT, max(tm_lossmap.keys()) + BLM_INT)
+    # turns = range(min(tm_lossmap.keys()) - BLM_INT, max(tm_lossmap.keys()) + BLM_INT)
+    turns = range(min(tm_lossmap.keys()) - BLM_INT, int(16.5*11245.0))#max(tm_lossmap.keys()) + BLM_INT)
     secs = np.array([turn/11245.0 for turn in turns])
     # ramp = np.array(lm.read_ramp(lm.RAMP_FILE, len(turns))['e'])/1.0e9
 
     losses = np.array([len(tm_lossmap[turn]) if turn in tm_lossmap else 0 for turn in turns])
-    synch_avg_losses = lm.moving_average(losses, BLM_INT)
+    synch_avg_losses = oml.moving_average(losses, BLM_INT)
 
     aggr_fill = oml.aggregate_fill(from_cache=True)
     secs = align(secs, synch_avg_losses, aggr_fill)
 
 
     # fitting y = coef*x
-    ps = lm.PhaseSpace(lm.STARTDIST_FILE)
+    ps = PhaseSpace(lm.STARTDIST_FILE)
     lossmaps, a_values = lm.separate_lossmap(tm_lossmap, ps)
     a_values = np.array(a_values)
     a_values -= round(H_SEPARATRIX)
 
-    prune = True
+    prune = False
     if prune:
         H_threshold = -8000
         to_delete = np.where(a_values < H_threshold)
@@ -50,7 +48,7 @@ def compare_to_aggregate():
     x = []
     for lossmap in lossmaps:
         losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
-        # avg_loss = lm.moving_average(losses, BLM_INT)
+        # avg_loss = oml.moving_average(losses, BLM_INT)
         avg_loss = losses
         x.append(avg_loss)
 
@@ -90,7 +88,7 @@ def compare_to_aggregate():
     for i, c in enumerate(coef):
         print("\t{:>5} = {:<10.3f} (H = {})".format("a{}".format(i), c, a_values[i]))
     x_fit = np.sum(coef*xt, axis=1)
-    x_fit = lm.moving_average(x_fit, BLM_INT)
+    # x_fit = oml.moving_average(x_fit, BLM_INT)
 
     if method <= 3:
         x_fit = np.exp(x_fit)
@@ -152,7 +150,7 @@ def optimize(secs, losses, aggr_fill):
 
     # We want aggr_fill to use the 'secs' timescale
     oml_y = interpolate.interp1d(*aggr_fill.oml())(secs)
-    avg_loss = lm.moving_average(losses, BLM_INT)
+    avg_loss = oml.moving_average(losses, BLM_INT)
     lm_win = np.sum(avg_loss > oml_y)
     
     failed = 0
