@@ -13,7 +13,7 @@
 #include "common.hh"
 #include "timer.hh"
 
-#ifdef IO_TO_DIR
+#ifdef IO_TO_SAME_DIR
 #define RESOURCE_DIR "."
 #define OUTPUT_DIR "."
 #else
@@ -27,7 +27,7 @@ namespace cnst {
 constexpr double pi = 3.14159265359;
 constexpr double c = 299792458.0; // m/s
 constexpr double m_proton = 938.2796e6; // eV
-}; // namespace cnst
+} // namespace cnst
 
 
 // Same as used in the python visualisation code
@@ -144,7 +144,6 @@ inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
 {
     using std::cos;
     using std::sin;
-    using cnst::c;
     using cnst::pi;
 
     auto p = acc.calcParticleProp(de, ph);
@@ -160,7 +159,6 @@ inline T levelCurve(const Accelerator<T>& acc, T ph, T H, T sign=1.0)
     using std::cos;
     using std::sin;
     using std::sqrt;
-    using cnst::c;
     using cnst::pi;
 
     sign = sign/std::abs(sign);
@@ -523,7 +521,7 @@ struct ToyModel
         emin = phmin = std::numeric_limits<T>::max();
         emax = phmax = -emin;
         int pleft = 0;
-        for (int i = 0; i < size(); ++i) {
+        for (size_t i = 0; i < size(); ++i) {
             if (mCollHits.size() == size() && mCollHits[i] < 0) {
                 ++pleft;
                 emax = mEnergy[i] > emax ? mEnergy[i] : emax;
@@ -618,7 +616,7 @@ struct ToyModel
         writeCollHits(COLL_FILE);
     
         int ilast = -1;
-        for (int i = 0; i < mCollHits.size(); ++i) {
+        for (size_t i = 0; i < mCollHits.size(); ++i) {
             if (mCollHits[i] > mCollHits[ilast]) 
                 ilast = i;
         }
@@ -761,4 +759,4 @@ void generatePhasespaceLines(int seconds)
     }
 }
 
-}; // namespace twodsynch
+} // namespace twodsynch
