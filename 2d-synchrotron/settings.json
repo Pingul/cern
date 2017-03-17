@@ -1,0 +1,1 @@
+{"ENDDIST_FILE": "enddist.dat", "STARTDIST_FILE": "startdist.dat", "LINE_FILE": "lines.dat", "PARTICLE_FILE": "particles.dat", "RESOURCE_DIR" : "resources", "DATA_DIR": "calc", "RAMP_FILE": "LHC_ramp.dat", "COLL_FILE": "coll.dat", "PLOT_FRAME" : { "x" : [-0.314, 6.6], "y" : [-0.4e9, 0.4e9] } ,"H_SEPARATRIX" : 1909859.317103239 ,"F_RF" : 400788731.3727857 ,"BLM_INT" : 14618 }
