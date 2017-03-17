@@ -88,7 +88,7 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
         loss_ax.legend(loc='upper right')
 
     # # RAMP
-    ramp = np.array(read_ramp(RAMP_FILE, len(turns))['e'])
+    ramp = np.array(read_ramp(settings.RAMP_PATH, len(turns))['e'])
     ramp = np.gradient(ramp)
     e_ax = loss_ax.twinx()
     e_ax.plot(turns, ramp, color='gray', zorder=0, label='LHC energy ramp')

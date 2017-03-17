@@ -79,26 +79,26 @@ class PhaseSpace:
                 self.background_lines.append(line)
 
     def plot_background_lines(self):
-        self.plot_trajectory(LINE_FILE)
+        self.plot_trajectory(settings.LINE_PATH)
 
     def plot_collimators(self):
         print("plot collimators")
         try:
-            with open(COLL_FILE, 'r') as f:
+            with open(settings.COLL_PATH, 'r') as f:
                 f.readline()
                 second_line = f.readline()
                 top_coll, bot_coll = map(float, second_line.rstrip().split(','))
                 self.collimator = {'top' : top_coll, 'bot' : bot_coll}
         except:
-            print("could not read '{}', will not plot".format(COLL_FILE))
+            print("could not read '{}', will not plot".format(settings.COLL_PATH))
         else:
             # self.coll_hits = get_lossmap(COLL_FILE)
-            self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
-            self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
+            self.ax.axhspan(settings.PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
+            self.ax.axhspan(self.collimator['top'], settings.PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
 
     def format_axes(self):
-        self.ax.set_xlim(PLOT_FRAME['x'])
-        self.ax.set_ylim(PLOT_FRAME['y'])
+        self.ax.set_xlim(settings.PLOT_FRAME['x'])
+        self.ax.set_ylim(settings.PLOT_FRAME['y'])
         self.ax.set_xlabel("Phase (radians)")
         self.ax.set_ylabel("∆E (GeV)")
         self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
