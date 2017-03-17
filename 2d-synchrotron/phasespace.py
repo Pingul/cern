@@ -20,7 +20,34 @@ class PhaseSpace:
         Thus, there is some mish-mash of functions below
     """
 
-    def __init__(self, pfile, rfile=None):
+    @classmethod
+    def merge_two(clss, ps1, ps2):
+        """ ONLY WORKS FOR SINGLE DISTRIBUTIONS RIGHT NOW """
+        if ps1 == None:
+            return ps2
+        elif ps2 == None:
+            return ps1
+        elif not ps1.nbr_turns == ps2.nbr_turns:
+            raise Exception("both PhaseSpaces needs to have the same amount of turns")
+
+        ps_merge = PhaseSpace(None)
+        ps_merge.nbr_p = ps1.nbr_p + ps2.nbr_p
+        ps_merge.nbr_turns = ps1.nbr_turns
+
+
+
+        attributes = ['denergy', 'phase', 'h']
+        for attr in attributes:
+            a1 = getattr(ps1, attr)
+            a2 = getattr(ps2, attr)
+            setattr(ps_merge, attr, np.concatenate((a1, a2)))
+            # a1 = getattr(ps1, attr).reshape(ps1.nbr_p, ps1.nbr_turns)
+            # a2 = getattr(ps2, attr).reshape(ps2.nbr_p, ps2.nbr_turns)
+            # setattr(ps_merge, attr, np.hstack((a1, a2)).reshape(ps_merge.nbr_p*ps_merge.nbr_turns))
+
+        return ps_merge
+
+    def __init__(self, pfile, mute=False):
         self.nbr_p = 0
         self.nbr_turns = 0
         self.denergy = np.array([])
@@ -29,7 +56,7 @@ class PhaseSpace:
 
 
         if pfile:
-            print("reading in particles from '{}'".format(pfile))
+            if not mute: print("reading in particles from '{}'".format(pfile))
             with open(pfile, 'r') as file:
                 self.nbr_p , self.nbr_turns = map(int, file.readline().strip().split(','))
                 self.denergy = np.empty(self.nbr_p*self.nbr_turns)

@@ -52,10 +52,12 @@ class Settings(dict):
         self.RAMP_PATH = "{}/{}".format(self.RESOURCE_DIR, self.RAMP_FILE)
 
     def save(self):
-        self.presave()
+        # Need to create a copy here for the __presave not screw everything up
+        s = Settings(self)
+        s.__presave()
         print("reading settings from '{}'".format(SETTINGS_FILE))
         with open(SETTINGS_FILE, 'w') as f:
-            json.dump(self, f)
+            json.dump(s, f)
     
     @classmethod
     def load(clss):

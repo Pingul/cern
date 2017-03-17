@@ -6,22 +6,20 @@ import numpy as np
 from scipy import stats
 from settings import *
 
-def get_lossmap(collfile):
-    """ Returns data as
-        lossmap = { turn : [particles_lost] }
-    """
 
-    print("creating lossmap")
+def hits_from_collfile(collfile, mute=False):
     hits = []
     with open(collfile, 'r') as f:
-        print("reading collimation file '{}'".format(collfile))
+        if not mute: print("reading collimation file '{}'".format(collfile))
         for i, line in enumerate(f):
             if i < 2: 
                 continue
             line_c = line.rstrip().split(',')
             pid, turn = map(int, line_c[0:2])
-            hits.append([turn, pid])
+            hits.append((turn, pid))
+    return hits
 
+def lossmap_from_hits(hits):
     hits.sort(key=lambda x: x[0])
     coll_hits = {} 
     for hit in hits:
@@ -29,6 +27,16 @@ def get_lossmap(collfile):
         try: coll_hits[turn].append(pid)
         except: coll_hits[turn] = [pid]
     return coll_hits
+
+
+def get_lossmap(collfile):
+    """ Returns data as
+        lossmap = { turn : [particles_lost] }
+    """
+
+    print("creating lossmap")
+    hits = hits_from_collfile(collfile)
+    return lossmap_from_hits(hits)
 
 def separate_lossmap(lossmap, phasespace):
     """ Separate the lossmap on the action values. The function will bin particles into 'bins' size 
