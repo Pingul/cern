@@ -55,13 +55,13 @@ class Settings(dict):
         # Need to create a copy here for the __presave not screw everything up
         s = Settings(self)
         s.__presave()
-        print("reading settings from '{}'".format(SETTINGS_FILE))
+        print("writing settings to '{}'".format(SETTINGS_FILE))
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(s, f)
     
     @classmethod
     def load(clss):
-        print("loading settings from '{}'".format(SETTINGS_FILE))
+        print("reading settings from '{}'".format(SETTINGS_FILE))
         with open(SETTINGS_FILE, 'r') as f:
             s = Settings(json.load(f))
             s.__postload()

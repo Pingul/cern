@@ -24,11 +24,14 @@ def trailing_integration(sequence, N):
     sums = np.convolve(sequence, np.ones((N,)))
     return sums[:len(sequence)]
 
-def compare_to_aggregate():
-    tm_lossmap = lm.get_lossmap(settings.COLL_PATH)
+def compare_to_LHC_aggregate(ps, tm_lossmap):
+    """ ps : PhaseSpace of starting distribution
+        tm_lossmap : lossmap of coll.dat
+    """
+    # tm_lossmap = lm.get_lossmap(settings.COLL_PATH)
 
-    # turns = range(min(tm_lossmap.keys()) - BLM_INT, max(tm_lossmap.keys()) + BLM_INT)
-    turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, int(16.5*11245.0))#max(tm_lossmap.keys()) + BLM_INT)
+    turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, max(tm_lossmap.keys()) + settings.BLM_INT)
+    # turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, int(16.5*11245.0))#max(tm_lossmap.keys()) + BLM_INT)
     secs = np.array([turn/11245.0 for turn in turns])
     # ramp = np.array(lm.read_ramp(lm.RAMP_FILE, len(turns))['e'])/1.0e9
 
@@ -40,7 +43,7 @@ def compare_to_aggregate():
 
 
     # fitting y = coef*x
-    ps = PhaseSpace(settings.STARTDIST_PATH)
+    # ps = PhaseSpace(settings.STARTDIST_PATH)
     lossmaps, a_values = lm.separate_lossmap(tm_lossmap, ps)
     a_values = np.array(a_values)
     a_values -= round(settings.H_SEPARATRIX)
@@ -62,9 +65,11 @@ def compare_to_aggregate():
         if integration:
             avg_loss = oml.moving_average(losses, settings.BLM_INT)
         else:
-            avg_loss = losses
+            avg_loss = losses.astype(float)
         x.append(avg_loss)
 
+
+    
     # Note: we fit in log space
     xt = np.transpose(x)
     y = interpolate.interp1d(*aggr_fill.oml())(secs)
@@ -197,4 +202,7 @@ def regenerate_lossmap(opt_losses, lossmap):
     return reduced_lossmap
 
 
-compare_to_aggregate()
+if __name__ == "__main__":
+    ps = PhaseSpace(settings.STARTDIST_PATH)
+    lossmap = lm.get_lossmap(settings.COLL_PATH)
+    compare_to_LHC_aggregate(ps, lossmap)

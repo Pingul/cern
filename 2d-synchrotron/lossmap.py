@@ -12,8 +12,7 @@ def hits_from_collfile(collfile, mute=False):
     with open(collfile, 'r') as f:
         if not mute: print("reading collimation file '{}'".format(collfile))
         for i, line in enumerate(f):
-            if i < 2: 
-                continue
+            if i < 2: continue
             line_c = line.rstrip().split(',')
             pid, turn = map(int, line_c[0:2])
             hits.append((turn, pid))
