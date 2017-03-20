@@ -7,7 +7,7 @@ from scipy import stats
 from settings import *
 
 
-def hits_from_collfile(collfile, mute=False):
+def hits_from_collfile(collfile, pid_offset=0, mute=False):
     hits = []
     with open(collfile, 'r') as f:
         if not mute: print("reading collimation file '{}'".format(collfile))
@@ -15,7 +15,7 @@ def hits_from_collfile(collfile, mute=False):
             if i < 2: continue
             line_c = line.rstrip().split(',')
             pid, turn = map(int, line_c[0:2])
-            hits.append((turn, pid))
+            hits.append((turn, pid+pid_offset))
     return hits
 
 def lossmap_from_hits(hits):
@@ -25,6 +25,11 @@ def lossmap_from_hits(hits):
         turn, pid = hit
         try: coll_hits[turn].append(pid)
         except: coll_hits[turn] = [pid]
+
+    # converting to numpy arrays
+    # for turn in coll_hits:
+        # coll_hits[turn] = np.array(coll_hits[turn])
+
     return coll_hits
 
 
@@ -96,7 +101,6 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
 
     # # RAMP
     ramp = np.array(read_ramp(settings.RAMP_PATH, len(turns))['e'])
-    ramp = np.gradient(ramp)
     e_ax = loss_ax.twinx()
     e_ax.plot(turns, ramp, color='gray', zorder=0, label='LHC energy ramp')
     e_ax.set_axis_off()

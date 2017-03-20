@@ -19,18 +19,17 @@ class Batch:
         self.hits = []
         self.lossmap = None
 
-        if not forced and settings.CACHE_BATCH:
+        if settings.CACHE_BATCH:
             cache_path = "{}/{}".format(settings.BATCH_DIR, settings.CACHE_BATCH_FILE)
-            print("trying to read from cache")
-            if os.path.exists(cache_path):
+            if not forced and os.path.exists(cache_path):
+                print("trying to read from cache")
                 self.load_cache(cache_path)
             else:
-                print("cache file could not be found")
+                print("cache file could not be found or forced to fetch")
                 self.aggregate()
                 self.cache(cache_path)
         else:
             self.aggregate()
-
     
     def pack(self):
         return {
@@ -72,10 +71,11 @@ class Batch:
                     break;
             else:
                 # try:
+                pid_offset = self.ps.nbr_p if self.ps else 0
                 job_ps = PhaseSpace("{}/startdist.dat".format(job_path), mute=True)
                 self.ps = PhaseSpace.merge_two(self.ps, job_ps)
                 
-                hits = hits_from_collfile("{}/coll.dat".format(job_path), mute=True)
+                hits = hits_from_collfile("{}/coll.dat".format(job_path), pid_offset=pid_offset, mute=True)
                 self.hits += hits
     
                 self.nbr_valid_jobs += 1

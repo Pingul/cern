@@ -135,20 +135,20 @@ class PhaseSpace:
         """ Seperates particle id's into three lists, 'lost' and 'alive' after time 'sec'.
             Particles are 'discarded' if they got lost before 'sec'. """
         pbin = {'lost' : [], 'discarded' : []}
-        print("separation")
         for turn in lossmap:
             if turn >= 11245.0*sec:
                 pbin['lost'] += lossmap[turn]
             else:
                 pbin['discarded'] += lossmap[turn]
-        print("sort")
         pbin['lost'] = np.array(sorted(pbin['lost']))
         pbin['discarded'] = np.array(sorted(pbin['discarded']))
 
         all_lost = np.concatenate((pbin['lost'], pbin['discarded']))
         all_p = np.arange(0, self.nbr_p, 1)
-        # pbin['alive'] = all_p[np.where(np.invert(np.in1d(all_p, all_lost)))]
-        pbin['alive'] = [i for i in range(self.nbr_p) if i not in pbin['lost'] and i not in pbin['discarded']]
+
+        pbin['alive'] = all_p[np.where(np.invert(np.in1d(all_p, all_lost)))]
+        # The above is a _much_ quicker version of the (more readable) version below:
+        # pbin['alive'] = [i for i in range(self.nbr_p) if i not in pbin['lost'] and i not in pbin['discarded']]
         return pbin
 
     def plot_particles(self, pbin=None):
