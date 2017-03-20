@@ -98,6 +98,15 @@ if __name__ == "__main__":
     elif ACTION == "lossmap":
         b = Batch(settings.BATCH_DIR)
         plot_lossmap([b.lossmap])
+    elif ACTION == "separated-lossmap":
+        b = Batch(settings.BATCH_DIR)
+        plot_lossmap(*separate_lossmap(b.lossmap, b.ps))
     elif ACTION == "compare":
-        b = Batch(settings.BATH_DIR)
+        b = Batch(settings.BATCH_DIR)
         compare_to_LHC_aggregate(b.ps, b.lossmap)
+    elif ACTION == "startdist":
+        b = Batch(settings.BATCH_DIR)
+        print("categorizing particles")
+        pbin = b.ps.categorize_particles(b.lossmap)
+        print("plotting")
+        b.ps.plot_particles(pbin)
