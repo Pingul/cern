@@ -88,6 +88,7 @@ def compare_to_LHC_aggregate(ps, tm_lossmap):
         x_fit *= correction
 
     # Plotting lossmap fit
+    option_string = "(integ.)" if integration else ""
     fig, loss_ax = plt.subplots()
 
     loss_ax.plot(secs, x_fit,  color='green', label="least square fit", linestyle='--', zorder=6)
@@ -105,7 +106,7 @@ def compare_to_LHC_aggregate(ps, tm_lossmap):
     e_ax.set_ylabel("E (GeV)")
 
     loss_ax.set_xlim([-10, 40])
-    fig.suptitle("Aggregate vs 2d-synchrotron")
+    fig.suptitle("Aggregate vs 2d-synchrotron {}".format(option_string))
 
     # Plotting coefficients
     fig, ax = plt.subplots()
@@ -119,7 +120,7 @@ def compare_to_LHC_aggregate(ps, tm_lossmap):
     ax.text(index, max(coef)/2.0, "Separatrix", fontsize=10, 
             ha='center', va='center', rotation='vertical', color='r')
     
-    plt.title("Optimized action value coefficients")
+    plt.title("Optimized action value coefficients {}".format(option_string))
     plt.tight_layout()
 
     plt.show()
