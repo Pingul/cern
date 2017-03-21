@@ -17,27 +17,38 @@ from bisect import bisect_left
 
 from settings import *
 
-def compare_to_aggregate():
-    tm_lossmap = lm.get_lossmap(lm.COLL_FILE)
+def trailing_integration(sequence, N):
+    """ For each entry, integrate the N first entries.
+    """
 
-    # turns = range(min(tm_lossmap.keys()) - BLM_INT, max(tm_lossmap.keys()) + BLM_INT)
-    turns = range(min(tm_lossmap.keys()) - BLM_INT, int(16.5*11245.0))#max(tm_lossmap.keys()) + BLM_INT)
+    sums = np.convolve(sequence, np.ones((N,)))
+    return sums[:len(sequence)]
+
+def compare_to_LHC_aggregate(ps, tm_lossmap):
+    """ ps : PhaseSpace of starting distribution
+        tm_lossmap : lossmap of coll.dat
+    """
+    # tm_lossmap = lm.get_lossmap(settings.COLL_PATH)
+
+    turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, max(tm_lossmap.keys()) + settings.BLM_INT)
+    # turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, int(16.5*11245.0))#max(tm_lossmap.keys()) + BLM_INT)
     secs = np.array([turn/11245.0 for turn in turns])
     # ramp = np.array(lm.read_ramp(lm.RAMP_FILE, len(turns))['e'])/1.0e9
 
     losses = np.array([len(tm_lossmap[turn]) if turn in tm_lossmap else 0 for turn in turns])
-    synch_avg_losses = oml.moving_average(losses, BLM_INT)
+    synch_avg_losses = trailing_integration(losses, settings.BLM_INT)
 
     aggr_fill = oml.aggregate_fill(from_cache=True)
     secs = align(secs, synch_avg_losses, aggr_fill)
 
 
     # fitting y = coef*x
-    ps = PhaseSpace(lm.STARTDIST_FILE)
+    # ps = PhaseSpace(settings.STARTDIST_PATH)
     lossmaps, a_values = lm.separate_lossmap(tm_lossmap, ps)
     a_values = np.array(a_values)
-    a_values -= round(H_SEPARATRIX)
+    a_values -= round(settings.H_SEPARATRIX)
 
+    # prune H values
     prune = False
     if prune:
         H_threshold = -8000
@@ -45,56 +56,39 @@ def compare_to_aggregate():
         lossmaps = np.delete(lossmaps, to_delete)
         a_values = np.delete(a_values, to_delete)
 
+    # integrate the separated lossmaps before optimisation
+    integration = True
+
     x = []
     for lossmap in lossmaps:
         losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
-        # avg_loss = oml.moving_average(losses, BLM_INT)
-        avg_loss = losses
+        if integration:
+            avg_loss = oml.moving_average(losses, settings.BLM_INT)
+        else:
+            avg_loss = losses.astype(float)
         x.append(avg_loss)
 
+
+    
     # Note: we fit in log space
     xt = np.transpose(x)
     y = interpolate.interp1d(*aggr_fill.oml())(secs)
 
-    method = 4
-    if method == 1:
-        print("log:sklearn")
-        xt[xt<=0] = sys.float_info.min
-        xt = np.log(xt)
-        y = np.log(y)
-
-        clf = linear_model.LinearRegression()
-        clf.fit(xt, y)
-        coef = clf.coef_
-    elif method == 2:
-        print("log:nnls")
-        xt[xt<=0] = sys.float_info.min
-        xt = np.log(xt)
-        y = np.log(y)
-
-        coef = nnls(xt, y)[0]
-    elif method == 3:
-        print("log:numpy")
-        xt[xt<=0] = sys.float_info.min
-        xt = np.log(xt)
-        y = np.log(y)
-
-        coef = np.linalg.lstsq(xt, y)[0]
-    elif method == 4:
-        print("nnls")
-        coef = nnls(xt, y)[0]
+    coef = nnls(xt, y)[0]
 
     print("coefficients")
     for i, c in enumerate(coef):
         print("\t{:>5} = {:<10.3f} (H = {})".format("a{}".format(i), c, a_values[i]))
     x_fit = np.sum(coef*xt, axis=1)
-    # x_fit = oml.moving_average(x_fit, BLM_INT)
 
-    if method <= 3:
-        x_fit = np.exp(x_fit)
-
+    if not integration:
+        x_fit = trailing_integration(x_fit, settings.BLM_INT)
+        x_fit = x_fit.reshape(len(x_fit), 1)
+        correction = nnls(x_fit, y)[0]
+        x_fit *= correction
 
     # Plotting lossmap fit
+    option_string = "(integ.)" if integration else ""
     fig, loss_ax = plt.subplots()
 
     loss_ax.plot(secs, x_fit,  color='green', label="least square fit", linestyle='--', zorder=6)
@@ -112,7 +106,7 @@ def compare_to_aggregate():
     e_ax.set_ylabel("E (GeV)")
 
     loss_ax.set_xlim([-10, 40])
-    fig.suptitle("Aggregate vs 2d-synchrotron")
+    fig.suptitle("Aggregate vs 2d-synchrotron {}".format(option_string))
 
     # Plotting coefficients
     fig, ax = plt.subplots()
@@ -126,7 +120,7 @@ def compare_to_aggregate():
     ax.text(index, max(coef)/2.0, "Separatrix", fontsize=10, 
             ha='center', va='center', rotation='vertical', color='r')
     
-    plt.title("Optimized action value coefficients")
+    plt.title("Optimized action value coefficients {}".format(option_string))
     plt.tight_layout()
 
     plt.show()
@@ -171,9 +165,9 @@ def optimize(secs, losses, aggr_fill):
                 temp_losses[r] -= 1
                 break
 
-        rstart = int(r - BLM_INT/2)
-        rend = int(r + BLM_INT/2)
-        temp_avg_loss[rstart:rend] -= 1.0/BLM_INT
+        rstart = int(r - settings.BLM_INT/2)
+        rend = int(r + settings.BLM_INT/2)
+        temp_avg_loss[rstart:rend] -= 1.0/settings.BLM_INT
 
         if np.sum(temp_avg_loss > oml_y) < lm_win:
             failed += 1
@@ -209,4 +203,7 @@ def regenerate_lossmap(opt_losses, lossmap):
     return reduced_lossmap
 
 
-compare_to_aggregate()
+if __name__ == "__main__":
+    ps = PhaseSpace(settings.STARTDIST_PATH)
+    lossmap = lm.get_lossmap(settings.COLL_PATH)
+    compare_to_LHC_aggregate(ps, lossmap)

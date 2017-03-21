@@ -15,7 +15,7 @@ from settings import *
 
 def plot_energy_oscillations():
     nbr_turns = 500*11245
-    ramp = read_ramp(RAMP_FILE, nbr_turns)
+    ramp = read_ramp(settings.RAMP_PATH, nbr_turns)
     turns = np.array(range(nbr_turns))
 
     fig = plt.figure()
@@ -46,12 +46,12 @@ def plot_energy_oscillations():
 
 def plot_hamiltonian_evolution(ps): # input phase space containing ps.h
     """ ps : PhaseSpace
-            Should be time dependent (e.g. 'ps = PhaseSpace(PARTICLE_FILE)')
+            Should be time dependent (e.g. 'ps = PhaseSpace(settings.PARTICLE_PATH)')
     """
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    lossmap = get_lossmap(COLL_FILE)
+    lossmap = get_lossmap(settings.COLL_PATH)
     pbin = ps.categorize_particles(lossmap)
     series = {}
     for key in pbin: # 'alive'/'lost'
@@ -112,7 +112,7 @@ def plot_hamiltonian_lost_dist(ps, lm, time=16.5):
 
 
 def plot_lost():
-    # lossmap = get_lossmap(COLL_FILE, ["id"])
+    # lossmap = get_lossmap(settings.COLL_PATH, ["id"])
     df = pd.read_csv("calc/lost.dat", names=["id", "turn_lost", "coll_hit", "delta"])
     fig, ax = plt.subplots()
     ax.scatter(df["turn_lost"], df["delta"], s=4, color="b", label="travel time to collimator")
@@ -158,22 +158,22 @@ if __name__ == "__main__":
     ACTION = argv[1]
     if ACTION == "animate":
         print("animate trajectory")
-        ps = PhaseSpace(PARTICLE_FILE)
-        ps.animate(get_lossmap(COLL_FILE), save_to=SAVE_FILE)
+        ps = PhaseSpace(settings.PARTICLE_PATH)
+        ps.animate(get_lossmap(settings.COLL_PATH), save_to=SAVE_FILE)
     if ACTION == "animate-full":
         print("animating trajectory and background")
         output = "calc/animate-full.mp4"
         print("will save movie to '{}'".format(output))
-        ps = PhaseSpace(PARTICLE_FILE)
-        ps.animate(get_lossmap(COLL_FILE), output, animateBackground=True)
+        ps = PhaseSpace(settings.PARTICLE_PATH)
+        ps.animate(get_lossmap(settings.COLL_PATH), output, animateBackground=True)
     elif ACTION == "lossmap" or ACTION == "lossmap-analysis":
         print("plot lossmap")
-        lossmap = get_lossmap(COLL_FILE)
+        lossmap = get_lossmap(settings.COLL_PATH)
         plot_lossmap([lossmap], SAVE_FILE)
     elif ACTION == "separated-lossmap":
         print("plot one series for each action value of the lossmap")
-        ps = PhaseSpace(STARTDIST_FILE)
-        lossmap = get_lossmap(COLL_FILE)
+        ps = PhaseSpace(settings.STARTDIST_PATH)
+        lossmap = get_lossmap(settings.COLL_PATH)
         lossmaps, labels = separate_lossmap(lossmap, ps)
         plot_lossmap(lossmaps, labels)
     elif ACTION == "energy":
@@ -182,8 +182,8 @@ if __name__ == "__main__":
     elif ACTION == "startdist":
         print("plot start distribution")
         losses_from_sec = float(argv[2]) if len(argv) > 2 else 0.0
-        ps = PhaseSpace(STARTDIST_FILE)
-        lossmap = get_lossmap(COLL_FILE)
+        ps = PhaseSpace(settings.STARTDIST_PATH)
+        lossmap = get_lossmap(settings.COLL_PATH)
         pbin = ps.categorize_particles(lossmap, losses_from_sec)
         ps.plot_particles(pbin)
     elif ACTION == "dist":
@@ -205,7 +205,7 @@ if __name__ == "__main__":
         phasespace_evolution()
     elif ACTION == "trajectory":
         print("plot particle trajectory")
-        ps = PhaseSpace(PARTICLE_FILE)
+        ps = PhaseSpace(settings.PARTICLE_PATH)
         ps.create_plot()
         ps.format_axes()
         ps.plot_background_lines()
@@ -213,19 +213,19 @@ if __name__ == "__main__":
         plt.show()
     elif ACTION == "ham":
         print("plot hamiltonian")
-        ps = PhaseSpace(PARTICLE_FILE)
+        ps = PhaseSpace(settings.PARTICLE_PATH)
         plot_hamiltonian_evolution(ps)
     elif ACTION == "ham-lostdist":
         print("ploting hamiltonian lost distribution")
-        ps = PhaseSpace(STARTDIST_FILE)
-        lm = get_lossmap(COLL_FILE)
+        ps = PhaseSpace(settings.STARTDIST_PATH)
+        lm = get_lossmap(settings.COLL_PATH)
         plot_hamiltonian_lost_dist(ps, lm, 16.5)
     elif ACTION == "lost":
         print("lost plot")
         plot_lost()
     elif ACTION == "derivative":
         print("derivative plot")
-        ps = PhaseSpace(PARTICLE_FILE)
+        ps = PhaseSpace(settings.PARTICLE_PATH)
 
         print("turns:", ps.nbr_turns, "particles:", ps.nbr_p)
         x = range(ps.nbr_turns)
@@ -246,7 +246,7 @@ if __name__ == "__main__":
         plt.show()
     elif ACTION == "action-dist":
         print("plot action distribution")
-        input_file = STARTDIST_FILE
+        input_file = settings.STARTDIST_PATH
         if len(argv) == 3: input_file = argv[2]
         ps = PhaseSpace(input_file)
         

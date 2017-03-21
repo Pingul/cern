@@ -20,7 +20,34 @@ class PhaseSpace:
         Thus, there is some mish-mash of functions below
     """
 
-    def __init__(self, pfile, rfile=None):
+    @classmethod
+    def merge_two(clss, ps1, ps2):
+        """ ONLY WORKS FOR SINGLE DISTRIBUTIONS RIGHT NOW """
+        if ps1 == None:
+            return ps2
+        elif ps2 == None:
+            return ps1
+        elif not ps1.nbr_turns == ps2.nbr_turns:
+            raise Exception("both PhaseSpaces needs to have the same amount of turns")
+
+        ps_merge = PhaseSpace(None)
+        ps_merge.nbr_p = ps1.nbr_p + ps2.nbr_p
+        ps_merge.nbr_turns = ps1.nbr_turns
+
+
+
+        attributes = ['denergy', 'phase', 'h']
+        for attr in attributes:
+            a1 = getattr(ps1, attr)
+            a2 = getattr(ps2, attr)
+            setattr(ps_merge, attr, np.concatenate((a1, a2)))
+            # a1 = getattr(ps1, attr).reshape(ps1.nbr_p, ps1.nbr_turns)
+            # a2 = getattr(ps2, attr).reshape(ps2.nbr_p, ps2.nbr_turns)
+            # setattr(ps_merge, attr, np.hstack((a1, a2)).reshape(ps_merge.nbr_p*ps_merge.nbr_turns))
+
+        return ps_merge
+
+    def __init__(self, pfile, mute=False):
         self.nbr_p = 0
         self.nbr_turns = 0
         self.denergy = np.array([])
@@ -29,7 +56,7 @@ class PhaseSpace:
 
 
         if pfile:
-            print("reading in particles from '{}'".format(pfile))
+            if not mute: print("reading in particles from '{}'".format(pfile))
             with open(pfile, 'r') as file:
                 self.nbr_p , self.nbr_turns = map(int, file.readline().strip().split(','))
                 self.denergy = np.empty(self.nbr_p*self.nbr_turns)
@@ -79,26 +106,26 @@ class PhaseSpace:
                 self.background_lines.append(line)
 
     def plot_background_lines(self):
-        self.plot_trajectory(LINE_FILE)
+        self.plot_trajectory(settings.LINE_PATH)
 
     def plot_collimators(self):
         print("plot collimators")
         try:
-            with open(COLL_FILE, 'r') as f:
+            with open(settings.COLL_PATH, 'r') as f:
                 f.readline()
                 second_line = f.readline()
                 top_coll, bot_coll = map(float, second_line.rstrip().split(','))
                 self.collimator = {'top' : top_coll, 'bot' : bot_coll}
         except:
-            print("could not read '{}', will not plot".format(COLL_FILE))
+            print("could not read '{}', will not plot".format(settings.COLL_PATH))
         else:
             # self.coll_hits = get_lossmap(COLL_FILE)
-            self.ax.axhspan(PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
-            self.ax.axhspan(self.collimator['top'], PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
+            self.ax.axhspan(settings.PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
+            self.ax.axhspan(self.collimator['top'], settings.PLOT_FRAME['y'][1], facecolor='red', alpha=0.1)
 
     def format_axes(self):
-        self.ax.set_xlim(PLOT_FRAME['x'])
-        self.ax.set_ylim(PLOT_FRAME['y'])
+        self.ax.set_xlim(settings.PLOT_FRAME['x'])
+        self.ax.set_ylim(settings.PLOT_FRAME['y'])
         self.ax.set_xlabel("Phase (radians)")
         self.ax.set_ylabel("∆E (GeV)")
         self.ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:g}".format(x/1e9)))
@@ -110,12 +137,18 @@ class PhaseSpace:
         pbin = {'lost' : [], 'discarded' : []}
         for turn in lossmap:
             if turn >= 11245.0*sec:
-                pbin['lost'] += [loss for loss in lossmap[turn] if loss < self.nbr_p]
+                pbin['lost'] += lossmap[turn]
             else:
-                pbin['discarded'] += [loss for loss in lossmap[turn] if loss < self.nbr_p]
-        pbin['lost'].sort()
-        pbin['discarded'].sort()
-        pbin['alive'] = [i for i in range(self.nbr_p) if i not in pbin['lost'] and i not in pbin['discarded']]
+                pbin['discarded'] += lossmap[turn]
+        pbin['lost'] = np.array(sorted(pbin['lost']))
+        pbin['discarded'] = np.array(sorted(pbin['discarded']))
+
+        all_lost = np.concatenate((pbin['lost'], pbin['discarded']))
+        all_p = np.arange(0, self.nbr_p, 1)
+
+        pbin['alive'] = all_p[np.where(np.invert(np.in1d(all_p, all_lost)))]
+        # The above is a _much_ quicker version of the (more readable) version below:
+        # pbin['alive'] = [i for i in range(self.nbr_p) if i not in pbin['lost'] and i not in pbin['discarded']]
         return pbin
 
     def plot_particles(self, pbin=None):

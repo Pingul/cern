@@ -6,29 +6,41 @@ import numpy as np
 from scipy import stats
 from settings import *
 
-def get_lossmap(collfile):
-    """ Returns data as
-        lossmap = { turn : [particles_lost] }
-    """
 
-    print("creating lossmap")
+def hits_from_collfile(collfile, pid_offset=0, mute=False):
     hits = []
     with open(collfile, 'r') as f:
-        print("reading collimation file '{}'".format(collfile))
+        if not mute: print("reading collimation file '{}'".format(collfile))
         for i, line in enumerate(f):
-            if i < 2: 
-                continue
+            if i < 2: continue
             line_c = line.rstrip().split(',')
             pid, turn = map(int, line_c[0:2])
-            hits.append([turn, pid])
+            hits.append((turn, pid+pid_offset))
+    return hits
 
+def lossmap_from_hits(hits):
     hits.sort(key=lambda x: x[0])
     coll_hits = {} 
     for hit in hits:
         turn, pid = hit
         try: coll_hits[turn].append(pid)
         except: coll_hits[turn] = [pid]
+
+    # converting to numpy arrays
+    # for turn in coll_hits:
+        # coll_hits[turn] = np.array(coll_hits[turn])
+
     return coll_hits
+
+
+def get_lossmap(collfile):
+    """ Returns data as
+        lossmap = { turn : [particles_lost] }
+    """
+
+    print("creating lossmap")
+    hits = hits_from_collfile(collfile)
+    return lossmap_from_hits(hits)
 
 def separate_lossmap(lossmap, phasespace):
     """ Separate the lossmap on the action values. The function will bin particles into 'bins' size 
@@ -88,8 +100,7 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
         loss_ax.legend(loc='upper right')
 
     # # RAMP
-    ramp = np.array(read_ramp(RAMP_FILE, len(turns))['e'])
-    ramp = np.gradient(ramp)
+    ramp = np.array(read_ramp(settings.RAMP_PATH, len(turns))['e'])
     e_ax = loss_ax.twinx()
     e_ax.plot(turns, ramp, color='gray', zorder=0, label='LHC energy ramp')
     e_ax.set_axis_off()
