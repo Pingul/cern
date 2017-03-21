@@ -21,11 +21,11 @@ ifeq ($(UNAME), Darwin)
 	CPLUS_FLAGS += -std=c++11 -stdlib=libc++ 
 endif
 
-all: main
+all: 2dsynch
 
-main: main.cc 2d-synchrotron.hh ../common/timer.cc
-	$(CC) $(CPLUS_FLAGS) -o main $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) main.cc ../common/timer.cc
+2dsynch: main.cc 2d-synchrotron.hh ../common/timer.cc
+	$(CC) $(CPLUS_FLAGS) -o 2dsynch $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) main.cc ../common/timer.cc
 
 clean :
-	rm -f main
+	rm -f 2dsynch
 
