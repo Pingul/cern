@@ -316,8 +316,8 @@ struct ToyModel
     // These are all different distributions to choose from
     struct AroundSeparatrix {};
     struct ActionValues {};
-    struct LinearlyDecaying {};
-    struct ExponentiallyDecaying {};
+    struct LinearDecay {};
+    struct ExponentialDecay {};
     
     struct SixTrackTest {};
 
@@ -377,11 +377,11 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(int n, RAMP_TYPE type, LinearlyDecaying)
-        :    mAcc(Acc::getLHC()), mType(type)
+    ToyModel(int n, RAMP_TYPE type, LinearDecay)
+        : mAcc(Acc::getLHC()), mType(type)
     {
+        initStorage(n);
         const T sep = separatrix(mAcc);
-
         std::random_device rdev;
         std::mt19937 generator(rdev());
 
@@ -398,6 +398,31 @@ struct ToyModel
             const T phase = uni_dist(generator);
             const T sign = uni_dist(generator) < cnst::pi ? 1.0 : -1.0;
             const T action = H_dist(generator);
+            const T energy = levelCurve(mAcc, phase, action, sign);
+            if (std::isnan(energy)) { --i; continue; }
+            mEnergy.push_back(energy);
+            mPhase.push_back(phase);
+        }
+        std::cout << "Initialized " << size() << " particles" << std::endl;
+        writeSingleDistribution(STARTDIST_FILE);
+    }
+
+    ToyModel(int n, RAMP_TYPE type, ExponentialDecay)
+        : mAcc(Acc::getLHC()), mType(type)
+    {
+        initStorage(n);
+
+        std::random_device rdev;
+        std::mt19937 generator(rdev());
+
+        std::exponential_distribution<> H_dist(0.0003);
+        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
+
+        const T H_low = separatrix(mAcc) - 15000;
+        for (int i = 0; i < n; ++i) {
+            const T phase = uni_dist(generator);
+            const T sign = uni_dist(generator) < cnst::pi ? 1.0 : -1.0;
+            const T action = H_low + H_dist(generator);
             const T energy = levelCurve(mAcc, phase, action, sign);
             if (std::isnan(energy)) { --i; continue; }
             mEnergy.push_back(energy);

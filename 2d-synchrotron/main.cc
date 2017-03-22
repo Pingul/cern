@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
         tm.simulateTurns(224900, twodsynch::SIXTRACK_TEST_FILE);
     } else if (args[1] == "startdist") {
         std::cout << "Start distribution" << std::endl;
-        ToyModel lossmodel(100000, type, ToyModel::LinearlyDecaying());
+        ToyModel lossmodel(100000, type, ToyModel::ExponentialDecay());
     } else if (args[1] == "phasespace") {
         writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
     } else if (args[1] == "phasespace-mov") {
