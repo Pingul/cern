@@ -1,12 +1,8 @@
 #!/bin/bash
 
-LocalPWD=`pwd`
-LocalMachine="lxplus.cern.ch"
-LocalUser="swretbor"
-
 toymodel="/afs/cern.ch/user/s/swretbor/test/cern/2d-synchrotron"
 resources="$toymodel/resources"
-toymodelBin="$toymodel/main"
+toymodelBin="$PWD/2dsynch"
 
 # No spaces inbetween file names
 input_files="$resources/LHC_ramp.dat,$resources/motor_tcp.txt"
@@ -37,6 +33,5 @@ EOF
     # -sp : set priority, between 1 and 100
     # -R "rusage[pool=30000]" : allocate 30 GB hard drive space
     bsub -q 2nd -sp 100 -R "rusage[pool=500]" ${spamString} 2dsynch_$j.job
-    sleep 0.3
     cd ..
 done
