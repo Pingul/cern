@@ -30,7 +30,7 @@ else
     echo " --- Caching data in '$cache'." | tee -a $stdout
 
     mkdir $cache
-    ./main $action $arg | tee -a $stdout
+    ./2dsynch $action $arg | tee -a $stdout
     cp $resultdir/* $cache
     echo " --- Plotting...  " | tee -a $stdout
     python3.5 -u plot.py $action $arg | tee -a $stdout

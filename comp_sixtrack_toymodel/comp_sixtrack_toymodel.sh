@@ -33,7 +33,7 @@ echo "--- ToyModel: path '$tm_dir'"
 echo "--- Running simulation"
 cd $tm_dir
 make
-./main sixtrack-comp $denergy
+./2dsynch sixtrack-comp $denergy
 echo "--- Copy back data"
 mv calc/toymodel_track.dat $comp_dir
 cd $comp_dir
