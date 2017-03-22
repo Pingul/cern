@@ -166,7 +166,7 @@ if __name__ == "__main__":
         print("will save movie to '{}'".format(output))
         ps = PhaseSpace(settings.PARTICLE_PATH)
         ps.animate(get_lossmap(settings.COLL_PATH), output, animateBackground=True)
-    elif ACTION == "lossmap" or ACTION == "lossmap-analysis":
+    elif ACTION == "lossmap":
         print("plot lossmap")
         lossmap = get_lossmap(settings.COLL_PATH)
         plot_lossmap([lossmap], SAVE_FILE)
@@ -211,7 +211,7 @@ if __name__ == "__main__":
         ps.plot_background_lines()
         ps.plot_trajectory(randomizeColors=True)
         plt.show()
-    elif ACTION == "ham":
+    elif ACTION == "ham-evolution":
         print("plot hamiltonian")
         ps = PhaseSpace(settings.PARTICLE_PATH)
         plot_hamiltonian_evolution(ps)
@@ -223,28 +223,7 @@ if __name__ == "__main__":
     elif ACTION == "lost":
         print("lost plot")
         plot_lost()
-    elif ACTION == "derivative":
-        print("derivative plot")
-        ps = PhaseSpace(settings.PARTICLE_PATH)
-
-        print("turns:", ps.nbr_turns, "particles:", ps.nbr_p)
-        x = range(ps.nbr_turns)
-
-        fig, ax = plt.subplots()
-        color_list = plt.cm.Set3(np.linspace(0, 1, ps.nbr_p))
-        for i in range(ps.nbr_p):
-            rng = range(i, ps.nbr_p*ps.nbr_turns, ps.nbr_p)
-            e = [ps.denergy[i] for i in rng]
-            ph = [ps.phase[i] for i in rng]
-            deriv = np.gradient(e)/np.gradient(ph)
-            ax.plot(x, deriv, color=color_list[i], label="{:.2f}:{:.2f}".format(ps.phase[i], ps.denergy[i]/1.0e9))
-
-        # ax.legend(loc='upper right')
-        ax.set_xlabel("Frame")
-        ax.set_ylabel("dE/dφ (eV/rad)")
-        plt.title("Particle derivative")
-        plt.show()
-    elif ACTION == "action-dist":
+    elif ACTION == "ham-dist":
         print("plot action distribution")
         input_file = settings.STARTDIST_PATH
         if len(argv) == 3: input_file = argv[2]
@@ -252,10 +231,12 @@ if __name__ == "__main__":
         
 
         fig, ax = plt.subplots()
-        hmax = max(ps.h)
-        hmin = min(ps.h)
-        bins = np.arange(hmin, hmax, 10.0)
-        ax.hist(np.array(ps.h, dtype=np.int), bins=bins, edgecolor='white')
+        h_val = np.array(ps.h - settings.H_SEPARATRIX, dtype=int)
+        hmax = max(h_val)
+        hmin = min(h_val)
+        bin_size = 250
+        bins = np.arange(hmin - hmin%bin_size, hmax, bin_size)
+        ax.hist(h_val, bins=bins, edgecolor='white')
         ax.set_title("Action value H starting distribution")
         ax.set_xlabel("∆H")
         ax.set_ylabel("#")
