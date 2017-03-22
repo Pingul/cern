@@ -313,12 +313,15 @@ struct ToyModel
 
 
     // For parameter passing in the next constructors
-    struct LossAnalysis {};
-    struct LossAnalysisAction {};
-    struct LossAnalysisAction2 {};
+    // These are all different distributions to choose from
+    struct AroundSeparatrix {};
+    struct ActionValues {};
+    struct LinearlyDecaying {};
+    struct ExponentiallyDecaying {};
+    
     struct SixTrackTest {};
 
-    ToyModel(int n, RAMP_TYPE type, LossAnalysis)
+    ToyModel(int n, RAMP_TYPE type, AroundSeparatrix)
         : mAcc(Acc::getLHC()), mType(type)
     {
         initStorage(n);
@@ -343,16 +346,16 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(RAMP_TYPE type, LossAnalysisAction)
+    ToyModel(int N, RAMP_TYPE type, ActionValues)
         : mAcc(Acc::getLHC()), mType(type)
     {
-        const int n = 5;
         const T sep = separatrix(mAcc);
         //std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
         std::vector<T> d_actions;
         for (int i = 1; i <= 80; ++i) {
             d_actions.push_back(T(-8000 + 100*i));
         }
+        const int n = N/(2*d_actions.size());
         initStorage(2*n*d_actions.size());
 
         std::random_device rdev;
@@ -370,23 +373,36 @@ struct ToyModel
                 }
             }
         }
-        std::cout << "Initialized " << size() << " particles" << std::endl;
+        std::cout << "Tried to create " << N << " particles, only initialized " << size() << std::endl;
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(RAMP_TYPE type, LossAnalysisAction2)
-        : mAcc(Acc::getLHC()), mType(type)
+    ToyModel(int n, RAMP_TYPE type, LinearlyDecaying)
+        :    mAcc(Acc::getLHC()), mType(type)
     {
-        const int n = 10;
-        initStorage(n);
-        const T ph = T(1)*cnst::pi;
         const T sep = separatrix(mAcc);
-        for (int i = 0; i < n; ++i) {
-            const T de = levelCurve(mAcc, ph, sep - 100*T(i));
-            mPhase.push_back(ph);
-            mEnergy.push_back(de);
-        }
 
+        std::random_device rdev;
+        std::mt19937 generator(rdev());
+
+        // Distribution as (relative to separatrix)
+        //  -15k        -10k          5k
+        //    | constant  | linear dec.|
+        std::vector<T> Hs{sep - 15e3, sep - 10e3, sep + 5e3};
+        std::vector<T> prob{1.0, 1.0, 0.0};
+        std::piecewise_linear_distribution<> H_dist(Hs.begin(), Hs.end(), prob.begin());
+
+        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
+
+        for (int i = 0; i < n; ++i) {
+            const T phase = uni_dist(generator);
+            const T sign = uni_dist(generator) < cnst::pi ? 1.0 : -1.0;
+            const T action = H_dist(generator);
+            const T energy = levelCurve(mAcc, phase, action, sign);
+            if (std::isnan(energy)) { --i; continue; }
+            mEnergy.push_back(energy);
+            mPhase.push_back(phase);
+        }
         std::cout << "Initialized " << size() << " particles" << std::endl;
         writeSingleDistribution(STARTDIST_FILE);
     }
@@ -405,7 +421,6 @@ struct ToyModel
     {
         mEnergy.push_back(energy);
         mPhase.push_back(cnst::pi);
-        // mPhase.push_back(0);
     }
 
     void initStorage(int n)

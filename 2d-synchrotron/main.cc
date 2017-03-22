@@ -21,14 +21,14 @@ int main(int argc, char* argv[])
         std::cout << "Not enough arguments specified" << std::endl;
     } else if (args[1] == "animate") {
         std::cout << "Short animation" << std::endl;
-        //ToyModel tm(10, type, ToyModel::LossAnalysis());
-        ToyModel tm(type, ToyModel::LossAnalysisAction2());
+        //ToyModel tm(10, type, ToyModel::AroundSeparatrix());
+        ToyModel tm(500, type, ToyModel::AroundSeparatrix());
         tm.simulateTurns(1000, twodsynch::PATH_FILE, 1);
         tm.writeCollHits(twodsynch::COLL_FILE);
         writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
     } else if (args[1] == "animate-long") {
         std::cout << "Long animation" << std::endl;
-        ToyModel tm(500, type, ToyModel::LossAnalysis());
+        ToyModel tm(500, type, ToyModel::AroundSeparatrix());
         //tm.simulateTurns(5000, twodsynch::PATH_FILE, 10);
         tm.simulateTurns(300*11245, twodsynch::PATH_FILE, 11245);
         tm.writeCollHits(twodsynch::COLL_FILE);
@@ -37,19 +37,13 @@ int main(int argc, char* argv[])
         // In most cases unnecessary if the background lines has already been generated once
         int seconds = 300;
         std::cout << "Full animation for " << seconds << " s" << std::endl;
-        ToyModel tm(500, type, ToyModel::LossAnalysis());
+        ToyModel tm(500, type, ToyModel::AroundSeparatrix());
         tm.simulateTurns(11245, twodsynch::PATH_FILE, 11245);
         tm.writeCollHits(twodsynch::COLL_FILE);
         twodsynch::generatePhasespaceLines(seconds);
-    } else if (args[1] == "energy") {
-        std::cout << "Simulating 1 particle" << std::endl;
-        ToyModel tm(1, type);
-        tm.simulateTurns(40000, twodsynch::PATH_FILE);
-        tm.writeCollHits(twodsynch::COLL_FILE);
-    } else if (args[1] == "lossmap-analysis" || args[1] == "lossmap") {
+    } else if (args[1] == "lossmap") {
         std::cout << "Loss pattern analysis" << std::endl;
-        ToyModel lossmodel(type, ToyModel::LossAnalysisAction());
-        //ToyModel lossmodel(500, type, ToyModel::LossAnalysis());
+        ToyModel lossmodel(1000, type, ToyModel::ActionValues());
         lossmodel.runLossmap(50);
     } else if (args[1] == "sixtrack-comp") {
         std::cout << "Sixtrack comparison" << std::endl;
@@ -61,8 +55,7 @@ int main(int argc, char* argv[])
         tm.simulateTurns(224900, twodsynch::SIXTRACK_TEST_FILE);
     } else if (args[1] == "startdist") {
         std::cout << "Start distribution" << std::endl;
-        ToyModel lossmodel(type, ToyModel::LossAnalysisAction());
-        //ToyModel tm(2000, type, ToyModel::LossAnalysis());
+        ToyModel lossmodel(100000, type, ToyModel::LinearlyDecaying());
     } else if (args[1] == "phasespace") {
         writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
     } else if (args[1] == "phasespace-mov") {
@@ -77,7 +70,7 @@ int main(int argc, char* argv[])
             //tm.simulateTurns(20*11245, twodsynch::PATH_FILE, 4);
         }
     } else if (args[1] == "lost") {
-        ToyModel tm(1000, type, ToyModel::LossAnalysis());
+        ToyModel tm(1000, type, ToyModel::AroundSeparatrix());
         tm.simulateTurns(40*11245);
         tm.writeCollHits(twodsynch::COLL_FILE);
         tm.writeLostTurns("calc/lost.dat");
