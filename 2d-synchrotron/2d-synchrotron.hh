@@ -346,7 +346,7 @@ struct ToyModel
     ToyModel(RAMP_TYPE type, LossAnalysisAction)
         : mAcc(Acc::getLHC()), mType(type)
     {
-        const int n = 20;
+        const int n = 5;
         const T sep = separatrix(mAcc);
         //std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
         std::vector<T> d_actions;
@@ -400,10 +400,10 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(SixTrackTest)
+    ToyModel(SixTrackTest, T energy)
         : mAcc(Acc::getLHC()), mType(LHC_RAMP)
     {
-        mEnergy.push_back(T(0.41646726612503554e6));
+        mEnergy.push_back(energy);
         mPhase.push_back(cnst::pi);
         // mPhase.push_back(0);
     }

@@ -53,8 +53,12 @@ int main(int argc, char* argv[])
         lossmodel.runLossmap(50);
     } else if (args[1] == "sixtrack-comp") {
         std::cout << "Sixtrack comparison" << std::endl;
-        ToyModel tm( (ToyModel::SixTrackTest()) );
-        tm.simulateTurns(30000, twodsynch::SIXTRACK_TEST_FILE);
+        double energy = 0.0;
+        if (args.size() == 3)
+            energy = std::stod(args[2])*1e6;
+        std::cout << "∆E = " << std::setprecision(16) << energy << std::endl;
+        ToyModel tm(ToyModel::SixTrackTest(), energy );
+        tm.simulateTurns(224900, twodsynch::SIXTRACK_TEST_FILE);
     } else if (args[1] == "startdist") {
         std::cout << "Start distribution" << std::endl;
         ToyModel lossmodel(type, ToyModel::LossAnalysisAction());
@@ -106,6 +110,8 @@ int main(int argc, char* argv[])
             const double dde = twodsynch::levelCurve(acc, ph, H);
             std::cout << "H-1(" << ph << ", " << H << ") = " << dde << std::endl;
         }
+    } else if (args[1] == "f_rf") {
+        std::cout << std::setprecision(16) << twodsynch::Accelerator<double>::getLHC().f_rf << std::endl;
     } else {
         std::cout << "No action with name '" << args[1] << "' found" << std::endl;
     }

@@ -28,10 +28,17 @@ def compare_to_LHC_aggregate(ps, tm_lossmap):
     """ ps : PhaseSpace of starting distribution
         tm_lossmap : lossmap of coll.dat
     """
-    # tm_lossmap = lm.get_lossmap(settings.COLL_PATH)
 
-    turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, max(tm_lossmap.keys()) + settings.BLM_INT)
-    # turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, int(16.5*11245.0))#max(tm_lossmap.keys()) + BLM_INT)
+    prune = settings.PRUNE_TIMESCALE
+    integration = settings.TRAILING_INTEGRATION # integrate the separated lossmaps before optimisation
+
+    if prune:
+        print("pruning time scale")
+        turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, int(16.5*11245.0))#max(tm_lossmap.keys()) + BLM_INT)
+    else:
+        print("using full time scale")
+        turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, max(tm_lossmap.keys()) + settings.BLM_INT)
+
     secs = np.array([turn/11245.0 for turn in turns])
     # ramp = np.array(lm.read_ramp(lm.RAMP_FILE, len(turns))['e'])/1.0e9
 
@@ -49,15 +56,13 @@ def compare_to_LHC_aggregate(ps, tm_lossmap):
     a_values -= round(settings.H_SEPARATRIX)
 
     # prune H values
-    prune = False
-    if prune:
-        H_threshold = -8000
-        to_delete = np.where(a_values < H_threshold)
-        lossmaps = np.delete(lossmaps, to_delete)
-        a_values = np.delete(a_values, to_delete)
+    # if prune:
+        # print("pruning timescale")
+        # H_threshold = -8000
+        # to_delete = np.where(a_values < H_threshold)
+        # lossmaps = np.delete(lossmaps, to_delete)
+        # a_values = np.delete(a_values, to_delete)
 
-    # integrate the separated lossmaps before optimisation
-    integration = True
 
     x = []
     for lossmap in lossmaps:

@@ -7,10 +7,8 @@ from settings import *
 import os
 from sys import argv
 
-JOB_PRESTRING = "job"
-
 class Batch:
-    def __init__(self, path, forced=False):
+    def __init__(self, path, forced=settings.BATCH_FORCE_FETCH):
         self.path = path
         self.nbr_jobs = 0
         self.nbr_valid_jobs = 0
