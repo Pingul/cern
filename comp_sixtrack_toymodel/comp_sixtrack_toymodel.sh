@@ -1,7 +1,8 @@
 # Purpose to compare the Sixtrack results with the toy model. 
-# Needs a Sixtrack simulation with DEBUG in the DYNK module, and with DUMP sampling every turn.
 
-dr=$1
+#dr=$1
+denergy=$1
+dr="/Users/swretbor/Workspace/work_afs/sixtrack/simulations/2dsynch_comp/energy-$denergy"
 comp_dir=`pwd`
 
 echo "--- Current directory: '$comp_dir'"
@@ -32,7 +33,7 @@ echo "--- ToyModel: path '$tm_dir'"
 echo "--- Running simulation"
 cd $tm_dir
 make
-./main sixtrack-comp
+./main sixtrack-comp $denergy
 echo "--- Copy back data"
 mv calc/toymodel_track.dat $comp_dir
 cd $comp_dir

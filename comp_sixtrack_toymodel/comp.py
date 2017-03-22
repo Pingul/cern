@@ -50,12 +50,12 @@ def comp():
             energy = phase = 0
             while turn_it < turn:
                 line = f.readline()
+                if len(line) == 0: break
                 energy, phase, h = map(float, line.rstrip().split(','))
                 turn_it += 1
             toymodel.e.append(energy/1e6 + e_ramp[turn_it - 1])
             toymodel.de.append(energy/1e6)
             toymodel.z.append(phi_to_z(phase))
-
 
     nbr_p = len(e_ramp)
 
