@@ -6,6 +6,13 @@ import numpy as np
 from scipy import stats
 from settings import *
 
+def trailing_integration(sequence, N):
+    """ For each entry, integrate the N first entries.
+    """
+
+    sums = np.convolve(sequence, np.ones((N,)))
+    return sums[:len(sequence)]
+
 
 def hits_from_collfile(collfile, pid_offset=0, mute=False):
     hits = []
@@ -87,8 +94,8 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
     for i, lm in enumerate(lossmaps):
         # lm = lossmaps[action]
         losses = np.array([len(lm[turn]) if turn in lm else 0 for turn in turns])
-        # avg_loss = moving_average(losses, int(1.3*11245))
-        avg_loss = losses
+        avg_loss = trailing_integration(losses, int(1.3*11245))
+        # avg_loss = losses
         loss_ax.plot(turns, avg_loss, color=color_list[i], label=(labels[i] if len(labels) > i else ""), zorder=3, alpha=0.9)
     # loss_ax.set_ylabel("Losses (∆particles/1.3s)")
     loss_ax.set_ylabel("Losses (∆particles/turn)")
