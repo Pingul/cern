@@ -82,6 +82,20 @@ def plot_hamiltonian_evolution(ps): # input phase space containing ps.h
     ax.set_ylabel("Hamiltonian")
     plt.show()
 
+def plot_hamiltonian_dist_histogram(ps):
+    fig, ax = plt.subplots()
+    h_val = np.array(ps.h - settings.H_SEPARATRIX, dtype=int)
+    hmax = max(h_val)
+    hmin = min(h_val)
+    bin_size = 250
+    bins = np.arange(hmin - hmin%bin_size, hmax, bin_size)
+    ax.hist(h_val, bins=bins, edgecolor='white')
+    ax.set_title("Action value H starting distribution")
+    ax.set_xlabel("∆H")
+    ax.set_ylabel("#")
+    plt.show()
+
+
 def plot_hamiltonian_lost_dist(ps, lm, time=16.5):
     """ ps : PhaseSpace
             Should be the start distribution. 
@@ -123,12 +137,6 @@ def plot_lost():
     ax.set_ylabel("t (s)")
     ax.legend(loc="upper left")
     plt.show()
-
-def plot_distribution(file_path):
-    """ Plot the first frame of a given file. Will color particles depending if they eventually got lost or not """
-
-    ps = PhaseSpace(file_path)
-    ps.plot_particles()
 
 
 def phasespace_frame(num, ps):
@@ -189,7 +197,8 @@ if __name__ == "__main__":
     elif ACTION == "dist":
         print("plot dist")
         if not len(argv) > 2: raise Exception("need to give a file path to plot")
-        plot_distribution(argv[2])
+        ps = PhaseSpace(argv[2])
+        ps.plot_particles()
     elif ACTION == "phasespace":
         print("plot phase space")
         ps = PhaseSpace(pfile=None)
@@ -228,19 +237,6 @@ if __name__ == "__main__":
         input_file = settings.STARTDIST_PATH
         if len(argv) == 3: input_file = argv[2]
         ps = PhaseSpace(input_file)
-        
-
-        fig, ax = plt.subplots()
-        h_val = np.array(ps.h - settings.H_SEPARATRIX, dtype=int)
-        hmax = max(h_val)
-        hmin = min(h_val)
-        bin_size = 250
-        bins = np.arange(hmin - hmin%bin_size, hmax, bin_size)
-        ax.hist(h_val, bins=bins, edgecolor='white')
-        ax.set_title("Action value H starting distribution")
-        ax.set_xlabel("∆H")
-        ax.set_ylabel("#")
-        plt.show()
-        
+        plot_hamiltonian_dist_histogram(ps)
     else:
         print("unrecognised action")
