@@ -3,6 +3,7 @@ from phasespace import PhaseSpace
 from lhccomp import compare_to_LHC_aggregate
 from lossmap import *
 from settings import *
+from plot import plot_hamiltonian_dist_histogram
 
 import os
 from sys import argv
@@ -17,8 +18,8 @@ class Batch:
         self.hits = []
         self.lossmap = None
 
-        if settings.CACHE_BATCH:
-            cache_path = "{}/{}".format(settings.BATCH_DIR, settings.CACHE_BATCH_FILE)
+        if path:
+            cache_path = "{}/{}".format(path, settings.CACHE_BATCH_FILE)
             if not forced and os.path.exists(cache_path):
                 print("trying to read from cache")
                 self.load_cache(cache_path)
@@ -86,25 +87,29 @@ class Batch:
 
 if __name__ == "__main__":
     ACTION = argv[1]
+    BATCH_DIR = argv[2] if len(argv) > 2 else settings.BATCH_DIR
 
     if ACTION == "stats":
-        b = Batch(settings.BATCH_DIR)
+        b = Batch(BATCH_DIR)
         print("jobs: {}, {:.1f}% valid".format(b.nbr_jobs, 100*b.nbr_valid_jobs/b.nbr_jobs))
         if b.ps:
             nbr_lost = sum(map(len, b.lossmap.values()))
             print("{} particles, {:.1f}% lost".format(b.ps.nbr_p, 100*nbr_lost/b.ps.nbr_p))
     elif ACTION == "lossmap":
-        b = Batch(settings.BATCH_DIR)
+        b = Batch(BATCH_DIR)
         plot_lossmap([b.lossmap])
     elif ACTION == "separated-lossmap":
-        b = Batch(settings.BATCH_DIR)
+        b = Batch(BATCH_DIR)
         plot_lossmap(*separate_lossmap(b.lossmap, b.ps))
     elif ACTION == "compare":
-        b = Batch(settings.BATCH_DIR)
+        b = Batch(BATCH_DIR)
         compare_to_LHC_aggregate(b.ps, b.lossmap)
     elif ACTION == "startdist":
-        b = Batch(settings.BATCH_DIR)
+        b = Batch(BATCH_DIR)
         print("categorizing particles")
         pbin = b.ps.categorize_particles(b.lossmap)
         print("plotting")
         b.ps.plot_particles(pbin)
+    elif ACTION == "ham-dist":
+        b = Batch(BATCH_DIR)
+        plot_hamiltonian_dist_histogram(b.ps)
