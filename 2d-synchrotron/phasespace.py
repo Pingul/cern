@@ -22,7 +22,8 @@ class PhaseSpace:
 
     @classmethod
     def merge_two(clss, ps1, ps2):
-        """ ONLY WORKS FOR SINGLE DISTRIBUTIONS RIGHT NOW """
+        """ ONLY WORKS FOR SINGLE DISTRIBUTIONS RIGHT NOW 
+        """
         if ps1 == None:
             return ps2
         elif ps2 == None:
@@ -158,12 +159,18 @@ class PhaseSpace:
         self.format_axes()
         
         if pbin:
-            print("lost:", len(pbin['lost']), 'alive:', len(pbin['alive']))
+            print("\talive:", len(pbin['alive']))
+            print("\tlost:", len(pbin['lost']))
+            print("\tdiscarded:", len(pbin['discarded']))
+            print("\ttotal:", sum(map(len, pbin.values())))
             live_z = 10
             lost_z = 9 if len(pbin['lost']) > len(pbin['alive']) else 11
-            self.ax.scatter([self.phase[i] for i in pbin['alive']], [self.denergy[i] for i in pbin['alive']], color='b', s=2, zorder=live_z)
-            self.ax.scatter([self.phase[i] for i in pbin['lost']], [self.denergy[i] for i in pbin['lost']], color='r', s=2, zorder=lost_z)
-            self.ax.scatter([self.phase[i] for i in pbin['discarded']], [self.denergy[i] for i in pbin['discarded']], color='gray', s=2, zorder=5)
+            if len(pbin['alive']) > 0: self.ax.scatter(self.phase[pbin['alive']], self.denergy[pbin['alive']], color='b', s=2, zorder=live_z)
+            if len(pbin['lost']) > 0: self.ax.scatter(self.phase[pbin['lost']], self.denergy[pbin['lost']], color='r', s=2, zorder=lost_z)
+            if len(pbin['discarded']) > 0: self.ax.scatter(self.phase[pbin['discarded']], self.denergy[pbin['discarded']], color='gray', s=2, zorder=5)
+            # self.ax.scatter([self.phase[i] for i in pbin['alive']], [self.denergy[i] for i in pbin['alive']], color='b', s=2, zorder=live_z)
+            # self.ax.scatter([self.phase[i] for i in pbin['lost']], [self.denergy[i] for i in pbin['lost']], color='r', s=2, zorder=lost_z)
+            # self.ax.scatter([self.phase[i] for i in pbin['discarded']], [self.denergy[i] for i in pbin['discarded']], color='gray', s=2, zorder=5)
         else:
             self.ax.scatter(self.phase, self.denergy, color='magenta', s=4)
         plt.show()
