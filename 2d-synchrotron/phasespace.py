@@ -22,7 +22,9 @@ class PhaseSpace:
 
     @classmethod
     def merge_two(clss, ps1, ps2):
-        """ ONLY WORKS FOR SINGLE DISTRIBUTIONS RIGHT NOW 
+        """ ONLY WORKS FOR SINGLE DISTRIBUTIONS RIGHT NOW  (that is, two particles.dat files can't be merged)
+            
+            Can only merge two PhaseSpaces with the same number of turns.
         """
         if ps1 == None:
             return ps2
@@ -65,9 +67,9 @@ class PhaseSpace:
                 self.h = np.empty(self.nbr_p*self.nbr_turns)
                 for i, line in enumerate(file.readlines()):
                     denergy, phase, h = map(float, line.rstrip('\n').split(','))
-                    self.denergy[i - 1] = denergy
-                    self.phase[i - 1] = phase
-                    self.h[i - 1] = h
+                    self.denergy[i] = denergy
+                    self.phase[i] = phase
+                    self.h[i] = h
 
     def create_plot(self):
         self.fig, self.ax = plt.subplots()
