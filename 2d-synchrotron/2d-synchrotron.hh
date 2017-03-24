@@ -42,8 +42,9 @@ static constexpr const char* COLL_FILE = OUTPUT_DIR"/coll.dat";
 static constexpr const char* STARTDIST_FILE = OUTPUT_DIR"/startdist.dat";
 static constexpr const char* ENDDIST_FILE = OUTPUT_DIR"/enddist.dat";
 static constexpr const char* SIXTRACK_TEST_FILE = OUTPUT_DIR"/toymodel_track.dat";
-// static constexpr const char* RAMP_FILE = "resources/ramp.txt";
-static constexpr const char* RAMP_FILE = RESOURCE_DIR"/LHC_ramp.dat";
+// static constexpr const char* LHC_RAMP_FILE = "resources/ramp.txt";
+static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_ramp.dat";
+static constexpr const char* EXTERNAL_RAMP_FILE = "resources/40s_linear_ramp.dat";
 static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
 
 enum RAMP_TYPE
@@ -53,6 +54,7 @@ enum RAMP_TYPE
     EXTENDED_LHC_RAMP,
     SEMI_AGGRESSIVE_RAMP,
     AGGRESSIVE_RAMP,
+    EXTERNAL_RAMP,
 };
 
 template <typename T>
@@ -224,24 +226,28 @@ inline void writePhasespaceFrame(const Accelerator<T>& acc, std::string filePath
 }
 
 template <typename T>
-inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
+inline void readRampFile(int steps, std::string filePath, std::vector<T>& E_ramp)
 {
     using common::skip;
 
     E_ramp.reserve(steps);
-
     T data;
+    std::cout << "Reading '" << filePath << "'..." << std::endl;
+    std::ifstream ramp_file(filePath);
+    for (int i = 0; i < steps; ++i) {
+        ramp_file >> skip >> data;
+        E_ramp.push_back(data*1e6);
+    }
+}
+
+template <typename T>
+inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
+{
+    E_ramp.reserve(steps);
     switch (type) {
         default:
         case LHC_RAMP: {
-            std::ifstream ramp_file(RAMP_FILE);
-            std::cout << "Reading '" << RAMP_FILE << "'..." << std::endl;
-            for (int i = 0; i < steps; ++i) {
-                ramp_file >> skip >> data;
-                E_ramp.push_back(data*1e6);
-            }
-            ramp_file.close();
-
+            readRampFile(steps, LHC_RAMP_FILE, E_ramp);
             break;
         }
         case EXTENDED_LHC_RAMP: {
@@ -261,6 +267,9 @@ inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
             std::cout << "------------------------------" << std::endl;
             break;
         }
+        case EXTERNAL_RAMP: 
+            readRampFile(steps, EXTERNAL_RAMP_FILE, E_ramp);
+            break;
         case AGGRESSIVE_RAMP:
             for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*1e7);
             break;
@@ -386,7 +395,7 @@ struct ToyModel
         std::mt19937 generator(rdev());
 
         // Distribution as (relative to separatrix)
-        //  -15k        -10k          5k
+        //  -15k        -10k         +5k
         //    | constant  | linear dec.|
         std::vector<T> Hs{sep - 15e3, sep - 10e3, sep + 5e3};
         std::vector<T> prob{1.0, 1.0, 0.0};
