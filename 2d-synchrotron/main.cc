@@ -28,7 +28,6 @@ int main(int argc, char* argv[])
             tm.runLossmap(50);
 
     } else if (args[1].find("animate") == 0) {
-        
         ToyModel tm(500, type, ToyModel::AroundSeparatrix());
         if (args[1] == "animate") {
             tm.simulateTurns(1000, twodsynch::PATH_FILE, 1);
@@ -61,8 +60,6 @@ int main(int argc, char* argv[])
         else {
             ToyModel tm(args[2], type);
             tm.simulateTurns(600, twodsynch::PATH_FILE, 1);
-            //tm.runLossmap(20);
-            //tm.simulateTurns(20*11245, twodsynch::PATH_FILE, 4);
         }
 
     } else if (args[1] == "lost") {
@@ -71,32 +68,26 @@ int main(int argc, char* argv[])
         tm.writeCollHits(twodsynch::COLL_FILE);
         tm.writeLostTurns("calc/lost.dat");
     } else if (args[1] == "test") {
-        using twodsynch::cnst::pi;
-        using twodsynch::levelCurve;
-        using twodsynch::hamiltonian;
+        using namespace twodsynch;
 
-        auto acc = twodsynch::Accelerator<double>::getLHC();
+        auto acc = Accelerator<double>::getLHC();
         std::cout << acc.lag_phase() << std::endl;
-        //const double Hsep = -twodsynch::separatrix(acc);
         const double Hsep = 1e8;
         std::cout << "separatrix H = " << Hsep << std::endl;
-        for (double ph = 0; ph < 2.0*pi; ph += 0.2*pi) {
-            const double de = twodsynch::levelCurve(acc, ph, Hsep);
-            const double H = twodsynch::hamiltonian(acc, de, ph);
+        for (double ph = 0; ph < 2.0*cnst::pi; ph += 0.2*cnst::pi) {
+            const double de = levelCurve(acc, ph, Hsep);
+            const double H = hamiltonian(acc, de, ph);
             std::cout << "H(" << ph << ", " << de << ") = " << H << std::endl;
         }
     } else if (args[1] == "test2") {
-        using twodsynch::cnst::pi;
-        using twodsynch::levelCurve;
-        using twodsynch::hamiltonian;
+        using namespace twodsynch;
 
-
-        auto acc = twodsynch::Accelerator<double>::getLHC();
+        auto acc = Accelerator<double>::getLHC();
         const double de = -1.90986e+08;
         std::cout << "de = " << de << std::endl;
-        for (double ph = 0; ph < 2.0*pi; ph += 0.2*pi) {
-            const double H = twodsynch::hamiltonian(acc, de, ph);
-            const double dde = twodsynch::levelCurve(acc, ph, H);
+        for (double ph = 0; ph < 2.0*cnst::pi; ph += 0.2*cnst::pi) {
+            const double H = hamiltonian(acc, de, ph);
+            const double dde = levelCurve(acc, ph, H);
             std::cout << "H-1(" << ph << ", " << H << ") = " << dde << std::endl;
         }
     } else if (args[1] == "f_rf") {
