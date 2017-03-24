@@ -608,6 +608,8 @@ struct ToyModel
             readRamp<T>(n, E_ramp, mType);
             readCollimators<T>(n, ext_collimators, E_ramp);
             mAcc.setE(E_ramp[0], true);
+            mAcc.coll_bot = ext_collimators[0].first;
+            mAcc.coll_top = ext_collimators[0].second;
         }
 
         std::cout << "Tracking " << size() << " particles for " << n << " turns" << std::endl;
@@ -624,6 +626,7 @@ struct ToyModel
                 const T k = 2.9491187074838457087e-07;
                 mAcc.V_rf = (6 + k*i)*1e6;
 
+                // Comment out to remove motor motion
                 if (!ext_collimators.empty()) {
                     mAcc.coll_bot = ext_collimators[i].first;
                     mAcc.coll_top = ext_collimators[i].second;
