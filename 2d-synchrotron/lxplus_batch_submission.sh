@@ -2,11 +2,21 @@
 
 toymodel="/afs/cern.ch/user/s/swretbor/test/cern/2d-synchrotron"
 resources="$toymodel/resources"
-toymodelBin="$PWD/2dsynch"
 
+declare -a precopy_for_batch=(
+    "$resources/LHC_ramp.dat"
+    "$resources/motor_tcp.txt"
+    "$toymodel/2dsynch")
+# copy them over locally to the batch so we don't overload AFS
+for file in "${precopy_for_batch[@]}"
+do
+    cp "$file" .
+done
+
+toymodelBin="$PWD/2dsynch"
 # No spaces inbetween file names
-input_files="$resources/LHC_ramp.dat,$resources/motor_tcp.txt"
-copy_back="stdout.txt,startdist.dat,coll.dat"
+input_files="$PWD/LHC_ramp.dat,$PWD/motor_tcp.txt"
+copy_back="stdout.txt,startdist.dat,enddist.dat,coll.dat"
 
 jobs=500
 
