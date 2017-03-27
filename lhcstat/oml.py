@@ -12,9 +12,9 @@ from matplotlib.ticker import FuncFormatter
 from scipy import stats
 from scipy import interpolate
 
+
 def store_file_for_fill(fill_nbr):
-    return 'fills/fill_%s.dat' % str(fill_nbr)
-    # return 'test_fill/fill_%s.dat' % str(fill_nbr)
+    return os.path.join(os.path.dirname(__file__), 'fills/fill_{}.dat'.format(fill_nbr))
 
 def subset_indices(sequence, minv, maxv):
     low = bisect.bisect_left(sequence, minv)
@@ -32,7 +32,6 @@ def imax(data):
     """ Returns both the max and the index for the max value """
     i = max(range(len(data)), key = data.__getitem__)
     return (data[i], i)
-
 
 
 class Fill:
@@ -71,6 +70,11 @@ class Fill:
                 self.val = y
             else:
                 raise IndexError("not valid key '{}'".format(key))
+
+        def index_for_time(self, time):
+            """ Helper function: find the index in the variable corresponding to the given timestamp """
+            index = bisect.bisect_left(self.x, time)
+            return index
     #### class Variable
 
     variables = {
@@ -558,33 +562,30 @@ def find_spike(data): # data is normally BLM data from momentum collimators
     raise Exception("changed name to 'find_oml_spike' instead")
 
 def find_oml_spike(fill): 
+    data = fill.data['synch_coll_b1'].y
+    vpeak, ipeak = imax(data)
+    start = end = ipeak
+
+    ddata = np.abs(np.gradient(data))
+    threshold = 1e-7
     with open('fills/spikes.dat', 'rb') as f:
         spike_list = pickle.loads(f.read())
         if fill.nbr in spike_list:
             return spike_list[fill.nbr]
-
-    data = fill.data['synch_coll_b1'].y
-    ddata = np.abs(np.gradient(data))
-    threshold = 1e-7
-
-    vpeak, ipeak = imax(data)
-    start = end = ipeak
+    
     found_start = found_end = False
     while not found_start and start > 0:
         start -= 1
         # if ddata[start] < threshold and data[start] < vpeak/5e1:
         if ddata[start] < 1e-5:
             found_start = True
-
+    
     while not found_end and end < len(ddata) - 1:
         end += 1
         if ddata[end] < threshold and data[end] < vpeak/1e2:
             found_end = True
-
-    # if not found_start or not found_end:
-    #     raise Exception("could not find ({})spike")
-
-    return [start, end]
+    
+    return (start, end)
 
 
 def find_crossover_point(fill):
@@ -911,7 +912,7 @@ def fills_bar_graph(file):
         fill = Fill(nbr)
 
         crossover = find_crossover_point(fill)
-        if crossover['t'] < 40:
+        if crossover['t'] < 40: # why am I using this?
             oml = fill.data['synch_coll_b1']
             ispike = np.argmax(oml.y)
             tspike = oml.x[ispike]
@@ -1060,21 +1061,28 @@ def intensity_vs_OML(file):
 def abort_gap_vs_OML(file):
     fills = fills_from_file(file, "OML")
     abort_gap = []
-    mean_loss = []
+    average_loss = []
     max_loss = []
     for nbr in fills:
         fill = Fill(nbr, False)
         fill.fetch()
-        # smin, smax = find_spike(fill.data['synch_coll_b1'].y) 
         smin, smax = find_oml_spike(fill) 
+
+        # Only looking until t_co instead -- will not affect max
+        smax = find_crossover_point(fill)['i']
+
         tmax = fill.data['synch_coll_b1'].x[smax]
         tmin = fill.data['synch_coll_b1'].x[smin]
-        agmin, agmax = subset_indices(fill.data['abort_gap_int_b1'].x, tmin, tmax)
+
+        # tmax = find_crossover_point(fill)['t']
+
         ag_average = moving_average(fill.data['abort_gap_int_b1'].y, 5)
+        agmin = fill.data['abort_gap_int_b1'].index_for_time(tmin)
+        agmax = fill.data['abort_gap_int_b1'].index_for_time(tmax)
 
         ssubset = fill.data['synch_coll_b1'].y[smin:smax]
 
-        mean_loss.append(np.mean(ssubset))
+        average_loss.append(np.average(ssubset))
         max_loss.append(max(ssubset))
         abort_gap.append(ag_average[agmin] - ag_average[agmax])
 
@@ -1084,22 +1092,34 @@ def abort_gap_vs_OML(file):
     ax2 = fig.add_subplot(122, sharey=ax1) 
 
     # fig1, ax1 = plt.subplots()
-    ax1.set_xlabel("Mean momentum (IR3) TCP")
-    ax1.set_ylabel("Abort gap intensity")
-    ax1.scatter(mean_loss, abort_gap, color='b', label='mean')
-    ax1.set_xlim([0, 1.1*max(mean_loss)])
+    ax1.set_xlabel("Average BLM")
+    ax1.set_ylabel("∆ abort gap intensity")
+    ax1.scatter(average_loss, abort_gap, color='b', label='average')
+    ax1.set_xlim([0, 1.1*max(average_loss)])
     ax1.set_ylim([0, 1.1*max(abort_gap)])
+
+    xval = [0, 1]
+    slope, intercept, r_value, p_value, std_err = stats.linregress(average_loss, abort_gap)
+    print("Average fit")
+    print("\tk  ={:>10.3E}\n\tm  ={:>10.3E}\n\tr  ={:>10.7f}\n\tp  ={:>10.3E}\n\te^2={:>10.3E}".format(slope, intercept, r_value, p_value, std_err))
+    yfit = [slope*x + intercept for x in xval]
+    ax1.plot(xval, yfit, color='gray')
+
     ax1.legend(loc="lower right")
 
     # fig2, ax2 = plt.subplots()
-    ax2.set_xlabel("Max momentum (IR3) TCP")
-    ax2.set_ylabel("Abort gap intensity")
+    ax2.set_xlabel("Max BLM")
     ax2.scatter(max_loss, abort_gap, color='r', label='max')
     ax2.set_xlim([0, 1.1*max(max_loss)])
     ax2.legend(loc="lower right")
 
-    fig.suptitle("Abort gap intensity vs OML for {}\n".format(file))
+    slope, intercept, r_value, p_value, std_err = stats.linregress(max_loss, abort_gap)
+    print("Max fit")
+    print("\tk  ={:>10.3E}\n\tm  ={:>10.3E}\n\tr  ={:>10.7f}\n\tp  ={:>10.3E}\n\te^2={:>10.3E}".format(slope, intercept, r_value, p_value, std_err))
+    yfit = [slope*x + intercept for x in xval]
+    ax2.plot(xval, yfit, color='gray')
 
+    fig.suptitle("Correlation between abort gap intensity and BLM signal for TCP in IR3")
     plt.show()
     
 def abort_gap_vs_BLM(file):
