@@ -1,1 +1,29 @@
-{"CACHE_BATCH_FILE": "batch_cache.dat", "RESOURCE_DIR": "resources", "H_SEPARATRIX": 1909859.317103239, "PLOT_FRAME": {"x": [-0.314, 6.6], "y": [-400000000.0, 400000000.0]}, "STARTDIST_FILE": "startdist.dat", "ENDDIST_FILE": "enddist.dat", "DATA_DIR": "calc", "BATCH_JOB_PRESTRING": "job", "BATCH_DIR": "/Users/swretbor/Workspace/afs/2dsynch/8000-0sim", "F_RF": 400788731.3727857, "PARTICLE_FILE": "particles.dat", "COLL_FILE": "coll.dat", "CACHE_BATCH": true, "LINE_FILE": "lines.dat", "RAMP_FILE": "LHC_ramp.dat", "BLM_INT": 14618}
+{
+    "BATCH_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/H9100_steps50_250_p2500_integrated_ramp",
+    "BATCH_JOB_PRESTRING": "job",
+    "BLM_INT": 11245,
+    "CACHE_BATCH": true,
+    "CACHE_BATCH_FILE": "batch_cache.dat",
+    "COLL_FILE": "coll.dat",
+    "DATA_DIR": "calc",
+    "ENDDIST_FILE": "enddist.dat",
+    "F_RF": 400788731.3727857,
+    "H_SEPARATRIX": 1909859.317103239,
+    "LINE_FILE": "lines.dat",
+    "PARTICLE_FILE": "particles.dat",
+    "PLOT_FRAME": {
+        "x": [
+            -0.314,
+            6.6
+        ],
+        "y": [
+            -400000000.0,
+            400000000.0
+        ]
+    },
+    "PRUNE_TIMESCALE": false,
+    "RAMP_FILE": "LHC_ramp.dat",
+    "RESOURCE_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/linear_ramp/normal",
+    "STARTDIST_FILE": "startdist.dat",
+    "TRAILING_INTEGRATION": true
+}

@@ -57,7 +57,7 @@ class Settings(dict):
         s.__presave()
         print("writing settings to '{}'".format(SETTINGS_FILE))
         with open(SETTINGS_FILE, 'w') as f:
-            json.dump(s, f)
+            json.dump(s, f, indent=4, separators=(',', ': '), sort_keys=True)
     
     @classmethod
     def load(clss):
