@@ -449,7 +449,7 @@ def plot_from(file, status_string='*'):
                 break
 
 def edit_event(e, axvspan, fill, fill_list):
-    raise Exception("Has not been updated")
+    raise Exception("Has not been updated since refactoring")
     if e.key == "right":
         fill_list[fill.nbr][0] += 1
     if e.key == "left":
@@ -470,7 +470,7 @@ def edit_event(e, axvspan, fill, fill_list):
     
 
 def edit_spike_for_fills(file, status_string='OML'):
-    raise Exception("Has not been updated")
+    raise Exception("Has not been updated since refactoring")
     fills = fills_from_file(file, status_string)
     fill_list = {}
 
@@ -496,6 +496,7 @@ def edit_spike_for_fills(file, status_string='OML'):
 
 
 def intensity_and_OML_pruning(file_in, file_out):
+    raise Exception("Has not been updated since refactoring")
     fills = fills_from_file(file_in, "OML")
 
     open(file_out, 'w').close() # erasing file
