@@ -1,5 +1,5 @@
 {
-    "BATCH_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/H9100_steps50_250_p2500_integrated_ramp",
+    "BATCH_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/linear_decay_integ",
     "BATCH_JOB_PRESTRING": "job",
     "BLM_INT": 11245,
     "CACHE_BATCH": true,
@@ -11,7 +11,7 @@
     "H_SEPARATRIX": 1909859.317103239,
     "LINE_FILE": "lines.dat",
     "PARTICLE_FILE": "particles.dat",
-    "PLOT_FRAME": {
+    "_PLOT_FRAME": {
         "x": [
             -0.314,
             6.6
@@ -21,9 +21,20 @@
             400000000.0
         ]
     },
+
+    "PLOT_FRAME" : {
+        "x": [
+            -6.30,
+            12.60
+        ],
+        "y": [
+        -2000000000.0,
+        2000000000.0
+        ]
+    },
     "PRUNE_TIMESCALE": false,
     "RAMP_FILE": "LHC_ramp.dat",
     "RESOURCE_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/linear_ramp/normal",
     "STARTDIST_FILE": "startdist.dat",
-    "TRAILING_INTEGRATION": true
+    "TRAILING_INTEGRATION": false
 }

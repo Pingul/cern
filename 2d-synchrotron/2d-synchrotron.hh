@@ -309,8 +309,8 @@ struct ToyModel
         std::random_device rdev;
         std::mt19937 generator(rdev());
 
-        std::normal_distribution<> e_dist(0, 0.15e9);
-        std::normal_distribution<> ph_dist(cnst::pi, cnst::pi/5);
+        std::normal_distribution<> e_dist(0, 0.20e9);
+        std::normal_distribution<> ph_dist(cnst::pi, cnst::pi/4);
         for (size_t i = 0; i < n; ++i) {
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
@@ -346,7 +346,7 @@ struct ToyModel
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
-            if ((sep - 5000) < H && H < (sep + 2000)) {
+            if ((sep - 1e6) < H && H < (sep + 1e6)) {
                 mEnergy.push_back(deltaE); 
                 mPhase.push_back(phase); 
                 count++;
@@ -397,8 +397,8 @@ struct ToyModel
         // Distribution as (relative to separatrix)
         //  -15k        -10k         +5k
         //    | constant  | linear dec.|
-        std::vector<T> Hs{sep - 15e3, sep - 10e3, sep + 5e3};
-        std::vector<T> prob{1.0, 1.0, 0.0};
+        std::vector<T> Hs{sep - 15e3, sep - 10e3, sep + 5e3, sep + 2.7e7};
+        std::vector<T> prob{100.0, 100.0, 0.1, 0.1};
         std::piecewise_linear_distribution<> H_dist(Hs.begin(), Hs.end(), prob.begin());
 
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
