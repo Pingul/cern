@@ -174,9 +174,18 @@ struct ToyModel
         const T sep = separatrix(mAcc);
         //std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
         std::vector<T> d_actions;
-        for (int i = 1; i <= 80; ++i) {
-            d_actions.push_back(T(-8000 + 100*i));
+        
+        int levels = 80;
+        double maxdE = 1.9e9;
+        double de = maxdE/double(levels);
+        for (int i = 1; i <= levels; ++i) {
+            d_actions.push_back(hamiltonian(mAcc, de*double(i), cnst::pi));
         }
+
+        //for (int i = 1; i <= 80; ++i) {
+            //d_actions.push_back(T(-8000 + 100*i));
+        //}
+
         const int n = N/(2*d_actions.size());
         initStorage(2*n*d_actions.size());
 
