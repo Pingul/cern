@@ -3,7 +3,39 @@
 #include <string>
 #include <sstream>
 #include <tbb/task_scheduler_init.h>
+
 #include "2d-synchrotron.hh"
+#include "accelerator.hh"
+#include "settings.hh"
+#include "hamiltonian.hh"
+
+void generatePhasespaceLines(int seconds)
+{
+    using namespace twodsynch;
+
+    // will generate 1 per second
+    std::cout << "Generate phasespace lines" << std::endl;
+    auto acc = Accelerator<double>::getLHC();
+    int freq = int(acc.f_rev);
+    int turns = seconds*freq;
+
+    std::vector<double> E;
+    readRamp(turns, E, LHC_RAMP);
+
+    for (int i = 0; i < seconds; ++i) {
+        int turn = i*freq;
+        acc.setE(E[turn]);
+        acc.setE(E[turn + 1]);
+        
+        // Caluclated from LHC_ramp.dat
+        const double k = 2.9491187074838457087e-07;
+        acc.V_rf = (6 + k*turn)*1e6;
+        
+        std::stringstream ss;
+        ss << "phasespace/" << i << "lines.dat";
+        writePhasespaceFrame(acc, ss.str());
+    }
+}
 
 
 int main(int argc, char* argv[])
@@ -28,14 +60,15 @@ int main(int argc, char* argv[])
             tm.runLossmap(50);
 
     } else if (args[1].find("animate") == 0) {
-        ToyModel tm(500, type, ToyModel::AroundSeparatrix());
+        //ToyModel tm(500, type, ToyModel::AroundSeparatrix());
+        ToyModel tm(500, type);
         if (args[1] == "animate") {
-            tm.simulateTurns(1000, twodsynch::PATH_FILE, 1);
+            tm.simulateTurns(1000, twodsynch::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
             tm.simulateTurns(20*11245, twodsynch::PATH_FILE, 1000);
         } else if (args[1] == "animate-background") {
             tm.simulateTurns(300*11245, twodsynch::PATH_FILE, 11245);
-            twodsynch::generatePhasespaceLines(300);
+            generatePhasespaceLines(300);
         }
         tm.writeCollHits(twodsynch::COLL_FILE);
         writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
@@ -52,7 +85,7 @@ int main(int argc, char* argv[])
     } else if (args[1] == "phasespace") {
         writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
     } else if (args[1] == "phasespace-mov") {
-        twodsynch::generatePhasespaceLines(300);
+        generatePhasespaceLines(300);
 
     } else if (args[1] == "restart") {
         if (args.size() < 3)

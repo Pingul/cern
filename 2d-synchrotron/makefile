@@ -3,6 +3,7 @@ CPLUS_FLAGS +=-Wall -pedantic
 INCLUDE_FLAGS = -I/opt/local/include -I../common
 LIBRARY_PATHS = -L/opt/local/lib 
 LIBRARIES = -ltbb
+H_DEPS = 2d-synchrotron.hh settings.hh accelerator.hh hamiltonian.hh ../common/timer.hh
 
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
@@ -23,7 +24,7 @@ endif
 
 all: 2dsynch
 
-2dsynch: main.cc 2d-synchrotron.hh ../common/timer.cc
+2dsynch: main.cc ../common/timer.cc $(H_DEPS)
 	$(CC) $(CPLUS_FLAGS) -o 2dsynch $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) main.cc ../common/timer.cc
 
 clean :
