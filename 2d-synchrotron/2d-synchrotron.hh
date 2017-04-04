@@ -13,6 +13,10 @@
 #include "common.hh"
 #include "timer.hh"
 
+#include "accelerator.hh"
+#include "settings.hh"
+#include "hamiltonian.hh"
+
 #ifdef IO_TO_SAME_DIR
 #define RESOURCE_DIR "."
 #define OUTPUT_DIR "."
@@ -22,30 +26,6 @@
 #endif
 
 namespace twodsynch {
-
-namespace cnst {
-constexpr double pi = 3.14159265359;
-constexpr double c = 299792458.0; // m/s
-constexpr double m_proton = 938.2796e6; // eV
-} // namespace cnst
-
-
-// Same as used in the python visualisation code
-static constexpr double FRAME_X_LOW = -2*cnst::pi;
-static constexpr double FRAME_X_HIGH = 4*cnst::pi;
-static constexpr double FRAME_Y_LOW = -2e9;
-static constexpr double FRAME_Y_HIGH = 2e9;
-
-static constexpr const char* PATH_FILE = OUTPUT_DIR"/particles.dat";
-static constexpr const char* LINE_FILE = OUTPUT_DIR"/lines.dat";
-static constexpr const char* COLL_FILE = OUTPUT_DIR"/coll.dat";
-static constexpr const char* STARTDIST_FILE = OUTPUT_DIR"/startdist.dat";
-static constexpr const char* ENDDIST_FILE = OUTPUT_DIR"/enddist.dat";
-static constexpr const char* SIXTRACK_TEST_FILE = OUTPUT_DIR"/toymodel_track.dat";
-// static constexpr const char* LHC_RAMP_FILE = "resources/ramp.txt";
-static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_ramp.dat";
-static constexpr const char* EXTERNAL_RAMP_FILE = "resources/40s_linear_ramp.dat";
-static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
 
 enum RAMP_TYPE
 {
@@ -57,173 +37,6 @@ enum RAMP_TYPE
     EXTERNAL_RAMP,
 };
 
-template <typename T>
-struct Accelerator
-{
-    using ValType = T;
-    using Acc = Accelerator<T>;
-
-private:
-    // Use accessor methods for these instead
-    T mE_ref;
-    T mE_pref;
-public:
-    T C;
-    T V_rf;
-    T f_rf;
-    T h_rf;
-    T k_rf;
-    T m_compaction;
-    T coll_top;
-    T coll_bot;
-    T f_rev;
-    T w_rev;
-
-    static Acc getLHC() 
-    {
-        // Parameters for LHC can be found at http://atlas.physics.arizona.edu/~kjohns/downloads/linac/UTclass2lhc.pdf
-        Acc acc;
-        acc.C = 26658.8832;
-        acc.mE_ref = T(450e9); // eV
-        acc.mE_pref = acc.mE_ref;
-        acc.V_rf = T(6e6); // V
-        //acc.f_rf = T(398765412.66);
-        //acc.f_rf = T(400.8e6);
-        acc.h_rf = T(35640);
-        acc.k_rf = acc.h_rf*T(2)*cnst::pi/acc.C;
-        acc.m_compaction = T(0.0003225);
-        acc.coll_top = T(0.5e9); // ∆eV
-        acc.coll_bot = T(-0.5e9);
-        
-        auto p = acc.calcParticleProp(0.0, 0.0); // This is ok: we only want b
-        acc.f_rev = p.b*cnst::c/acc.C;
-        acc.f_rf = acc.f_rev*acc.h_rf;
-
-        //acc.f_rev = T(acc.f_rf/acc.h_rf); // Hz
-        acc.w_rev = 2*cnst::pi*acc.f_rev; // Hz
-        return acc;
-    }
-
-    static Acc getLHC_NOCOLL()
-    {
-        Acc a = getLHC();
-        a.coll_top = std::numeric_limits<T>::max();
-        a.coll_bot = std::numeric_limits<T>::min();;
-        return a;
-    }
-
-    struct ParticleProp 
-    { 
-        T pc;
-        T g;    // gamma
-        T g_2;    // 1/gamma^2
-        T eta;
-        T b2;    // beta^2
-        T b;    // beta
-        T W2;    // Omega2
-    };
-    ParticleProp calcParticleProp(T de, T phase) const 
-    {
-        ParticleProp p;
-        //p.g = (E() + de)/cnst::m_proton;
-
-        // We treat ∆E really as ∆pc
-        const T pc_E0 = (E() + de)/cnst::m_proton;
-        p.g = std::sqrt(T(1) + pc_E0*pc_E0);
-        p.g_2 = T(1)/(p.g*p.g);
-        p.eta = p.g_2 - m_compaction;
-        p.b2 = T(1) - p.g_2;
-        p.b = std::sqrt(p.b2);
-        p.W2 = w_rev*w_rev*h_rf*p.eta*V_rf/(T(2)*cnst::pi*p.b2*E())*std::cos(lag_phase()); 
-        return p;
-    }
-
-
-    void setE(T v, bool reset = false) { mE_pref = mE_ref; if (reset) mE_pref = v; mE_ref = v; }
-    T E() const { return mE_ref; }
-    T E_prev() const { return mE_pref; }
-    T lag_phase() const { return cnst::pi - (std::asin((E() - E_prev())/V_rf)); }
-    //T lag_phase() const { return cnst::pi - 0.3; }
-};
-
-template <typename T>
-inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
-{
-    using std::cos;
-    using std::sin;
-    using cnst::pi;
-
-    auto p = acc.calcParticleProp(de, ph);
-    const T ph_s = acc.lag_phase();
-    const T A = -T(0.5)*acc.h_rf*p.eta/(p.b2*acc.E());
-    const T H = A*de*de + acc.V_rf/(T(2)*pi)*(cos(ph) - cos(ph_s) + (ph - ph_s)*sin(ph_s));
-    return H;
-}
-
-template <typename T>
-inline T levelCurve(const Accelerator<T>& acc, T ph, T H, T sign=1.0) 
-{
-    using std::cos;
-    using std::sin;
-    using std::sqrt;
-    using cnst::pi;
-
-    sign = sign/std::abs(sign);
-
-    const T ph_s = acc.lag_phase();
-    const T threshold = 0.005;
-    T de = 0.0;
-    do {
-        const auto p = acc.calcParticleProp(de, ph);
-        const T A = -T(0.5)*acc.h_rf*p.eta/(p.b2*acc.E());
-        de = sign*sqrt(T(1.0)/A*(H - acc.V_rf/(T(2)*pi)*(cos(ph) - cos(ph_s) + (ph - ph_s)*sin(ph_s))));
-    } while (std::abs(hamiltonian(acc, de, ph) - H) > threshold);
-    return de;
-}
-
-template <typename T>
-inline T separatrix(const Accelerator<T>& acc)
-{
-    return hamiltonian<T>(acc, 0.0, cnst::pi - acc.lag_phase());
-}
-
-template <typename T>
-inline void writePhasespaceFrame(const Accelerator<T>& acc, std::string filePath)
-{
-    std::cout << "Writing frame to '" << filePath << "'" << std::endl;
-    std::ofstream file(filePath.c_str());
-    if (!file.is_open())
-        throw std::runtime_error("could not open file");
-
-    const T ph_step = 0.005;
-    const int ph_steps = std::ceil((FRAME_X_HIGH - FRAME_X_LOW)/ph_step);
-
-    const T Hstart = hamiltonian<T>(acc, 0.0, cnst::pi) + 5e4;
-    const T Hstep = 2.0e5;
-    const T Hdstep = 1.0e5;
-    const int Hsteps = 20;
-    //const int Hsteps = 0;
-
-    int lines = 2 + 2*Hsteps;
-
-    const T Hseparatrix = separatrix<T>(acc);
-
-    file << lines << "," << ph_steps << std::endl;
-    for (T ph = FRAME_X_LOW; ph <= FRAME_X_HIGH; ph += ph_step) {
-        T de = levelCurve(acc, ph, Hseparatrix);
-        file << std::setprecision(16) << de  << "," << ph << "," << Hseparatrix << std::endl
-                                      << -de  << "," << ph << "," << Hseparatrix << std::endl;
-        
-        int n = 0;
-        T H = Hstart;
-        while (n++ < Hsteps) {
-            de = levelCurve(acc, ph, H);
-            file << std::setprecision(16) << de  << "," << ph << "," << H << std::endl
-                                          << -de  << "," << ph << "," << H << std::endl;
-            H += Hstep + T(n)*Hdstep;
-        }
-    }
-}
 
 template <typename T>
 inline void readRampFile(int steps, std::string filePath, std::vector<T>& E_ramp)
@@ -789,31 +602,5 @@ private:
 
     RAMP_TYPE mType;
 };
-
-void generatePhasespaceLines(int seconds)
-{
-    // will generate 1 per second
-    std::cout << "Generate phasespace lines" << std::endl;
-    auto acc = Accelerator<double>::getLHC();
-    int freq = int(acc.f_rev);
-    int turns = seconds*freq;
-
-    std::vector<double> E;
-    readRamp(turns, E, LHC_RAMP);
-
-    for (int i = 0; i < seconds; ++i) {
-        int turn = i*freq;
-        acc.setE(E[turn]);
-        acc.setE(E[turn + 1]);
-        
-        // Caluclated from LHC_ramp.dat
-        const double k = 2.9491187074838457087e-07;
-        acc.V_rf = (6 + k*turn)*1e6;
-        
-        std::stringstream ss;
-        ss << "phasespace/" << i << "lines.dat";
-        writePhasespaceFrame(acc, ss.str());
-    }
-}
 
 } // namespace twodsynch
