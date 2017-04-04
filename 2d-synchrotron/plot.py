@@ -87,9 +87,9 @@ def plot_hamiltonian_dist_histogram(ps):
     h_val = np.array(ps.h - settings.H_SEPARATRIX, dtype=int)
     hmax = max(h_val)
     hmin = min(h_val)
-    bin_size = 250
-    bins = np.arange(hmin - hmin%bin_size, hmax, bin_size)
-    ax.hist(h_val, bins=bins, edgecolor='white')
+    # bin_size = 250
+    # bins = np.arange(hmin - hmin%bin_size, hmax, bin_size)
+    ax.hist(h_val, edgecolor='white')
     ax.set_title("Action value H starting distribution")
     ax.set_xlabel("∆H")
     ax.set_ylabel("#")
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     elif ACTION == "lossmap":
         print("plot lossmap")
         lossmap = get_lossmap(settings.COLL_PATH)
-        plot_lossmap([lossmap], SAVE_FILE)
+        plot_lossmap([lossmap], ["Toy model"], SAVE_FILE)
     elif ACTION == "separated-lossmap":
         print("plot one series for each action value of the lossmap")
         ps = PhaseSpace(settings.STARTDIST_PATH)

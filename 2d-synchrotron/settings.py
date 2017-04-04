@@ -1,4 +1,3 @@
-import json
 import sys
 sys.path.append("../common/")
 from settings_base import SettingsBase

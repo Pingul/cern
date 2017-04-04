@@ -79,7 +79,7 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
 
     max_turn = 0
     for lm in lossmaps:
-        max_turn = max(max_turn, max(lm.keys()))
+        max_turn = max(max(max_turn, max(lm.keys())), 20*11245) # at least 20 s
     turns = np.array(range(max_turn + 100))
 
     # Plotting
@@ -95,10 +95,14 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
         # lm = lossmaps[action]
         losses = np.array([len(lm[turn]) if turn in lm else 0 for turn in turns])
         avg_loss = trailing_integration(losses, int(1.3*11245))
-        # avg_loss = losses
-        loss_ax.plot(turns, avg_loss, color=color_list[i], label=(labels[i] if len(labels) > i else ""), zorder=3, alpha=0.9)
-    # loss_ax.set_ylabel("Losses (∆particles/1.3s)")
-    loss_ax.set_ylabel("Losses (∆particles/turn)")
+
+        # loss_ax.plot(turns, avg_loss, color=color_list[i], label=("{} (integ.)".format(labels[i]) if len(labels) > i else ""), zorder=2, linestyle='--', alpha=0.9)
+
+        loss_ax.plot(turns, losses, color='red', label=("{} (coll. hit)".format(labels[i] if len(labels) > i else "")), zorder=3)
+        loss_ax.plot(turns, avg_loss, color="blue", label=("{} (BLM)".format(labels[i]) if len(labels) > i else ""), zorder=2, linestyle='--', alpha=0.9)
+    loss_ax.set_ylabel("Losses (∆particles)")
+
+    # loss_ax.set_ylabel("Losses (∆particles/turn)")
     loss_ax.set_xlabel("t (s)")
     loss_ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
     loss_ax.spines['right'].set_position(('axes', 1.15))
@@ -112,7 +116,10 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
     e_ax.plot(turns, ramp, color='gray', zorder=0, label='LHC energy ramp')
     e_ax.set_axis_off()
 
-    fig.suptitle("Toy model off-momentum lossmap")
+    title = "Toy model off-momentum losses"
+    if save_to: title += " ('{}')".format(save_to)
+    plt.title(title)
+
     if (save_to): 
         print("saving plot to {}".format(save_to))
         plt.savefig(save_to) 
