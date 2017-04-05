@@ -31,5 +31,5 @@ misc: source/misc.cc $(H_DEPS)
 	$(CC) $(CPLUS_FLAGS) -o misc $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/misc.cc
 
 clean :
-	rm -f 2dsynch
+	rm -f 2dsynch misc
 
