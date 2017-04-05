@@ -1,6 +1,9 @@
 #ifndef ACCELERATOR
 #define ACCELERATOR
 
+#include <fstream>
+#include <iomanip>
+#include <cmath>
 #include "settings.hh"
 
 namespace twodsynch {
