@@ -7,17 +7,17 @@ from scipy.optimize import nnls
 from sklearn import linear_model
 from bisect import bisect_left
 
-import lossmap as lm
-from phasespace import PhaseSpace
-from settings import *
-
 import sys, os
-sys.path.append("/Users/swretbor/Workspace/collimation/proj/lhcstat")
+sys.path.append("../common")
+sys.path.append("../lhcstat")
+
 import oml
 import analyse_fill as af
+import lossmap as lm
 
-sys.path.append("/Users/swretbor/Workspace/collimation/proj/common")
 from logger import ModuleLogger, LogLevel
+from phasespace import PhaseSpace
+from settings import *
 
 lg = ModuleLogger("lhccomp")
 
