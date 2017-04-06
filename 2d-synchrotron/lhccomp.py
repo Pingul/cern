@@ -2,20 +2,24 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from scipy import interpolate
+from scipy.optimize import nnls 
+from sklearn import linear_model
+from bisect import bisect_left
+
 import lossmap as lm
 from phasespace import PhaseSpace
+from settings import *
 
 import sys, os
 sys.path.append("/Users/swretbor/Workspace/collimation/proj/lhcstat")
 import oml
 import analyse_fill as af
 
-from scipy import interpolate
-from scipy.optimize import nnls 
-from sklearn import linear_model
-from bisect import bisect_left
+sys.path.append("/Users/swretbor/Workspace/collimation/proj/common")
+from logger import ModuleLogger, LogLevel
 
-from settings import *
+lg = ModuleLogger("lhccomp")
 
 def trailing_integration(sequence, N):
     """ For each entry, integrate the N first entries.
@@ -57,30 +61,30 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
 
     min_turn = min(tm_lossmap.keys()) - settings.BLM_INT
     if prune:
-        print("pruning time scale")
+        lg.log("pruning time scale")
         max_turn = int(16.5*11245.0)
         raise Exception("This has not been updates since all the changes -- probably invalid")
     else:
-        print("using full time scale")
+        lg.log("using full time scale")
         max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
 
-    print("extract losses")
+    lg.log("extract losses")
     turns = np.arange(min_turn, max_turn)
     secs = turns/11245.0
     losses = np.zeros(len(turns))
     for turn in tm_lossmap:
         losses[turn - min_turn] = len(tm_lossmap[turn])
 
-    print("emulate 2dsynch BLM")
+    lg.log("emulate 2dsynch BLM")
     BLM_2dsynch = trailing_integration(losses, settings.BLM_INT)
 
-    print("align BLM")
+    lg.log("align BLM")
     aggr_fill = af.aggregate_fill(beam, from_cache=True)
     asecs = halign(secs, BLM_2dsynch, aggr_fill)
     BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
 
     ## SEPARATE LOSSMAP
-    print("separate lossmap")
+    lg.log("separate lossmap")
     lossmaps, action_values = lm.separate_lossmap(tm_lossmap, ps)
     action_values = np.array(action_values) - round(settings.H_SEPARATRIX)
     x = np.zeros(len(lossmaps)*len(turns), dtype=float).reshape(len(lossmaps), len(turns))
@@ -92,7 +96,7 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
             x[i] = trailing_integration(x[i], settings.BLM_INT)
 
     ## FIT
-    print("fit")
+    lg.log("fit")
     xt = np.transpose(x)
     y = interpolate.interp1d(*aggr_fill.blm_ir3())(asecs)
     coef = nnls(xt, y)[0]
@@ -101,7 +105,7 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
         f.write("Coefficients:")
         for i, c in enumerate(coef):
             f.write("{:>5} = {:<20.10f} (H = {})\n".format("a{}".format(i), c, action_values[i]))
-    print("saved coefficients to '{}'".format(coef_file))
+    lg.log("saved coefficients to '{}'".format(coef_file))
     x_fit = np.sum(coef*xt, axis=1)
 
 
@@ -111,8 +115,8 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
         correction = nnls(x_fit, y)[0]
         x_fit *= correction
 
-    print("fitting completed")
-    print("plot")
+    lg.log("fitting completed")
+    lg.log("plot")
 
     # Plotting lossmap fit
     option_string = "(integ.)" if integration else ""
@@ -165,7 +169,7 @@ def halign(secs, losses, aggr_fill):
 
     vfill_peak, ifill_peak = oml.imax(aggr_fill.blm_ir3().y)
     delta = secs[iloss_peak] - aggr_fill.blm_ir3().x[ifill_peak]
-    print("peaks\n\t2d-synch : {:.2f}\n\taggregate: {:.2f}\n\tdelta    : {:.2f}"
+    lg.log("peaks\n\t2d-synch : {:.2f}\n\taggregate: {:.2f}\n\tdelta    : {:.2f}"
             .format(secs[iloss_peak], aggr_fill.blm_ir3().x[ifill_peak], delta))
     return secs - delta
 
