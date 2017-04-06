@@ -55,47 +55,64 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     prune = settings.PRUNE_TIMESCALE
     integration = settings.TRAILING_INTEGRATION # integrate the separated lossmaps before optimisation
 
+    min_turn = min(tm_lossmap.keys()) - settings.BLM_INT
     if prune:
         print("pruning time scale")
-        turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, int(16.5*11245.0))#max(tm_lossmap.keys()) + BLM_INT)
+        max_turn = int(16.5*11245.0)
+        raise Exception("This has not been updates since all the changes -- probably invalid")
     else:
         print("using full time scale")
-        turns = range(min(tm_lossmap.keys()) - settings.BLM_INT, max(tm_lossmap.keys()) + settings.BLM_INT)
+        max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
 
-    secs = np.array([turn/11245.0 for turn in turns])
-    losses = np.array([len(tm_lossmap[turn]) if turn in tm_lossmap else 0 for turn in turns])
+    print("extract losses")
+    turns = np.arange(min_turn, max_turn)
+    secs = turns/11245.0
+    losses = np.zeros(len(turns))
+    for turn in tm_lossmap:
+        losses[turn - min_turn] = len(tm_lossmap[turn])
+
+    print("emulate 2dsynch BLM")
     BLM_2dsynch = trailing_integration(losses, settings.BLM_INT)
 
+    print("align BLM")
     aggr_fill = af.aggregate_fill(beam, from_cache=True)
     asecs = halign(secs, BLM_2dsynch, aggr_fill)
     BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
 
+    ## SEPARATE LOSSMAP
+    print("separate lossmap")
     lossmaps, action_values = lm.separate_lossmap(tm_lossmap, ps)
-    action_values = np.array(action_values)
-    action_values -= round(settings.H_SEPARATRIX)
+    action_values = np.array(action_values) - round(settings.H_SEPARATRIX)
+    x = np.zeros(len(lossmaps)*len(turns), dtype=float).reshape(len(lossmaps), len(turns))
+    for i, lossmap in enumerate(lossmaps):
+        for turn in lossmap:
+            x[i][turn - min_turn] = len(lossmap[turn])
 
-    x = []
-    for lossmap in lossmaps:
-        losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
         if integration:
-            avg_loss = trailing_integration(losses, settings.BLM_INT)
-        else:
-            avg_loss = losses.astype(float)
-        x.append(avg_loss)
+            x[i] = trailing_integration(x[i], settings.BLM_INT)
 
+    ## FIT
+    print("fit")
     xt = np.transpose(x)
     y = interpolate.interp1d(*aggr_fill.blm_ir3())(asecs)
     coef = nnls(xt, y)[0]
-    print("coefficients")
-    for i, c in enumerate(coef):
-        print("\t{:>5} = {:<10.5f} (H = {})".format("a{}".format(i), c, action_values[i]))
+    coef_file = "lhc_fit_coefficients.txt"
+    with open(coef_file, "w") as f:
+        f.write("Coefficients:")
+        for i, c in enumerate(coef):
+            f.write("{:>5} = {:<20.10f} (H = {})\n".format("a{}".format(i), c, action_values[i]))
+    print("saved coefficients to '{}'".format(coef_file))
     x_fit = np.sum(coef*xt, axis=1)
+
 
     if not integration:
         x_fit = trailing_integration(x_fit, settings.BLM_INT)
         x_fit = x_fit.reshape(len(x_fit), 1)
         correction = nnls(x_fit, y)[0]
         x_fit *= correction
+
+    print("fitting completed")
+    print("plot")
 
     # Plotting lossmap fit
     option_string = "(integ.)" if integration else ""
@@ -142,79 +159,15 @@ def valign(aggregate_fill, aligned_secs, BLM_2dsynch):
 def halign(secs, losses, aggr_fill):
     """ Aligns losses to aggr_fill by returning a new 'secs' array """
 
-    vloss_peak, iloss_peak = oml.imax(losses)
+    shift = 2*11245
+    vloss_peak, iloss_peak = oml.imax(losses[shift:])
+    iloss_peak += shift
+
     vfill_peak, ifill_peak = oml.imax(aggr_fill.blm_ir3().y)
     delta = secs[iloss_peak] - aggr_fill.blm_ir3().x[ifill_peak]
     print("peaks\n\t2d-synch : {:.2f}\n\taggregate: {:.2f}\n\tdelta    : {:.2f}"
             .format(secs[iloss_peak], aggr_fill.blm_ir3().x[ifill_peak], delta))
     return secs - delta
-
-def optimize(secs, losses, aggr_fill):
-    """ Lets do a naive implementation:
-            1. Remove a random particle
-            2. Recalculate the lossmap. If one timestamp has lossmap < lhcdata, put back the particle
-            3. If we have failed to remove a particle n number of times, stop. Else, continue with #1.
-    """
-
-    # We want aggr_fill to use the 'secs' timescale
-    oml_y = interpolate.interp1d(*aggr_fill.blm_ir3())(secs)
-    avg_loss = oml.moving_average(losses, BLM_INT)
-    lm_win = np.sum(avg_loss > oml_y)
-    
-    failed = 0
-    removed = 0
-    printed = set()
-    while failed < 400:
-        if removed % 100 == 0 and removed not in printed: 
-            print("succesfully removed:", removed)
-            printed.add(removed)
-
-        temp_losses = np.array(losses)
-        temp_avg_loss = np.array(avg_loss)
-        
-        r = 0
-        while True:
-            r = np.random.randint(0, len(temp_losses))
-            if temp_losses[r] > 0:
-                temp_losses[r] -= 1
-                break
-
-        rstart = int(r - settings.BLM_INT/2)
-        rend = int(r + settings.BLM_INT/2)
-        temp_avg_loss[rstart:rend] -= 1.0/settings.BLM_INT
-
-        if np.sum(temp_avg_loss > oml_y) < lm_win:
-            failed += 1
-        else:
-            losses = temp_losses
-            avg_loss = temp_avg_loss
-            removed += 1
-            failed = 0
-
-    print("threshold reached")
-    print("removed", removed, "particles")
-    return losses
-
-def regenerate_lossmap(opt_losses, lossmap):
-    """ 'opt_losses' should have been optimized. Reflect the trim in 'opt_losses' to the lossmap.  """
-
-    # opt_losses [losses_turn_0, losses_turn_1, ...]
-    # lossmap {turn : [id0, id1], ...}
-
-
-    turns = range(max(lossmap.keys()))
-    losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
-    loss_delta = losses - opt_losses
-
-    reduced_lossmap = lossmap
-
-    s = 0
-    for turn in np.where(loss_delta > 0)[0]:
-        remove = set()
-        while len(remove) < loss_delta[turn]:
-            remove.add(np.random.randint(0, len(lossmap[turn])))
-        reduced_lossmap[turn] = np.delete(reduced_lossmap[turn], )
-    return reduced_lossmap
 
 
 if __name__ == "__main__":
