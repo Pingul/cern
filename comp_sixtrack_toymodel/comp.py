@@ -2,13 +2,21 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
 from collections import namedtuple
-from math import pi
+from math import pi, sqrt
 import numpy as np
 
-F_RF = 400788731.3727857
-C_DIV_FREQ = 299793458.0/F_RF*1e3 # converting to mm 
-def phi_to_z(phi):
-    return (pi - phi)/(2.0*pi)*C_DIV_FREQ
+def phi_to_z(phi, tot_energy):
+    """ tot_energy in MeV """
+    C = 26658.8832
+    h = 35640.0
+    b = sqrt(1.0 - (938.2796/tot_energy)**2)
+    z = (pi - phi)*C/(2*pi*h*b)
+    return z*1e3 # convert to mm
+
+# F_RF = 400788731.3727857
+# C_DIV_FREQ = 299793458.0/F_RF*1e3 # converting to mm 
+# def phi_to_z(phi):
+    # return (pi - phi)/(2.0*pi)*C_DIV_FREQ
 
 def imax(data):
     """ Returns both the max and the index for the max value """
@@ -55,7 +63,8 @@ def comp():
                 turn_it += 1
             toymodel.e.append(energy/1e6 + e_ramp[turn_it - 1])
             toymodel.de.append(energy/1e6)
-            toymodel.z.append(phi_to_z(phase))
+            total_energy = toymodel.e[-1] + toymodel.de[-1]
+            toymodel.z.append(phi_to_z(phase, total_energy))
 
     nbr_p = len(e_ramp)
 

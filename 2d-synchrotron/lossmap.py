@@ -6,6 +6,12 @@ import numpy as np
 from scipy import stats
 from settings import *
 
+import sys
+sys.path.append("../common")
+from logger import ModuleLogger, LogLevel
+
+lg = ModuleLogger("lossmap")
+
 def trailing_integration(sequence, N):
     """ For each entry, integrate the N first entries.
     """
@@ -17,7 +23,7 @@ def trailing_integration(sequence, N):
 def hits_from_collfile(collfile, pid_offset=0, mute=False):
     hits = []
     with open(collfile, 'r') as f:
-        if not mute: print("reading collimation file '{}'".format(collfile))
+        if not mute: lg.log("reading collimation file '{}'".format(collfile))
         for i, line in enumerate(f):
             if i < 2: continue
             line_c = line.rstrip().split(',')
@@ -45,7 +51,7 @@ def get_lossmap(collfile):
         lossmap = { turn : [particles_lost] }
     """
 
-    print("creating lossmap")
+    lg.log("creating lossmap")
     hits = hits_from_collfile(collfile)
     return lossmap_from_hits(hits)
 
@@ -121,7 +127,7 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
     plt.title(title)
 
     if (save_to): 
-        print("saving plot to {}".format(save_to))
+        lg.log("saving plot to {}".format(save_to))
         plt.savefig(save_to) 
     plt.show()
 

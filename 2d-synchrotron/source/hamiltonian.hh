@@ -5,7 +5,7 @@
 #include "settings.hh"
 #include "accelerator.hh"
 
-namespace twodsynch {
+namespace stron {
 
 template <typename T>
 inline T hamiltonian(const Accelerator<T>& acc, T de, T ph)
@@ -86,7 +86,7 @@ inline void writePhasespaceFrame(const Accelerator<T>& acc, std::string filePath
     }
 }
 
-} // namespace twodsynch
+} // namespace stron
 
 
 #endif
