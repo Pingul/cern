@@ -4,7 +4,7 @@
 #include <sstream>
 #include <tbb/task_scheduler_init.h>
 
-#include "2d-synchrotron.hh"
+#include "synchrotron.hh"
 #include "accelerator.hh"
 #include "settings.hh"
 #include "hamiltonian.hh"
