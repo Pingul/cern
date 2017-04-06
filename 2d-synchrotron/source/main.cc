@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
         // We often work with these two together, so we make sure we have the same
         // ToyModel for both of these
         //ToyModel tm(2500, type, ToyModel::LinearDecay());
-        ToyModel tm(250000, type, ToyModel::ActionValues());
+        ToyModel tm(250, type, ToyModel::ActionValues());
         if (args[1] == "lossmap")
             tm.runLossmap(50);
 
