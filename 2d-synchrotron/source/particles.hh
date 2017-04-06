@@ -5,7 +5,7 @@
 #include <vector>
 
 //namespace stron {
-namespace twodsynch {
+namespace stron {
 
 template <typename T>
 struct ParticleCollection 

@@ -6,7 +6,7 @@
 #include <cmath>
 #include "settings.hh"
 
-namespace twodsynch {
+namespace stron {
 
 template <typename T>
 struct Accelerator
@@ -97,6 +97,6 @@ public:
     //T lag_phase() const { return cnst::pi - 0.3; }
 };
 
-} // namespace twodsynch
+} // namespace stron
 
 #endif

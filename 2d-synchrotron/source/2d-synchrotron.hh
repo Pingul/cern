@@ -26,7 +26,7 @@
 #define OUTPUT_DIR "calc"
 #endif
 
-namespace twodsynch {
+namespace stron {
 
 enum RAMP_TYPE
 {
@@ -111,12 +111,12 @@ inline void readCollimators(int steps, std::vector<std::pair<T, T>>& collimators
 }
 
 template <typename T>
-struct ToyModel 
+struct SimpleSynchrotron 
 {
     using Acc = Accelerator<T>;
     using PColl = ParticleCollection<T>;
 
-    ToyModel(size_t n, RAMP_TYPE type)
+    SimpleSynchrotron(size_t n, RAMP_TYPE type)
         : mAcc(Acc::getLHC()), mParticles(n), mType(type)
     {
         initStorage(n);
@@ -145,7 +145,7 @@ struct ToyModel
     
     struct SixTrackTest {};
 
-    ToyModel(int n, RAMP_TYPE type, AroundSeparatrix)
+    SimpleSynchrotron(int n, RAMP_TYPE type, AroundSeparatrix)
         : mAcc(Acc::getLHC()), mParticles(n), mType(type)
     {
         initStorage(n);
@@ -170,7 +170,7 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(int N, RAMP_TYPE type, ActionValues)
+    SimpleSynchrotron(int N, RAMP_TYPE type, ActionValues)
         : mAcc(Acc::getLHC()), mParticles(N), mType(type)
     {
         const T sep = separatrix(mAcc);
@@ -213,7 +213,7 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(int n, RAMP_TYPE type, LinearDecay)
+    SimpleSynchrotron(int n, RAMP_TYPE type, LinearDecay)
         : mAcc(Acc::getLHC()), mParticles(n), mType(type)
     {
         initStorage(n);
@@ -243,7 +243,7 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(int n, RAMP_TYPE type, ExponentialDecay)
+    SimpleSynchrotron(int n, RAMP_TYPE type, ExponentialDecay)
         : mAcc(Acc::getLHC()), mParticles(n), mType(type)
     {
         initStorage(n);
@@ -268,7 +268,7 @@ struct ToyModel
         writeSingleDistribution(STARTDIST_FILE);
     }
 
-    ToyModel(SixTrackTest, T energy)
+    SimpleSynchrotron(SixTrackTest, T energy)
         : mAcc(Acc::getLHC()), mParticles(1), mType(LHC_RAMP)
     {
         mParticles.momentum[0] = energy;
@@ -475,7 +475,7 @@ struct ToyModel
         int turns = seconds*freq;
     
         //simulateTurns(turns); 
-        simulateTurns(turns, twodsynch::PATH_FILE, 11245); 
+        simulateTurns(turns, stron::PATH_FILE, 11245); 
         writeCollHits(COLL_FILE);
     
         int ilast = 0;
@@ -564,4 +564,4 @@ private:
     RAMP_TYPE mType;
 };
 
-} // namespace twodsynch
+} // namespace stron

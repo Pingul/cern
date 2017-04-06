@@ -9,7 +9,7 @@
 #define OUTPUT_DIR "calc"
 #endif
 
-namespace twodsynch {
+namespace stron {
 
 namespace cnst {
 constexpr double pi = 3.14159265359;
@@ -34,7 +34,7 @@ static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_ramp.dat";
 static constexpr const char* EXTERNAL_RAMP_FILE = "resources/40s_linear_ramp.dat";
 static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
 
-} // namespace twodsynch
+} // namespace stron
 
 
 #endif 

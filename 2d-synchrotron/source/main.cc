@@ -11,7 +11,7 @@
 
 void generatePhasespaceLines(int seconds)
 {
-    using namespace twodsynch;
+    using namespace stron;
 
     // will generate 1 per second
     std::cout << "Generate phasespace lines" << std::endl;
@@ -44,35 +44,35 @@ int main(int argc, char* argv[])
 
     tbb::task_scheduler_init init;
 
-    typedef twodsynch::ToyModel<double> ToyModel;
+    typedef stron::SimpleSynchrotron<double> SimpleSynchrotron;
 
     // CHANGE FOR DIFFERENT SIMULATIONS
-    twodsynch::RAMP_TYPE type = twodsynch::LHC_RAMP;
+    stron::RAMP_TYPE type = stron::LHC_RAMP;
 
     if (args.size() < 2) {
         std::cout << "Not enough arguments specified" << std::endl;
     
     } else if (args[1] == "lossmap" || args[1] == "startdist") {
         // We often work with these two together, so we make sure we have the same
-        // ToyModel for both of these
-        //ToyModel tm(2500, type, ToyModel::LinearDecay());
-        ToyModel tm(250, type, ToyModel::ActionValues());
+        // SimpleSynchrotron for both of these
+        //SimpleSynchrotron tm(2500, type, SimpleSynchrotron::LinearDecay());
+        SimpleSynchrotron tm(250, type, SimpleSynchrotron::ActionValues());
         if (args[1] == "lossmap")
             tm.runLossmap(50);
 
     } else if (args[1].find("animate") == 0) {
-        //ToyModel tm(500, type, ToyModel::AroundSeparatrix());
-        ToyModel tm(500, type);
+        //SimpleSynchrotron tm(500, type, SimpleSynchrotron::AroundSeparatrix());
+        SimpleSynchrotron tm(500, type);
         if (args[1] == "animate") {
-            tm.simulateTurns(1000, twodsynch::PATH_FILE, 2);
+            tm.simulateTurns(1000, stron::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
-            tm.simulateTurns(20*11245, twodsynch::PATH_FILE, 1000);
+            tm.simulateTurns(20*11245, stron::PATH_FILE, 1000);
         } else if (args[1] == "animate-background") {
-            tm.simulateTurns(300*11245, twodsynch::PATH_FILE, 11245);
+            tm.simulateTurns(300*11245, stron::PATH_FILE, 11245);
             generatePhasespaceLines(300);
         }
-        tm.writeCollHits(twodsynch::COLL_FILE);
-        writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
+        tm.writeCollHits(stron::COLL_FILE);
+        writePhasespaceFrame(SimpleSynchrotron::Acc::getLHC(), stron::LINE_FILE);
 
     } else if (args[1] == "sixtrack-comp") {
         std::cout << "Sixtrack comparison" << std::endl;
@@ -80,16 +80,16 @@ int main(int argc, char* argv[])
         if (args.size() == 3)
             energy = std::stod(args[2])*1e6;
         std::cout << "∆E = " << std::setprecision(16) << energy << std::endl;
-        ToyModel tm(ToyModel::SixTrackTest(), energy );
-        tm.simulateTurns(224900, twodsynch::SIXTRACK_TEST_FILE);
+        SimpleSynchrotron tm(SimpleSynchrotron::SixTrackTest(), energy );
+        tm.simulateTurns(224900, stron::SIXTRACK_TEST_FILE);
 
     } else if (args[1] == "phasespace") {
-        writePhasespaceFrame(ToyModel::Acc::getLHC(), twodsynch::LINE_FILE);
+        writePhasespaceFrame(SimpleSynchrotron::Acc::getLHC(), stron::LINE_FILE);
     } else if (args[1] == "phasespace-mov") {
         generatePhasespaceLines(300);
 
     } else if (args[1] == "test") {
-        using namespace twodsynch;
+        using namespace stron;
 
         auto acc = Accelerator<double>::getLHC();
         std::cout << acc.lag_phase() << std::endl;
@@ -101,7 +101,7 @@ int main(int argc, char* argv[])
             std::cout << "H(" << ph << ", " << de << ") = " << H << std::endl;
         }
     } else if (args[1] == "test2") {
-        using namespace twodsynch;
+        using namespace stron;
 
         auto acc = Accelerator<double>::getLHC();
         const double de = -1.90986e+08;
@@ -112,7 +112,7 @@ int main(int argc, char* argv[])
             std::cout << "H-1(" << ph << ", " << H << ") = " << dde << std::endl;
         }
     } else if (args[1] == "f_rf") {
-        std::cout << std::setprecision(16) << twodsynch::Accelerator<double>::getLHC().f_rf << std::endl;
+        std::cout << std::setprecision(16) << stron::Accelerator<double>::getLHC().f_rf << std::endl;
     } else {
         std::cout << "No action with name '" << args[1] << "' found" << std::endl;
     }
