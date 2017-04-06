@@ -16,8 +16,8 @@ def moving_average(sequence, N):
 def merge_variable(fills, var):
     xmax, xmin = 0, 0
     for fill in fills:
-        xmin = min(min(fill.data[var].x), xmin)
-        xmax = max(max(fill.data[var].x), xmax)
+        xmin = min(fill.data[var].x.min(), xmin)
+        xmax = max(fill.data[var].x.max(), xmax)
 
     # The x-series
     newx = np.arange(xmin, xmax + 1, 1, dtype=np.int) # using int's to maybe make comparisons more safe
@@ -63,14 +63,14 @@ def aggregate_fill(beam, fill_list=[], from_cache=False):
 
     if not fill_list and not from_cache:
         raise Exception("'fill_list' can't be empty if not to read from cache'")
+    elif not beam in (1, 2):
+        raise Exception("'beam' must be 1 or 2, is '{}'".format(beam))
 
-    aggr_id = 0
-    fill = Fill(aggr_id, fetch=False)
+    fill = Fill(nbr=-beam, beam=beam, fetch=False)
     if from_cache:
         fill.load_cache()
         return fill
 
-    beam = 1
     fills = []
     for nbr in fill_list:
         _fill = Fill(nbr)
@@ -83,6 +83,24 @@ def aggregate_fill(beam, fill_list=[], from_cache=False):
         merged = merge_variable(fills, v)
         fill.data[v] = merged["average"]
     return fill
+
+def plot_aggregate_fill_overlayed(beam, fill_list):
+    fig, ax = plt.subplots()
+    for nbr in fill_list:
+        fill = Fill(nbr, beam=beam)
+        ax.plot(*fill.blm_ir3(), color=np.random.rand(3), alpha=0.7)
+
+    # aggr = aggregate_fill(beam, fill_list)
+    # ax.plot(*aggr.blm_ir3(), color='black', label='Aggregate', zorder=5)
+
+    ax.set_xlabel("t (s)")
+    ax.set_ylabel("TCP IR3 BLM signal")
+    # ax.set_xlim(aggr.blm_ir3().x[aggr.OML_period()] + np.array([-5, +120]))
+    ax.set_yscale("log")
+    plt.title("Overlay plot (beam {})".format(beam))
+    plt.show()
+
+
 
 def plot_aggregate_fill(beam, fill_list):
     # We can't reuse the 'aggregate_fill' function above, as we want to plot more
@@ -115,20 +133,20 @@ def plot_aggregate_fill(beam, fill_list):
     ax.set_xlabel("t (s)")
     ax.set_ylabel("BLM signal")
     ax.legend(loc="upper right")
-    ax.set_xlim([-20, 60])
+    ax.set_xlim(fills[0].blm_ir3().x[fills[0].OML_period()] + np.array([-5, +120]))
     # ax.axvspan(0.0, 13.55, facecolor='b', zorder=0, alpha=0.1)
-    plt.title("Aggregate fill 2016")
+    plt.title("Aggregate fill 2016 (beam {})".format(beam))
     plt.show()
 
 #############
 ## Statistics
 
-def draw_histogram(title, data, binsize, xlabel='', ylabel='', color='b'):
+def draw_histogram(title, data, binsize, xlabel='', ylabel=''):
     maxbin = max(data) + binsize
     minbin = min(data)
     bins = np.arange(minbin, maxbin, binsize)
     fig, ax = plt.subplots()
-    ax.hist(data, bins=bins, color=color, edgecolor='black')
+    ax.hist(data, bins=bins, edgecolor='white')
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -191,6 +209,39 @@ def histogram_max_spike(file):
 
     draw_histogram('Max spike event for {}'.format(file), spike_time, 1.0, 'Delta t (s) from start of ramp till spike', 'Count')
 
+def histogram_max_abort_gap_before_OML(file):
+    fills = fills_from_file(file, "OML")
+    max_ag = {1:[], 2:[]}
+
+    for nbr in fills:
+        for beam in (1, 2):
+            fill = Fill(nbr, beam=beam)
+            OML_start = fill.OML_period()[0]
+            max_ag[beam].append(fill.abort_gap().y[:OML_start].max())
+    bins = np.arange(0, 2e10, 2e9)
+    fig, ax = plt.subplots()
+    ax.hist([max_ag[1], max_ag[2]], bins=bins, label=["Beam 1", "Beam 2"])
+    ax.legend(loc="upper right")
+    ax.set_xlabel("Max abort gap intensity before start of ramp")
+    ax.set_ylabel("Fill count")
+    plt.show()
+
+def histogram_OML_peak(file):
+    fills = fills_from_file(file, "OML")
+    OML_peak = {1: [], 2: []}
+
+    for nbr in fills:
+        for beam in (1, 2):
+            fill = Fill(nbr, beam=beam)
+            OML_peak[beam].append(np.log10(fill.blm_ir3().y.max()))
+    fig, ax = plt.subplots()
+    ax.hist([OML_peak[1], OML_peak[2]], label=["Beam 1", "Beam 2"])
+    ax.legend(loc="upper right")
+    ax.set_xlabel("BLM peak signal [$10^x$]")
+    ax.set_ylabel("Fill count")
+    plt.title("Peak IR3 TCP BLM signal distribution")
+    plt.show()
+
 
 def bar_graph_crossover_point(file):
     """ Bar graph displaying the 'time till max spike' + 'time where OML > TM' for all fills in file """
@@ -198,25 +249,30 @@ def bar_graph_crossover_point(file):
     oml_dom_duration = []
     time_till_spike = []
     total_duration = []
+
+    odd = []
     for nbr in fills:
         fill = Fill(nbr)
 
         crossover = fill.crossover_point()
-        if crossover['t'] < 40: # why am I using this?
-            oml = fill.data['synch_coll_b1']
-            ispike = np.argmax(oml.y)
-            tspike = oml.x[ispike]
-            time_till_spike.append(tspike)
+        oml = fill.blm_ir3()
+        ispike = np.argmax(oml.y)
+        tspike = oml.x[ispike]
+        time_till_spike.append(tspike)
 
-            oml_dom_duration.append(crossover["t"] - tspike)
+        oml_dom_duration.append(crossover["t"] - tspike)
 
-            total_duration.append(crossover['t'])
+        total_duration.append(crossover['t'])
 
+        if crossover['t'] > 40 or tspike > 12: # why am I using this?
+            odd.append(nbr)
+
+    print("odd looking fills: ", odd)
     fig, ax = plt.subplots()
-    ax.bar(range(len(oml_dom_duration)), time_till_spike, label='Time (s) till spike')
-    ax.bar(range(len(oml_dom_duration)), oml_dom_duration, bottom=time_till_spike, label='Time (s) where OML > TM')
+    ax.bar(range(len(oml_dom_duration)), time_till_spike, label='Time to max peak (s)')
+    ax.bar(range(len(oml_dom_duration)), oml_dom_duration, bottom=time_till_spike, label='Crossover point (s)')
     ax.legend(loc="upper right")
-    ax.set_xlabel("Range id")
+    ax.set_xlabel("Fill nbr")
     ax.set_ylabel("Duration (s)")
     plt.show()
 

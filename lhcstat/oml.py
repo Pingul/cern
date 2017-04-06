@@ -1,16 +1,17 @@
 import os
 import pytimber
-import matplotlib.pyplot as plt
-import math
-import ast
-import pickle
 import numpy as np
-import bisect
+import pickle
+import json
 
+import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
+import bisect
 from scipy import stats
 from scipy import interpolate
+
+from settings import settings
 
 
 def store_file_for_fill(fill_nbr):
@@ -66,23 +67,34 @@ class Fill:
             else:
                 raise IndexError("not valid key '{}'".format(key))
 
-        def index_for_time(self, time):
+        def index_for_time(self, timestamps):
             """ Helper function: find the index in the variable corresponding to the given timestamp """
-            index = bisect.bisect_left(self.x, time)
-            return index
+            try:
+                indices = []
+                for t in timestamps:
+                    indices.append(self.index_for_time(t))
+                return indices
+            except TypeError:
+                index = bisect.bisect_left(self.x, timestamps)
+
+                # Sometimes there's jump in the data sets -- take the value closest to the given timestamp
+                ts = np.abs(self.x[[index-1, index]] - timestamps)
+                return index-1 if ts[0] < ts[1] else index
     #### class Variable
 
     ## Variables in lists will be fetched aligned with each other
     BEAM1_VARIABLES = {
         'intensity_b1' : 'LHC.BCTFR.A6R4.B1:BEAM_INTENSITY',
-        'beta_coll_b1' : ['BLMTI.06L7.B1E10_TCP.B6L7.B1:LOSS_RS09', 'BLMTI.06L7.B1E10_TCP.C6L7.B1:LOSS_RS09', 'BLMTI.06L7.B1E10_TCP.D6L7.B1:LOSS_RS09'],
+        # 'beta_coll_b1' : ['BLMTI.06L7.B1E10_TCP.B6L7.B1:LOSS_RS09', 'BLMTI.06L7.B1E10_TCP.C6L7.B1:LOSS_RS09', 'BLMTI.06L7.B1E10_TCP.D6L7.B1:LOSS_RS09'],
+        'beta_coll_b1' : 'BLMTI.06L7.B1E10_TCP.C6L7.B1:LOSS_RS09', 
         'synch_coll_b1' : 'BLMTI.06L3.B1I10_TCP.6L3.B1:LOSS_RS09',
         'abort_gap_int_b1' : 'LHC.BSRA.US45.B1:ABORT_GAP_INTENSITY',
     }
 
     BEAM2_VARIABLES = {
         'intensity_b2' : 'LHC.BCTFR.A6R4.B2:BEAM_INTENSITY',  
-        'beta_coll_b2' : ['BLMTI.06R7.B2I10_TCP.B6R7.B2:LOSS_RS09', 'BLMTI.06R7.B2I10_TCP.C6R7.B2:LOSS_RS09', 'BLMTI.06R7.B2I10_TCP.D6R7.B2:LOSS_RS09'],
+        # 'beta_coll_b2' : ['BLMTI.06R7.B2I10_TCP.B6R7.B2:LOSS_RS09', 'BLMTI.06R7.B2I10_TCP.C6R7.B2:LOSS_RS09', 'BLMTI.06R7.B2I10_TCP.D6R7.B2:LOSS_RS09'],
+        'beta_coll_b2' : 'BLMTI.06R7.B2I10_TCP.C6R7.B2:LOSS_RS09', 
         'synch_coll_b2' : 'BLMTI.06R3.B2E10_TCP.6R3.B2:LOSS_RS09', 
         'abort_gap_int_b2' : 'LHC.BSRA.US45.B2:ABORT_GAP_INTENSITY'
     }
@@ -90,10 +102,15 @@ class Fill:
     COMB_VARIABLES = {
         'energy' : 'LHC.BOFSU:OFSU_ENERGY',
     }
+    
 
     db = pytimber.LoggingDB()
 
-    def __init__(self, nbr, fetch=True, beam=2):
+    OML_period_file = "fills/spikes.dat"
+
+    def __init__(self, nbr, fetch=True, beam=settings.BEAM):
+        """ Note -- the default beam is decided upon loading this file """
+
         if not beam in (1, 2):
             raise Exception("Beam can only be 1 or 2")
         self.nbr = nbr
@@ -109,6 +126,7 @@ class Fill:
         if fetch:
             self.fetch()
             self.normalize_intensity()
+            self.beta_coll_merge()
             self.offset_time()
 
 
@@ -138,7 +156,11 @@ class Fill:
         if not ramp or not preramp:
             self.status = Fill.STATUS.NORAMP
         else:
-            start_t = ramp['startTime']
+
+            # It's nice to have some context just before the ramp starts
+            # Also, it's quite inexact
+            # start_t = ramp['startTime']
+            start_t = preramp['startTime']
             end_t = ramp['endTime']
         
         # The actual data fetching
@@ -214,21 +236,33 @@ class Fill:
         var = 'intensity_b{}'.format(self.beam)
         self.data[var].y = self.data[var].y/np.max(self.data[var].y)
 
-    def offset_time(self, by="oml"):
-        if by == "oml":
-            start, end = self.OML_period()
-            t = self.blm_ir3().x[start]
-        elif by == "ramp":
-            raise Exception("deprecated")
-            istart = find_start_of_ramp(self.data["energy"])
-            t = self.data["energy"].x[istart]
+    def offset_time(self):
+        # start, end = self.OML_period()
+        # t = self.blm_ir3().x[start]
+
+        align = None
+        if align == "ramp":
+            t = self.blm_ir3().x[0]
+        elif align == "energy":
+            t = self.energy().x[0]
         else:
-            raise Exception("don't recognize offset type")
+            # align w.r.t. beam 1 x peak
+            beam = self.beam
+            self.beam = 1
+            # Previously we did alignment based of start of ramp which normally put the peak
+            # at ~10 s. As we now align w.r.t. the peak, we move it 10 extra seconds so we
+            # get similar results as before
+            t = self.OML_peak()['t'] - 10 
+            self.beam = beam
 
         for v in self.data:
             self.data[v].x -= t
+        self._timeshift = t
 
     def beta_coll_merge(self):
+        # Is made obsolute 
+        return
+
         var = 'beta_coll_b{}'.format(self.beam)
         if self.data[var].y.shape[0] == 3:
             self.data[var].y = np.sum(self.data[var].y, axis=0)
@@ -248,17 +282,22 @@ class Fill:
                 end: when the losses (and the derivative) has gone below a certain threshold
             returns (start, end) indices
         """ 
+        i_co = self.crossover_point()['i']
+
+        try:
+            with open(self.OML_period_file, 'rb') as f:
+                periods = pickle.loads(f.read())
+                return [periods[self.nbr][self.beam][0], i_co]
+        except:
+            pass
+        
         data = self.blm_ir3().y
         vpeak, ipeak = imax(data)
         start = end = ipeak
     
         ddata = np.abs(np.gradient(data))
         threshold = 1e-7
-        # with open('fills/spikes.dat', 'rb') as f:
-            # spike_list = pickle.loads(f.read())
-            # if self.nbr in spike_list:
-                # return spike_list[self.nbr]
-        
+
         found_start = found_end = False
         while not found_start and start > 0:
             start -= 1
@@ -271,18 +310,44 @@ class Fill:
             if ddata[end] < threshold and data[end] < vpeak/1e2:
                 found_end = True
         
-        return (start, end)
+        return [start, i_co]
+
+    def OML_peak(self):
+        """ The timestamp and index for the maximum OML peak
+            returns {'i' : ..., 't' : ...}
+        """
+        i_peak = imax(self.blm_ir3().y)[1]
+        return {'i' : i_peak, 't' : self.blm_ir3().x[i_peak]}
+
+    def crossover_point_rev(self):
+        """ Look for the point after OML spike when transversal losses starts 
+            to dominate the momentum losses 
+
+            Does not need aligned data.
+        """
+        x = np.union1d(self.blm_ir3().x, self.blm_ir7().x)
+        x = x[(x > self.blm_ir3().x.min())*(x < self.blm_ir3().x.max())]
+        x = x[(x > self.blm_ir7().x.min())*(x < self.blm_ir7().x.max())]
+
+        blm_ir3y = interpolate.interp1d(*self.blm_ir3())(x)
+        blm_ir7y = interpolate.interp1d(*self.blm_ir7())(x)
+
+        i = imax(blm_ir3y)[1]
+        while blm_ir3y[i] > blm_ir7y[i]: i += 1
+        return {'t' : x[i], 'i' : self.blm_ir3().index_for_time(x[i])}
 
     def crossover_point(self):
         """ Look for the point after OML spike when transversal losses starts 
             to dominate the momentum losses 
     
             Note: this should be used with aligned data """
+        return self.crossover_point_rev()
+
         self.beta_coll_merge()
         oml = self.blm_ir3() # off momentum loss
         tl = self.blm_ir7() # transversal losses
         vpeak, ipeak = imax(oml.y)
-    
+
         i = ipeak
         while oml.y[i] > tl.y[i]:
             i += 1
@@ -313,7 +378,7 @@ def plot(fill):
     start, end = fill.OML_period()
     blm_axis.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
 
-    fig.subplots_adjust(right=0.8)
+    fig.subplots_adjust(right=0.75)
     blm_axis.spines['right'].set_position(('axes', 1.15))
     blm_axis.set_frame_on(True)
     blm_axis.plot(*oml, color='r', linestyle='--', zorder=1)
@@ -321,10 +386,12 @@ def plot(fill):
     blm_axis.set_ylabel("Losses")
 
 
-    plt.title("Fill {}".format(fill.nbr))
+    plt.title("Fill {} (beam {})".format(fill.nbr, fill.beam))
 
     agap_ax = fig.add_subplot(212, sharex=intensity_axis)
-    agap_ax.plot(fill.abort_gap().x, moving_average(fill.abort_gap().y, 10), color='g')
+    ag = moving_average(fill.abort_gap().y, 10)
+    agap_ax.plot(fill.abort_gap().x, ag, color='g')
+    agap_ax.set_ylim([0, 2e10])
     agap_ax.set_ylabel("Abort gap intensity")
     agap_ax.set_xlabel("Time (s)")
 
@@ -352,14 +419,15 @@ def plot_blm(fill):
     fig.subplots_adjust(right=0.8)
     blm_axis.spines['right'].set_position(('axes', 1.15))
     blm_axis.set_frame_on(True)
-    blm_axis.plot(*oml, color='r', linestyle='--', zorder=2, label='momentum loss')
-    blm_axis.plot(*fill.blm_ir7(), color='g', linestyle='--', zorder=1, label='transversal loss')
+    blm_axis.plot(*oml, color='r', linestyle='--', zorder=2, label='TCP IR3')
+    blm_axis.plot(*fill.blm_ir7(), color='g', linestyle='--', zorder=1, label='TCP-C IR7')
     blm_axis.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
     blm_axis.set_yscale('log')
     blm_axis.set_ylabel("Losses")
     blm_axis.legend(loc='lower right')
+    blm_axis.set_xlim(fill.blm_ir3().x[[start, end]] + np.array([-5, +40]))
 
-    plt.title("Fill {}".format(fill.nbr))
+    plt.title("Fill {} (beam {})".format(fill.nbr, fill.beam))
     plt.show()
 
 def plot_motor(fill):
@@ -429,19 +497,14 @@ def fills_from_file(file, status_string='*'):
     print("Found {} fills".format(len(fills)))
     return fills
 
-def plot_from(file, status_string='*'):
+def plot_from(file, plot_at_the_time=10, status_string='*'):
     fills = fills_from_file(file, status_string)
-    plot_at_the_time = 10
     n = 0
     for fill_nbr in fills:
         n += 1
         print("evaluating %s" % fill_nbr)
-        fill = Fill(fill_nbr, fetch=False)
-        fill.fetch(forced=False, cache=False)
-        fill.normalize_intensity()
-        # if not status_string.upper() == 'ERROR':
-        #     fill.crop_ramp()
-        plot(fill)
+        fill = Fill(fill_nbr)
+        plot_blm(fill)
         print("--\n")
         if n % plot_at_the_time == 0:
             inp = input("draw {} more plots? (press 'q' to quit) ".format(plot_at_the_time))
@@ -449,49 +512,55 @@ def plot_from(file, status_string='*'):
                 break
 
 def edit_event(e, axvspan, fill, fill_list):
-    raise Exception("Has not been updated since refactoring")
     if e.key == "right":
-        fill_list[fill.nbr][0] += 1
+        fill_list[fill.nbr][fill.beam][0] += 1
     if e.key == "left":
-        fill_list[fill.nbr][0] -= 1
-    oml = fill.data['synch_coll_b1']
-
-    with open("fills/spikes.dat", 'wb') as f:
+        fill_list[fill.nbr][fill.beam][0] -= 1
+    oml = fill.blm_ir3()
+    
+    with open(Fill.OML_period_file, 'wb') as f:
         pickle.dump(fill_list, f)
+        # json.dump(fill_list, f, indent=4, separators=(',', ': '), sort_keys=True)
 
     # I literally have no idea how this works, reference
     # http://stackoverflow.com/questions/35551903/update-location-of-axvspan-with-matplotlib
     arr = axvspan.get_xy()
-    start = oml.x[fill_list[fill.nbr][0]]
-    end = oml.x[fill_list[fill.nbr][1]]
+    start = oml.x[fill_list[fill.nbr][fill.beam][0]]
+    end = oml.x[fill_list[fill.nbr][fill.beam][1]]
     arr[:, 0] = [start, start, end, end, start]
     axvspan.set_xy(arr)
     plt.draw()
     
 
-def edit_spike_for_fills(file, status_string='OML'):
-    raise Exception("Has not been updated since refactoring")
-    fills = fills_from_file(file, status_string)
-    fill_list = {}
+def edit_spike_for_fills(fills, status_string='OML'):
+    try:
+        with open(Fill.OML_period_file, 'rb') as f:
+            fill_list = pickle.loads(f.read())
+    except:
+        fill_list = {}
 
-    c = 0
     for nbr in fills:
-        fill = Fill(nbr)
+        fill = Fill(nbr, fetch=False)
+        fill.fetch()
 
-        oml = fill.data['synch_coll_b1']
-        start, end = find_oml_spike(fill)
-        fill_list[nbr] = [start, end]
+        oml = fill.blm_ir3()
+        start, end = fill.OML_period()
+        try:
+            fill_list[nbr][fill.beam] = [start, end]
+        except:
+            fill_list[nbr] = {fill.beam : [start, end]}
 
         fig, ax = plt.subplots()
         ax.plot(*oml, c='r')
         ax.set_yscale('log')
         ax.set_xlabel("t (s)")
         axvspan = ax.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
-        ax.set_xlim([oml.x[start] - 20, oml.x[start] + 20])
+        ax.set_xlim(oml.x[[start, start] + np.array([-10, 50])])
         fig.canvas.mpl_connect('key_press_event', lambda event : edit_event(event, axvspan, fill, fill_list))
+        plt.title("Fill {} (beam {})".format(fill.nbr, fill.beam))
         plt.show()
     
-    with open("fills/spikes.dat", 'rb') as f:
+    with open(Fill.OML_period_file, 'rb') as f:
         print(pickle.loads(f.read()))
 
 
