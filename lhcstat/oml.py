@@ -1,18 +1,20 @@
-import os
+import os, sys
 import pytimber
 import numpy as np
 import pickle
 import json
 
+import bisect
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-
-import bisect
 from scipy import stats
 from scipy import interpolate
 
+sys.path.append("../common")
+from logger import ModuleLogger, LogLevel
 from settings import settings
 
+lg = ModuleLogger("oml")
 
 def store_file_for_fill(fill_nbr):
     return os.path.join(os.path.dirname(__file__), 'fills/fill_{}.dat'.format(fill_nbr))
@@ -101,6 +103,7 @@ class Fill:
 
     COMB_VARIABLES = {
         'energy' : 'LHC.BOFSU:OFSU_ENERGY',
+        'ramp_mode' : 'HX:BMODE_RAMP'
     }
     
 
@@ -165,23 +168,23 @@ class Fill:
         
         # The actual data fetching
         if non_aligned_var:
-            print("fetching: {}...".format(", ".join(non_aligned_var)), end=" ")
+            lg.log("fetching: {}...".format(", ".join(non_aligned_var)), end=" ")
             timber_vars = [self.timber_var_map[var] for var in non_aligned_var]
             data = self.db.get(timber_vars, start_t, end_t)
             for name, timber_var in self.timber_var_map.items():
                 if not type(timber_var) == list and timber_var in data:
                     self.data[name] = Fill.Variable(data[timber_var])
-            print("done!")
+            lg.log("done!", module_prestring=False)
 
         for var in aligned_var:
-            print("fetching aligned: {}...".format(var), end=' ')
+            lg.log("fetching aligned: {}...".format(var), end=' ')
             timber_vars = self.timber_var_map[var]
             data = self.db.getAligned(timber_vars, start_t, end_t)
 
             xdata = data.pop('timestamps')
             ydata = np.stack((data[y] for y in data))
             self.data[var] = Fill.Variable((xdata, ydata))
-            print("done!")
+            lg.log("done!", module_prestring=False)
 
         if cache:
             self.cache()
@@ -202,12 +205,12 @@ class Fill:
         self.status = dump['status']
 
     def cache(self):
-        print('caching {}'.format(self.nbr))
+        lg.log('caching {}'.format(self.nbr))
         with open(store_file_for_fill(self.nbr), 'wb') as f:
             pickle.dump(self.pack(), f)
 
     def load_cache(self):
-        print('loading {}'.format(self.nbr))
+        lg.log('loading {}'.format(self.nbr))
         with open(store_file_for_fill(self.nbr), 'rb') as f:
             self.unpack(pickle.loads(f.read()))
 
@@ -243,6 +246,8 @@ class Fill:
         align = None
         if align == "ramp":
             t = self.blm_ir3().x[0]
+        if align == "ramp_mode":
+            t = self.data['beam_mode'].x[0]
         elif align == "energy":
             t = self.energy().x[0]
         else:
@@ -360,7 +365,7 @@ class Fill:
 ################
 ## Plotting directlyrelated to fills
 def plot(fill):
-    print('plotting {}'.format(fill.nbr))
+    lg.log('plotting {}'.format(fill.nbr))
     fig = plt.figure()
     intensity_axis  = fig.add_subplot(211)
     energy_axis = intensity_axis.twinx()
@@ -399,7 +404,7 @@ def plot(fill):
 
 
 def plot_blm(fill):
-    print('loss plot {}'.format(fill.nbr))
+    lg.log('loss plot {}'.format(fill.nbr))
     fig = plt.figure()
     intensity_axis = fig.add_subplot(111)
     energy_axis = intensity_axis.twinx()
@@ -432,7 +437,7 @@ def plot_blm(fill):
 
 def plot_motor(fill):
     raise Exception("need to fetch motor values -- not done right now")
-    print("plotting motors")
+    lg.log("plotting motors")
     fig, motor_ax = plt.subplots()
     e_ax = motor_ax.twinx()
 
@@ -471,7 +476,7 @@ def evaluate_off_momentum_losses_in_fills(fills, save_file):
     open(save_file, 'w').close() # erasing file
 
     for i in fills:
-        print("evaluating %s..." % str(i))
+        lg.log("evaluating %s..." % str(i))
         fill = Fill(i, fetch=False)
         fill.fetch(forced=False)
         with open(save_file, 'a') as f:
@@ -483,7 +488,7 @@ def evaluate_off_momentum_losses_in_fills(fills, save_file):
                 status_string += str(fill.status)
             status_string += '\n'
             f.write(status_string)
-        print("--\n")
+        lg.log("--\n")
 
 def fills_from_file(file, status_string='*'):
     fills = []
@@ -494,7 +499,7 @@ def fills_from_file(file, status_string='*'):
 
         if status_string == "*" or status.upper() == status_string.upper():
             fills.append(fill_nbr)
-    print("Found {} fills".format(len(fills)))
+    lg.log("Found {} fills".format(len(fills)))
     return fills
 
 def plot_from(file, plot_at_the_time=10, status_string='*'):
@@ -502,10 +507,10 @@ def plot_from(file, plot_at_the_time=10, status_string='*'):
     n = 0
     for fill_nbr in fills:
         n += 1
-        print("evaluating %s" % fill_nbr)
+        lg.log("evaluating %s" % fill_nbr)
         fill = Fill(fill_nbr)
         plot_blm(fill)
-        print("--\n")
+        lg.log("--\n")
         if n % plot_at_the_time == 0:
             inp = input("draw {} more plots? (press 'q' to quit) ".format(plot_at_the_time))
             if inp == 'q':
@@ -561,7 +566,7 @@ def edit_spike_for_fills(fills, status_string='OML'):
         plt.show()
     
     with open(Fill.OML_period_file, 'rb') as f:
-        print(pickle.loads(f.read()))
+        lg.log(pickle.loads(f.read()))
 
 
 def intensity_and_OML_pruning(file_in, file_out):
@@ -594,8 +599,8 @@ def intensity_and_OML_pruning(file_in, file_out):
             f.write("{}\tOML\n".format(str(fill.nbr)))
 
     removed = int(round(float(low_intensity + wrongly_categorised)/len(fills) * 100))
-    print('discarded:')
-    print('\tintensity {}'.format(low_intensity))
-    print('\tmis-categorised {}'.format(wrongly_categorised))
-    print('\ttotal {}%'.format(removed))
+    lg.log('discarded:')
+    lg.log('\tintensity {}'.format(low_intensity))
+    lg.log('\tmis-categorised {}'.format(wrongly_categorised))
+    lg.log('\ttotal {}%'.format(removed))
 
