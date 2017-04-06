@@ -88,19 +88,6 @@ int main(int argc, char* argv[])
     } else if (args[1] == "phasespace-mov") {
         generatePhasespaceLines(300);
 
-    } else if (args[1] == "restart") {
-        if (args.size() < 3)
-            std::cout << "Must provide file path" << std::endl;
-        else {
-            ToyModel tm(args[2], type);
-            tm.simulateTurns(600, twodsynch::PATH_FILE, 1);
-        }
-
-    } else if (args[1] == "lost") {
-        ToyModel tm(1000, type, ToyModel::AroundSeparatrix());
-        tm.simulateTurns(40*11245);
-        tm.writeCollHits(twodsynch::COLL_FILE);
-        tm.writeLostTurns("calc/lost.dat");
     } else if (args[1] == "test") {
         using namespace twodsynch;
 
