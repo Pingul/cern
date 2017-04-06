@@ -85,11 +85,11 @@ def plot_hamiltonian_evolution(ps): # input phase space containing ps.h
 def plot_hamiltonian_dist_histogram(ps):
     fig, ax = plt.subplots()
     h_val = np.array(ps.h - settings.H_SEPARATRIX, dtype=int)
-    hmax = max(h_val)
-    hmin = min(h_val)
-    # bin_size = 250
-    # bins = np.arange(hmin - hmin%bin_size, hmax, bin_size)
-    ax.hist(h_val, edgecolor='white')
+    hmax = h_val.max()
+    hmin = h_val.min()
+    nbr_bins = 40
+    bins = np.arange(hmin, hmax, (hmax-hmin)/nbr_bins)
+    ax.hist(h_val, bins=bins, edgecolor='white')
     ax.set_title("Action value H starting distribution")
     ax.set_xlabel("∆H")
     ax.set_ylabel("#")
