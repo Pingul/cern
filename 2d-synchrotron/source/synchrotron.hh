@@ -118,7 +118,7 @@ struct SimpleSynchrotron
     using ParticlesPtr = typename Particles::Ptr;
 
     
-    SimpleSynchrotron(ParticlesPtr particles, Acc acc, RAMP_TYPE ramp)
+    SimpleSynchrotron(ParticlesPtr particles, const Acc& acc, RAMP_TYPE ramp)
         : mAcc(acc), mParticles(particles), mType(ramp)
     {
         mCollHits.assign(mParticles->size(), -1);
@@ -156,7 +156,7 @@ struct SimpleSynchrotron
         std::ofstream file(filePath.c_str());
         if (file.is_open()) {
             std::cout << "Saving turns data in '" << filePath << "'" << std::endl;
-            file << size() << "," << turns << std::endl; 
+            file << mParticles->size() << "," << turns << std::endl; 
         } else 
             std::cerr << "could not write headers" << std::endl;
         file.close();
@@ -172,7 +172,7 @@ struct SimpleSynchrotron
         // FILE:
         //      ∆energy,phase,h        p1
         //      ...                    p2
-        for (size_t i = 0; i < size(); ++i) {
+        for (size_t i = 0; i < mParticles->size(); ++i) {
             std::stringstream ss;
             const T de = mParticles->momentum[i];
             const T phase = mParticles->phase[i];
@@ -203,9 +203,9 @@ struct SimpleSynchrotron
 
         // FILE:
         //     id / turn_lost / phase_lost / energy_lost
-        file << size() << std::endl;
+        file << mParticles->size() << std::endl;
         file << mAcc.coll_top << ", " << mAcc.coll_bot << std::endl;
-        for (size_t i = 0; i < size(); ++i) {
+        for (size_t i = 0; i < mParticles->size(); ++i) {
             if (mCollHits[i] == -1) continue;
             std::stringstream ss;
             file << i << ", " << 
@@ -225,8 +225,8 @@ struct SimpleSynchrotron
         emin = phmin = std::numeric_limits<T>::max();
         emax = phmax = -emin;
         int pleft = 0;
-        for (size_t i = 0; i < size(); ++i) {
-            if (mCollHits.size() == size() && mCollHits[i] < 0) {
+        for (size_t i = 0; i < mParticles->size(); ++i) {
+            if (mCollHits[i] < 0) {
                 ++pleft;
                 emax = mParticles->momentum[i] > emax ? mParticles->momentum[i] : emax;
                 emin = mParticles->momentum[i] < emin ? mParticles->momentum[i] : emin;
@@ -240,7 +240,7 @@ struct SimpleSynchrotron
     void simulateTurn(int stepID) 
     {
         CalcOp op(stepID, mAcc, *mParticles, mCollHits);
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, size()), op);
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, mParticles->size()), op);
     }
     
     void simulateTurns(int n, std::string filePath = "", int saveFreq = 1)
@@ -262,7 +262,7 @@ struct SimpleSynchrotron
             mAcc.coll_top = ext_collimators[0].second;
         }
 
-        std::cout << "Tracking " << size() << " particles for " << n << " turns" << std::endl;
+        std::cout << "Tracking " << mParticles->size() << " particles for " << n << " turns" << std::endl;
         std::cout << "Starting simulation..." << std::endl;
 
         common::SilentTimer timer;
@@ -295,7 +295,7 @@ struct SimpleSynchrotron
                 ParticleStats stats = getStats();
                 std::cout << "\t" << std::setw(9) << i << " of " << n << " turns (" << percent << "%).";
 
-                int pleft = (100*stats.pleft)/size();
+                int pleft = (100*stats.pleft)/mParticles->size();
                 std::cout << " #=" << pleft << "%. φ=[" << std::setprecision(3) << stats.phmin << ", " << stats.phmax << "]" << std::endl;
             }
         }
@@ -338,9 +338,6 @@ struct SimpleSynchrotron
         }
     
     }
-
-    size_t size() const { return mParticles->size(); }
-    const Acc& getAcc() const { return mAcc; }
 
 private:
     struct CalcOp
