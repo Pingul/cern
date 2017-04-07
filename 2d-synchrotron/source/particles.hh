@@ -180,9 +180,9 @@ typename ParticleCollection<T>::Ptr SixTrackTest(T momentum)
     return p;
 }
 
-template <typename T>
-typename ParticleCollection<T>::Ptr generate(int n, DIST_TYPE) 
-{ return typename ParticleCollection<T>::Ptr(new ParticleCollection<T>(n)); }
+//template <typename T>
+//typename ParticleCollection<T>::Ptr generate(int n, DIST_TYPE) 
+//{ return typename ParticleCollection<T>::Ptr(new ParticleCollection<T>(n)); }
 
 } // namespace pdist
 

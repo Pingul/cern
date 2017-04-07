@@ -9,10 +9,28 @@
 namespace stron {
 
 template <typename T>
+struct Collimator
+{
+    enum Type {
+        TCP_IR3,
+        TCPc_IR7,
+    };
+
+    Collimator(enum Type t, T l, T r)
+        : type(t), left(l), right(r) {}
+
+    enum Type type;
+    // in mm
+    T left;
+    T right;
+};
+
+template <typename T>
 struct Accelerator
 {
     using ValType = T;
     using Acc = Accelerator<T>;
+    using Collimator = Collimator<T>;
 
 private:
     // Use accessor methods for these instead
@@ -29,6 +47,7 @@ public:
     T coll_bot;
     T f_rev;
     T w_rev;
+    std::vector<Collimator> collimators;
 
     static Acc getLHC() 
     {
@@ -49,6 +68,11 @@ public:
         acc.f_rf = acc.f_rev*acc.h_rf;
 
         acc.w_rev = 2*cnst::pi*acc.f_rev; // Hz
+        
+        // Raw data from Timber measured in mm
+        acc.collimators.emplace_back(Collimator::Type::TCP_IR3, -7.385, 8.285);
+        acc.collimators.emplace_back(Collimator::Type::TCPc_IR7, -6.485, 5.425);
+
         return acc;
     }
 

@@ -116,8 +116,8 @@ struct SimpleSynchrotron
     using Acc = Accelerator<T>;
     using Particles = ParticleCollection<T>;
     using ParticlesPtr = typename Particles::Ptr;
+    using Collimator = typename Acc::Collimator;
 
-    
     SimpleSynchrotron(ParticlesPtr particles, const Acc& acc, RAMP_TYPE ramp)
         : mAcc(acc), mParticles(particles), mType(ramp)
     {
@@ -353,9 +353,21 @@ private:
 
         bool particleCollided(size_t index) const
         {
-            return !mCollHits.empty() // not populated means we don't look for collisions
-                    && mCollHits[index] == -1 // not previously hit
-                    && (mPart.momentum[index] >= mAcc.coll_top || mPart.momentum[index] <= mAcc.coll_bot);
+            bool collided = false;
+            for (auto& coll : mAcc.collimators) {
+                switch (coll.type) {
+                    case Collimator::Type::TCP_IR3: {
+                        const T& momentum = mPart.momentum[index];
+                        const T dispersion = -2.07e3;
+                        const T cut = (mAcc.E() + momentum)/dispersion;
+                        collided |= momentum > coll.left*cut || momentum < coll.right*cut;
+                        break;
+                    } case Collimator::Type::TCPc_IR7: {
+                        break;
+                    }
+                }
+            }
+            return collided;
         }
 
         bool outsideBucket(size_t index) const 
@@ -363,28 +375,38 @@ private:
             return mPart.phase[index] < -0.1;
         }
 
+        void longitudinalStep(size_t index) const
+        {
+            using std::sin;
+            using cnst::pi;
+
+            T deltaRef = mAcc.E() - mAcc.E_prev();
+
+            int Ns = 100;
+            // Particles outside of the bucket does not need to be tracked as carefully
+            if (outsideBucket(index)) Ns = 1;
+
+            T& momentum = mPart.momentum[index];
+            T& phase = mPart.phase[index];
+            for (int i = 0; i < Ns; ++i) {
+                momentum += (mAcc.V_rf*(sin(phase)) - deltaRef)/T(Ns);
+                auto p = mAcc.calcParticleProp(momentum, 0.0);
+                phase -= T(2)*pi*mAcc.h_rf*p.eta/(T(Ns)*p.b2*mAcc.E())*momentum;
+            }
+        }
+
+        void transverseStep(size_t index) const
+        {
+        }
+
         void operator()(const tbb::blocked_range<size_t>& range) const
         {
             for (size_t n = range.begin(), N = range.end(); n < N; ++n) {
                 if (particleInactive(n)) 
                     continue;
-                
-                using std::sin;
-                using cnst::pi;
 
-                T deltaRef = mAcc.E() - mAcc.E_prev();
-
-                int Ns = 100;
-                // Particles outside of the bucket does not need to be tracked as carefully
-                if (outsideBucket(n)) Ns = 1;
-
-                T& momentum = mPart.momentum[n];
-                T& phase = mPart.phase[n];
-                for (int i = 0; i < Ns; ++i) {
-                    momentum += (mAcc.V_rf*(sin(phase)) - deltaRef)/T(Ns);
-                    auto p = mAcc.calcParticleProp(momentum, 0.0);
-                    phase -= T(2)*pi*mAcc.h_rf*p.eta/(T(Ns)*p.b2*mAcc.E())*momentum;
-                }
+                longitudinalStep(n);
+                transverseStep(n);
 
                 if (particleCollided(n)) mCollHits[n] = mStepID;
             }
@@ -399,7 +421,6 @@ private:
     int mStepID;
     Acc mAcc;
     ParticlesPtr mParticles;
-
     std::vector<int> mCollHits; // Turn hitting collimator
 
     RAMP_TYPE mType;

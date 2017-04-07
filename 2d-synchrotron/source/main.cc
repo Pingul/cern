@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
     auto LHC = SimpleSynchrotron::Acc::getLHC();
 
     // CHANGE FOR DIFFERENT SIMULATIONS
-    stron::RAMP_TYPE type = stron::LHC_RAMP;
+    stron::RAMP_TYPE type = stron::AGGRESSIVE_RAMP;
 
     if (args.size() < 2) {
         std::cout << "Not enough arguments specified" << std::endl;
