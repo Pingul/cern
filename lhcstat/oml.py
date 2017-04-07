@@ -91,6 +91,9 @@ class Fill:
         'beta_coll_b1' : 'BLMTI.06L7.B1E10_TCP.C6L7.B1:LOSS_RS09', 
         'synch_coll_b1' : 'BLMTI.06L3.B1I10_TCP.6L3.B1:LOSS_RS09',
         'abort_gap_int_b1' : 'LHC.BSRA.US45.B1:ABORT_GAP_INTENSITY',
+
+        'motor_ir3_b1' : ['TCP.6L3.B1:MEAS_MOTOR_LU', 'TCP.6L3.B1:MEAS_MOTOR_RU'],
+        'motor_ir7_b1' : ['TCP.C6L7.B1:MEAS_MOTOR_LU', 'TCP.C6L7.B1:MEAS_MOTOR_RU']
     }
 
     BEAM2_VARIABLES = {
@@ -98,7 +101,10 @@ class Fill:
         # 'beta_coll_b2' : ['BLMTI.06R7.B2I10_TCP.B6R7.B2:LOSS_RS09', 'BLMTI.06R7.B2I10_TCP.C6R7.B2:LOSS_RS09', 'BLMTI.06R7.B2I10_TCP.D6R7.B2:LOSS_RS09'],
         'beta_coll_b2' : 'BLMTI.06R7.B2I10_TCP.C6R7.B2:LOSS_RS09', 
         'synch_coll_b2' : 'BLMTI.06R3.B2E10_TCP.6R3.B2:LOSS_RS09', 
-        'abort_gap_int_b2' : 'LHC.BSRA.US45.B2:ABORT_GAP_INTENSITY'
+        'abort_gap_int_b2' : 'LHC.BSRA.US45.B2:ABORT_GAP_INTENSITY',
+
+        'motor_ir3_b2' : ['TCP.6R3.B2:MEAS_MOTOR_LU', 'TCP.6R3.B2:MEAS_MOTOR_RU'],
+        'motor_ir7_b2' : ['TCP.C6R7.B2:MEAS_MOTOR_LU', 'TCP.C6R7.B2:MEAS_MOTOR_RU']
     }
 
     COMB_VARIABLES = {
@@ -174,17 +180,19 @@ class Fill:
             for name, timber_var in self.timber_var_map.items():
                 if not type(timber_var) == list and timber_var in data:
                     self.data[name] = Fill.Variable(data[timber_var])
-            lg.log("done!", module_prestring=False)
+            lg.log("done!", log_level=LogLevel.success, module_prestring=False)
 
         for var in aligned_var:
             lg.log("fetching aligned: {}...".format(var), end=' ')
             timber_vars = self.timber_var_map[var]
             data = self.db.getAligned(timber_vars, start_t, end_t)
 
+            if len(data) == 0:
+                raise Exception("No data found")
             xdata = data.pop('timestamps')
             ydata = np.stack((data[y] for y in data))
             self.data[var] = Fill.Variable((xdata, ydata))
-            lg.log("done!", module_prestring=False)
+            lg.log("done!", log_level=LogLevel.success, module_prestring=False)
 
         if cache:
             self.cache()
@@ -221,6 +229,10 @@ class Fill:
         return self.data['synch_coll_b{}'.format(self.beam)]
     def blm_ir7(self):
         return self.data['beta_coll_b{}'.format(self.beam)]
+    def motor_ir3(self):
+        return self.data['motor_ir3_b{}'.format(self.beam)]
+    def motor_ir7(self):
+        return self.data['motor_ir7_b{}'.format(self.beam)]
     def abort_gap(self):
         return self.data['abort_gap_int_b{}'.format(self.beam)]
     def energy(self):
@@ -243,11 +255,11 @@ class Fill:
         # start, end = self.OML_period()
         # t = self.blm_ir3().x[start]
 
-        align = None
+        align = "ramp_mode"
         if align == "ramp":
             t = self.blm_ir3().x[0]
         if align == "ramp_mode":
-            t = self.data['beam_mode'].x[0]
+            t = self.data['ramp_mode'].x[1]
         elif align == "energy":
             t = self.energy().x[0]
         else:
