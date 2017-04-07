@@ -8,6 +8,7 @@
 #include "accelerator.hh"
 #include "settings.hh"
 #include "hamiltonian.hh"
+#include "particles.hh"
 
 void generatePhasespaceLines(int seconds)
 {
@@ -45,6 +46,8 @@ int main(int argc, char* argv[])
     tbb::task_scheduler_init init;
 
     typedef stron::SimpleSynchrotron<double> SimpleSynchrotron;
+    using SimpleSynchrotron = stron::SimpleSynchrotron<double>;
+    auto LHC = SimpleSynchrotron::Acc::getLHC();
 
     // CHANGE FOR DIFFERENT SIMULATIONS
     stron::RAMP_TYPE type = stron::LHC_RAMP;
@@ -56,13 +59,16 @@ int main(int argc, char* argv[])
         // We often work with these two together, so we make sure we have the same
         // SimpleSynchrotron for both of these
         //SimpleSynchrotron tm(2500, type, SimpleSynchrotron::LinearDecay());
-        SimpleSynchrotron tm(250, type, SimpleSynchrotron::ActionValues());
+        auto p = stron::pdist::ActionValues<double>(250, LHC);
+        SimpleSynchrotron tm(p, LHC, type);
+        //SimpleSynchrotron tm(250, type, SimpleSynchrotron::ActionValues());
         if (args[1] == "lossmap")
             tm.runLossmap(50);
 
     } else if (args[1].find("animate") == 0) {
-        //SimpleSynchrotron tm(500, type, SimpleSynchrotron::AroundSeparatrix());
-        SimpleSynchrotron tm(500, type);
+        
+        auto p = stron::pdist::AroundSeparatrix<double>(500, LHC);
+        SimpleSynchrotron tm(p, LHC, type);
         if (args[1] == "animate") {
             tm.simulateTurns(1000, stron::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
@@ -76,11 +82,12 @@ int main(int argc, char* argv[])
 
     } else if (args[1] == "sixtrack-comp") {
         std::cout << "Sixtrack comparison" << std::endl;
-        double energy = 0.0;
+        double momentum = 0.0;
         if (args.size() == 3)
-            energy = std::stod(args[2])*1e6;
-        std::cout << "∆E = " << std::setprecision(16) << energy << std::endl;
-        SimpleSynchrotron tm(SimpleSynchrotron::SixTrackTest(), energy );
+            momentum = std::stod(args[2])*1e6;
+        std::cout << "∆E = " << std::setprecision(16) << momentum << std::endl;
+        auto p = stron::pdist::SixTrackTest<double>(momentum);
+        SimpleSynchrotron tm(p, LHC, type);
         tm.simulateTurns(224900, stron::SIXTRACK_TEST_FILE);
 
     } else if (args[1] == "phasespace") {

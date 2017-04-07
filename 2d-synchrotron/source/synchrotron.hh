@@ -114,10 +114,26 @@ template <typename T>
 struct SimpleSynchrotron 
 {
     using Acc = Accelerator<T>;
-    using PColl = ParticleCollection<T>;
+    using Particles = ParticleCollection<T>;
+    using ParticlesPtr = typename Particles::Ptr;
+
+    
+    SimpleSynchrotron(ParticlesPtr particles, Acc acc, RAMP_TYPE ramp)
+        : mAcc(acc), mParticles(particles), mType(ramp)
+    {
+        initStorage(particles->size());
+        writeSingleDistribution(STARTDIST_FILE);
+    }
+
+    SimpleSynchrotron(ParticlesPtr particles, RAMP_TYPE type)
+        : mAcc(Acc::getLHC()), mParticles(particles), mType(type)
+    {
+        initStorage(mParticles->size());
+        writeSingleDistribution(STARTDIST_FILE);
+    }
 
     SimpleSynchrotron(size_t n, RAMP_TYPE type)
-        : mAcc(Acc::getLHC()), mParticles(n), mType(type)
+        : mAcc(Acc::getLHC()), mParticles(ParticlesPtr(new Particles(n))), mType(type)
     {
         initStorage(n);
 
@@ -129,8 +145,8 @@ struct SimpleSynchrotron
         for (size_t i = 0; i < n; ++i) {
             const T deltaE = e_dist(generator);
             const T phase = ph_dist(generator);
-            mParticles.momentum[i] = deltaE;
-            mParticles.phase[i] = phase;
+            mParticles->momentum[i] = deltaE;
+            mParticles->phase[i] = phase;
         }
         writeSingleDistribution(STARTDIST_FILE);
     }
@@ -146,7 +162,7 @@ struct SimpleSynchrotron
     struct SixTrackTest {};
 
     SimpleSynchrotron(int n, RAMP_TYPE type, AroundSeparatrix)
-        : mAcc(Acc::getLHC()), mParticles(n), mType(type)
+        : mAcc(Acc::getLHC()), mParticles(ParticlesPtr(new Particles(n))), mType(type)
     {
         initStorage(n);
 
@@ -162,8 +178,8 @@ struct SimpleSynchrotron
             const T phase = ph_dist(generator);
             const T H = hamiltonian(mAcc, deltaE, phase);
             if ((sep - 1e6) < H && H < (sep + 1e6)) {
-                mParticles.momentum[count] = deltaE;
-                mParticles.phase[count] = phase;
+                mParticles->momentum[count] = deltaE;
+                mParticles->phase[count] = phase;
                 count++;
             }
         }
@@ -171,7 +187,7 @@ struct SimpleSynchrotron
     }
 
     SimpleSynchrotron(int N, RAMP_TYPE type, ActionValues)
-        : mAcc(Acc::getLHC()), mParticles(N), mType(type)
+        : mAcc(Acc::getLHC()), mParticles(ParticlesPtr(new Particles(N))), mType(type)
     {
         const T sep = separatrix(mAcc);
         //std::vector<T> d_actions = {-1e4, -9e3, -8e3, -7e3, -6e3, -5e3, -4e3, -3e3, -2e3, -1e3, -100};
@@ -203,8 +219,8 @@ struct SimpleSynchrotron
                     const T phase = dist(generator);
                     const T energy = levelCurve(mAcc, phase, action, sign);
                     if (std::isnan(energy)) { --i; continue; }
-                    mParticles.momentum[count] = energy;
-                    mParticles.phase[count] = phase;
+                    mParticles->momentum[count] = energy;
+                    mParticles->phase[count] = phase;
                     ++count;
                 }
             }
@@ -214,7 +230,7 @@ struct SimpleSynchrotron
     }
 
     SimpleSynchrotron(int n, RAMP_TYPE type, LinearDecay)
-        : mAcc(Acc::getLHC()), mParticles(n), mType(type)
+        : mAcc(Acc::getLHC()), mParticles(ParticlesPtr(new Particles(n))), mType(type)
     {
         initStorage(n);
         const T sep = separatrix(mAcc);
@@ -236,15 +252,15 @@ struct SimpleSynchrotron
             const T action = H_dist(generator);
             const T energy = levelCurve(mAcc, phase, action, sign);
             if (std::isnan(energy)) { --i; continue; }
-            mParticles.momentum[i] = energy;
-            mParticles.phase[i] = phase;
+            mParticles->momentum[i] = energy;
+            mParticles->phase[i] = phase;
         }
         std::cout << "Initialized " << size() << " particles" << std::endl;
         writeSingleDistribution(STARTDIST_FILE);
     }
 
     SimpleSynchrotron(int n, RAMP_TYPE type, ExponentialDecay)
-        : mAcc(Acc::getLHC()), mParticles(n), mType(type)
+        : mAcc(Acc::getLHC()), mParticles(ParticlesPtr(new Particles(n))), mType(type)
     {
         initStorage(n);
 
@@ -261,18 +277,18 @@ struct SimpleSynchrotron
             const T action = H_low + H_dist(generator);
             const T energy = levelCurve(mAcc, phase, action, sign);
             if (std::isnan(energy)) { --i; continue; }
-            mParticles.momentum[i] = energy;
-            mParticles.phase[i] = phase;
+            mParticles->momentum[i] = energy;
+            mParticles->phase[i] = phase;
         }
         std::cout << "Initialized " << size() << " particles" << std::endl;
         writeSingleDistribution(STARTDIST_FILE);
     }
 
     SimpleSynchrotron(SixTrackTest, T energy)
-        : mAcc(Acc::getLHC()), mParticles(1), mType(LHC_RAMP)
+        : mAcc(Acc::getLHC()), mParticles(ParticlesPtr(new Particles(1))), mType(LHC_RAMP)
     {
-        mParticles.momentum[0] = energy;
-        mParticles.phase[0] = cnst::pi;
+        mParticles->momentum[0] = energy;
+        mParticles->phase[0] = cnst::pi;
     }
 
     void initStorage(int n)
@@ -301,8 +317,8 @@ struct SimpleSynchrotron
         for (int i = 0; i < n; ++i) {
             T de, phase;
             file >> de >> skip<char> >> phase >> skip; // we need to consume end of line
-            mParticles.momentum[i] = de;
-            mParticles.phase[i] = phase;
+            mParticles->momentum[i] = de;
+            mParticles->phase[i] = phase;
         }
         std::cout << "Read " << size() << " particles" << std::endl;
     }
@@ -330,8 +346,8 @@ struct SimpleSynchrotron
         //      ...                    p2
         for (size_t i = 0; i < size(); ++i) {
             std::stringstream ss;
-            const T de = mParticles.momentum[i];
-            const T phase = mParticles.phase[i];
+            const T de = mParticles->momentum[i];
+            const T phase = mParticles->phase[i];
             ss << std::setprecision(16) << 
                 de << "," << 
                 phase << "," << 
@@ -366,8 +382,8 @@ struct SimpleSynchrotron
             std::stringstream ss;
             file << i << ", " << 
                 mCollHits[i] << ", " << std::setprecision(16) << 
-                mParticles.phase[i] << ", " << 
-                mParticles.momentum[i] << std::endl;
+                mParticles->phase[i] << ", " << 
+                mParticles->momentum[i] << std::endl;
         }
     }
 
@@ -384,10 +400,10 @@ struct SimpleSynchrotron
         for (size_t i = 0; i < size(); ++i) {
             if (mCollHits.size() == size() && mCollHits[i] < 0) {
                 ++pleft;
-                emax = mParticles.momentum[i] > emax ? mParticles.momentum[i] : emax;
-                emin = mParticles.momentum[i] < emin ? mParticles.momentum[i] : emin;
-                phmax = mParticles.phase[i] > phmax ? mParticles.phase[i] : phmax;
-                phmin = mParticles.phase[i] < phmin ? mParticles.phase[i] : phmin;
+                emax = mParticles->momentum[i] > emax ? mParticles->momentum[i] : emax;
+                emin = mParticles->momentum[i] < emin ? mParticles->momentum[i] : emin;
+                phmax = mParticles->phase[i] > phmax ? mParticles->phase[i] : phmax;
+                phmin = mParticles->phase[i] < phmin ? mParticles->phase[i] : phmin;
             }
         }
         return ParticleStats{emax, emin, phmax, phmin, pleft};
@@ -395,7 +411,7 @@ struct SimpleSynchrotron
 
     void simulateTurn(int stepID) 
     {
-        CalcOp op(stepID, mAcc, mParticles, mCollHits);
+        CalcOp op(stepID, mAcc, *mParticles, mCollHits);
         tbb::parallel_for(tbb::blocked_range<size_t>(0, size()), op);
     }
     
@@ -495,14 +511,14 @@ struct SimpleSynchrotron
     
     }
 
-    size_t size() const { return mParticles.size(); }
-    std::vector<int> getCollHits() const { return mCollHits; }
+    size_t size() const { return mParticles->size(); }
+    const Acc& getAcc() const { return mAcc; }
 
 private:
     struct CalcOp
     {
-        CalcOp(int stepID, const Acc& acc, PColl& particles, std::vector<int>& collHits)
-            : mStepID(stepID), mAcc(acc), mParticles(particles), mCollHits(collHits)
+        CalcOp(int stepID, const Acc& acc, Particles& particles, std::vector<int>& collHits)
+            : mStepID(stepID), mAcc(acc), mPart(particles), mCollHits(collHits)
         {}
 
         bool particleInactive(size_t index) const
@@ -514,12 +530,12 @@ private:
         {
             return !mCollHits.empty() // not populated means we don't look for collisions
                     && mCollHits[index] == -1 // not previously hit
-                    && (mParticles.momentum[index] >= mAcc.coll_top || mParticles.momentum[index] <= mAcc.coll_bot);
+                    && (mPart.momentum[index] >= mAcc.coll_top || mPart.momentum[index] <= mAcc.coll_bot);
         }
 
         bool outsideBucket(size_t index) const 
         {
-            return mParticles.phase[index] < -0.1;
+            return mPart.phase[index] < -0.1;
         }
 
         void operator()(const tbb::blocked_range<size_t>& range) const
@@ -537,8 +553,8 @@ private:
                 // Particles outside of the bucket does not need to be tracked as carefully
                 if (outsideBucket(n)) Ns = 1;
 
-                T& momentum = mParticles.momentum[n];
-                T& phase = mParticles.phase[n];
+                T& momentum = mPart.momentum[n];
+                T& phase = mPart.phase[n];
                 for (int i = 0; i < Ns; ++i) {
                     momentum += (mAcc.V_rf*(sin(phase)) - deltaRef)/T(Ns);
                     auto p = mAcc.calcParticleProp(momentum, 0.0);
@@ -551,14 +567,14 @@ private:
     private:
         int mStepID;
         const Acc& mAcc;
-        PColl& mParticles;
+        Particles& mPart;
         std::vector<int>& mCollHits;
     };
 
     int mStepID;
     Acc mAcc;
-    // Particle properties
-    PColl mParticles;
+    ParticlesPtr mParticles;
+
     std::vector<int> mCollHits; // Turn hitting collimator
 
     RAMP_TYPE mType;
