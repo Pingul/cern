@@ -101,13 +101,12 @@ typename ParticleCollection<T>::Ptr ActionValues(int n, const Acc& acc)
         action += sep;
         std::uniform_real_distribution<> dist(0.0, 2*cnst::pi);
         for (T sign : std::vector<T>({-1.0, 1.0})) {
-            for (int i = 0; i < n; ++i) {
+            for (int i = 0; i < n_per_level; ++i) {
                 const T phase = dist(generator);
                 const T energy = levelCurve(acc, phase, action, sign);
                 if (std::isnan(energy)) { --i; continue; }
                 particles->momentum[count] = energy;
-                particles->phase[count] = phase;
-                ++count;
+                particles->phase[count++] = phase;
             }
         }
     }

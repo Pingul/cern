@@ -18,6 +18,8 @@
 #include "hamiltonian.hh"
 #include "particles.hh"
 
+#include "ramp_program.hh"
+
 #ifdef IO_TO_SAME_DIR
 #define RESOURCE_DIR "."
 #define OUTPUT_DIR "."
@@ -111,15 +113,17 @@ inline void readCollimators(int steps, std::vector<std::pair<T, T>>& collimators
 }
 
 template <typename T>
-struct SimpleSynchrotron 
+class SimpleSynchrotron 
 {
+public:
     using Acc = Accelerator<T>;
     using Particles = ParticleCollection<T>;
     using ParticlesPtr = typename Particles::Ptr;
     using Collimator = typename Acc::Collimator;
+    using ProgramPtr = typename Program<Acc>::Ptr;
 
     SimpleSynchrotron(ParticlesPtr particles, const Acc& acc, RAMP_TYPE ramp)
-        : mAcc(acc), mParticles(particles), mType(ramp)
+        : mAcc(acc), mParticles(particles), mType(ramp), mProgram(nullptr) 
     {
         mCollHits.assign(mParticles->size(), -1);
         writeSingleDistribution(STARTDIST_FILE);
@@ -245,6 +249,9 @@ struct SimpleSynchrotron
     
     void simulateTurns(int n, std::string filePath = "", int saveFreq = 1)
     {
+        mProgram.reset(new LHCRamp<Acc>(mAcc, n));
+        mProgram->restart();
+
         if (filePath.empty())
             std::cout << "Will not save particle path data" << std::endl;
         else  {
@@ -257,7 +264,7 @@ struct SimpleSynchrotron
         if (mType > NO_RAMP) {
             readRamp<T>(n, E_ramp, mType);
             readCollimators<T>(n, ext_collimators, E_ramp);
-            mAcc.setE(E_ramp[0], true);
+            //mAcc.setE(E_ramp[0], true);
             mAcc.coll_bot = ext_collimators[0].first;
             mAcc.coll_top = ext_collimators[0].second;
         }
@@ -269,8 +276,10 @@ struct SimpleSynchrotron
 
         timer.start();
         for (int i = 0; i < n; ++i) {
+            mProgram->step();
+
             if (mType > NO_RAMP) {
-                mAcc.setE(E_ramp[i]);
+                //mAcc.setE(E_ramp[i]);
 
                 // Caluclated from LHC_ramp.dat
                 const T k = 2.9491187074838457087e-07;
@@ -357,6 +366,7 @@ private:
             for (auto& coll : mAcc.collimators) {
                 switch (coll.type) {
                     case Collimator::Type::TCP_IR3: {
+                        // Very not sure if this is correct
                         const T& momentum = mPart.momentum[index];
                         const T dispersion = -2.07e3;
                         const T cut = (mAcc.E() + momentum)/dispersion;
@@ -416,7 +426,7 @@ private:
         const Acc& mAcc;
         Particles& mPart;
         std::vector<int>& mCollHits;
-    };
+    }; // CalcOp
 
     int mStepID;
     Acc mAcc;
@@ -424,6 +434,7 @@ private:
     std::vector<int> mCollHits; // Turn hitting collimator
 
     RAMP_TYPE mType;
+    ProgramPtr mProgram;
 };
 
 } // namespace stron

@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
     auto LHC = SimpleSynchrotron::Acc::getLHC();
 
     // CHANGE FOR DIFFERENT SIMULATIONS
-    stron::RAMP_TYPE type = stron::AGGRESSIVE_RAMP;
+    stron::RAMP_TYPE type = stron::LHC_RAMP;
 
     if (args.size() < 2) {
         std::cout << "Not enough arguments specified" << std::endl;
@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
         // We often work with these two together, so we make sure we have the same
         // SimpleSynchrotron for both of these
         //SimpleSynchrotron tm(2500, type, SimpleSynchrotron::LinearDecay());
-        auto p = stron::pdist::ActionValues<double>(250, LHC);
+        auto p = stron::pdist::ActionValues<double>(2500, LHC);
         SimpleSynchrotron tm(p, LHC, type);
         //SimpleSynchrotron tm(250, type, SimpleSynchrotron::ActionValues());
         if (args[1] == "lossmap")

@@ -25,6 +25,7 @@ struct Collimator
     T right;
 };
 
+
 template <typename T>
 struct Accelerator
 {
@@ -54,14 +55,14 @@ public:
         // Parameters for LHC can be found at http://atlas.physics.arizona.edu/~kjohns/downloads/linac/UTclass2lhc.pdf
         Acc acc;
         acc.C = 26658.8832;
-        acc.mE_ref = T(450e9); // eV
+        acc.mE_ref = 450e9; // eV
         acc.mE_pref = acc.mE_ref;
-        acc.V_rf = T(6e6); // V
-        acc.h_rf = T(35640);
+        acc.V_rf = 6e6; // V
+        acc.h_rf = 35640;
         acc.k_rf = acc.h_rf*T(2)*cnst::pi/acc.C;
-        acc.m_compaction = T(0.0003225);
-        acc.coll_top = T(0.5e9); // ∆eV
-        acc.coll_bot = T(-0.5e9);
+        acc.m_compaction = 0.0003225;
+        acc.coll_top = 0.5e9; // ∆eV
+        acc.coll_bot = -0.5e9;
         
         auto p = acc.calcParticleProp(0.0, 0.0); // This is ok: we only want b
         acc.f_rev = p.b*cnst::c/acc.C;
@@ -97,7 +98,6 @@ public:
     ParticleProp calcParticleProp(T de, T phase) const 
     {
         ParticleProp p;
-        //p.g = (E() + de)/cnst::m_proton;
 
         // We treat ∆E really as ∆pc
         const T pc_E0 = (E() + de)/cnst::m_proton;
