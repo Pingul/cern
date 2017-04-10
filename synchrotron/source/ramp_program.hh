@@ -12,13 +12,14 @@ template <typename Acc>
 class Program
 {
 public:
-    using Ptr = std::unique_ptr<Program>;
+    using Ptr = std::shared_ptr<Program>;
 
     Program(Acc& acc, unsigned steps)
         : mAcc(acc), mSteps(steps) {}
     virtual ~Program() {}
     virtual void setup() {}
     virtual void step() {}
+    virtual unsigned steps() { return mSteps; }
 protected:
     Acc& mAcc;
     unsigned mSteps;
@@ -73,11 +74,11 @@ public:
 };
 
 template <typename Acc, typename EnergyRamp = EnergyRamp<Acc>>
-class AggresiveEnergyRamp : public EnergyRamp
+class AggressiveEnergyRamp : public EnergyRamp
 {
     using Program = Program<Acc>;
 public:
-    AggresiveEnergyRamp(Acc& acc, unsigned steps)
+    AggressiveEnergyRamp(Acc& acc, unsigned steps)
         : Program(acc, steps), EnergyRamp(acc, steps)
     {
         this->mEnergy.reserve(steps);
@@ -186,6 +187,8 @@ typename Program<Acc>::Ptr create(Acc& acc, unsigned steps, ProgramType type)
             return Ptr(new Program<Acc>(acc, steps));
         case LHCRamp:
             return Ptr(new RampGenerator<Acc, DefaultEnergyRamp<Acc>, TCP_IR3Ramp<Acc>>(acc, steps));
+        case AggressiveRamp:
+            return Ptr(new RampGenerator<Acc, AggressiveEnergyRamp<Acc>>(acc, steps));
         default:
             throw std::runtime_error("ProgramType not supported");
     }

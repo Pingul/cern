@@ -15,6 +15,7 @@ namespace cnst {
 constexpr double pi = 3.14159265359;
 constexpr double c = 299792458.0; // m/s
 constexpr double m_proton = 938.2796e6; // eV
+constexpr double s_to_turn = 11245.0;
 } // namespace cnst
 
 
@@ -32,7 +33,8 @@ static constexpr const char* SIXTRACK_TEST_FILE = OUTPUT_DIR"/toymodel_track.dat
 // static constexpr const char* LHC_RAMP_FILE = "resources/ramp.txt";
 static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_ramp.dat";
 static constexpr const char* EXTERNAL_RAMP_FILE = "resources/40s_linear_ramp.dat";
-static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
+//static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
+static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp_ir3_f5433b1.txt";
 
 } // namespace stron
 

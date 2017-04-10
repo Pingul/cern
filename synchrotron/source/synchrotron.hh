@@ -95,22 +95,22 @@ inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
     }
 }
 
-template <typename T>
-inline void readCollimators(int steps, std::vector<std::pair<T, T>>& collimators, const std::vector<T>& E_ramp)
-{
-    using common::skip;
+//template <typename T>
+//inline void readCollimators(int steps, std::vector<std::pair<T, T>>& collimators, const std::vector<T>& E_ramp)
+//{
+    //using common::skip;
 
-    std::cout << "Reading collimators from '" << COLL_MOTOR_FILE << "'" << std::endl;
-    std::ifstream coll_file(COLL_MOTOR_FILE);
-    if (!coll_file.is_open())
-        throw std::runtime_error("could not open file");
+    //std::cout << "Reading collimators from '" << COLL_MOTOR_FILE << "'" << std::endl;
+    //std::ifstream coll_file(COLL_MOTOR_FILE);
+    //if (!coll_file.is_open())
+        //throw std::runtime_error("could not open file");
 
-    for (int i = 0; i < steps; ++i) {
-        T bot_coll, top_coll;
-        coll_file >> skip >> bot_coll >> top_coll;
-        collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
-    }
-}
+    //for (int i = 0; i < steps; ++i) {
+        //T bot_coll, top_coll;
+        //coll_file >> skip >> bot_coll >> top_coll;
+        //collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
+    //}
+//}
 
 template <typename T>
 class SimpleSynchrotron 
@@ -120,14 +120,10 @@ public:
     using Particles = ParticleCollection<T>;
     using ParticlesPtr = typename Particles::Ptr;
     using Collimator = typename Acc::Collimator;
-    using ProgramPtr = typename Program<Acc>::Ptr;
+    using ProgramPtr = typename ramp::Program<Acc>::Ptr;
 
-    SimpleSynchrotron(ParticlesPtr particles, const Acc& acc, RAMP_TYPE ramp)
-        : mAcc(acc), mParticles(particles), mType(ramp), mProgram(nullptr) 
-    {
-        mCollHits.assign(mParticles->size(), -1);
-        writeSingleDistribution(STARTDIST_FILE);
-    }
+    SimpleSynchrotron(const Acc acc) 
+        : mAcc(acc), mParticles(nullptr), mProgram(nullptr) {}
 
     //
     // FILE IO
@@ -154,6 +150,13 @@ public:
         //}
         //std::cout << "Read " << size() << " particles" << std::endl;
     //}
+
+    void addParticles(ParticlesPtr particles)
+    {
+        mParticles = particles;
+        mCollHits.assign(mParticles->size(), -1);
+        writeSingleDistribution(STARTDIST_FILE);
+    }
 
     void createTurnFileHeader(std::string filePath, int turns) const
     {
@@ -247,10 +250,14 @@ public:
         tbb::parallel_for(tbb::blocked_range<size_t>(0, mParticles->size()), op);
     }
     
-    void simulateTurns(int n, std::string filePath = "", int saveFreq = 1)
+    //void simulateTurns(int n, std::string filePath = "", int saveFreq = 1)
+    void simulateTurns(ProgramPtr program, std::string filePath = "", int saveFreq = 1)
     {
-        mProgram.reset(new LHCRamp<Acc>(mAcc, n));
-        mProgram->restart();
+        int n = program->steps();
+        program->setup();
+        //mProgram = program;
+        //mProgram.reset(new EnergyRamp<Acc>(mAcc, n, typename EnergyRamp<Acc>::AggressiveRamp()));
+        //mProgram->setup();
 
         if (filePath.empty())
             std::cout << "Will not save particle path data" << std::endl;
@@ -259,15 +266,15 @@ public:
             writeDistribution(filePath);
         }
 
-        std::vector<T> E_ramp;
-        std::vector<std::pair<T, T>> ext_collimators;
-        if (mType > NO_RAMP) {
-            readRamp<T>(n, E_ramp, mType);
-            readCollimators<T>(n, ext_collimators, E_ramp);
-            //mAcc.setE(E_ramp[0], true);
-            mAcc.coll_bot = ext_collimators[0].first;
-            mAcc.coll_top = ext_collimators[0].second;
-        }
+        //std::vector<T> E_ramp;
+        //std::vector<std::pair<T, T>> ext_collimators;
+        //if (mType > NO_RAMP) {
+            //readRamp<T>(n, E_ramp, mType);
+            //readCollimators<T>(n, ext_collimators, E_ramp);
+            ////mAcc.setE(E_ramp[0], true);
+            //mAcc.coll_bot = ext_collimators[0].first;
+            //mAcc.coll_top = ext_collimators[0].second;
+        //}
 
         std::cout << "Tracking " << mParticles->size() << " particles for " << n << " turns" << std::endl;
         std::cout << "Starting simulation..." << std::endl;
@@ -275,22 +282,22 @@ public:
         common::SilentTimer timer;
 
         timer.start();
-        for (int i = 0; i < n; ++i) {
-            mProgram->step();
+        for (int i = 1; i < n; ++i) {
+            program->step();
 
-            if (mType > NO_RAMP) {
-                //mAcc.setE(E_ramp[i]);
+            //if (mType > NO_RAMP) {
+                ////mAcc.setE(E_ramp[i]);
 
-                // Caluclated from LHC_ramp.dat
-                const T k = 2.9491187074838457087e-07;
-                mAcc.V_rf = (6 + k*i)*1e6;
+                //// Caluclated from LHC_ramp.dat
+                //const T k = 2.9491187074838457087e-07;
+                //mAcc.V_rf = (6 + k*i)*1e6;
 
-                // Comment out to remove motor motion
-                if (!ext_collimators.empty()) {
-                    mAcc.coll_bot = ext_collimators[i].first;
-                    mAcc.coll_top = ext_collimators[i].second;
-                }
-            }
+                //// Comment out to remove motor motion
+                //if (!ext_collimators.empty()) {
+                    //mAcc.coll_bot = ext_collimators[i].first;
+                    //mAcc.coll_top = ext_collimators[i].second;
+                //}
+            //}
 
             simulateTurn(i);
 
@@ -322,13 +329,10 @@ public:
         writeSingleDistribution(ENDDIST_FILE);
     }
 
-    void runLossmap(int seconds)
+    void runLossmap(ProgramPtr program)
     {
-        T freq = mAcc.f_rev;
-        int turns = seconds*freq;
     
-        //simulateTurns(turns); 
-        simulateTurns(turns, stron::PATH_FILE, 11245); 
+        simulateTurns(program, stron::PATH_FILE, 11245); 
         writeCollHits(COLL_FILE);
     
         int ilast = 0;
@@ -343,10 +347,12 @@ public:
         else {
             std::cout 
                 << "Latest hit:\n\tparticle " << ilast << ", turn " << tlast 
-                << "(approx. after " << std::setprecision(3) << (double(tlast)/freq) << " s)\n";
+                << "(approx. after " << std::setprecision(3) << (double(tlast)/mAcc.f_rev) << " s)\n";
         }
     
     }
+
+    Acc& getAcc() { return mAcc; }
 
 private:
     struct CalcOp
@@ -433,7 +439,7 @@ private:
     ParticlesPtr mParticles;
     std::vector<int> mCollHits; // Turn hitting collimator
 
-    RAMP_TYPE mType;
+    //RAMP_TYPE mType;
     ProgramPtr mProgram;
 };
 

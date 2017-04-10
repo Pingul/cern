@@ -24,12 +24,13 @@ int main(int argc, char* argv[])
             std::cout << d << std::endl;
         }
     } else if (args[1] == "motor") {
-        unsigned steps = 11246;
+        unsigned steps = 300*11246;
         //auto prog = typename Program::Ptr(new stron::CollimatorRamp<Acc>(LHC, steps, "resources/motor_tcp_ir3_f5433b1.txt", 0));
         auto prog = stron::ramp::create(LHC, steps, stron::ramp::ProgramType::LHCRamp);
         for (int i = 0; i < steps - 1; ++i) {
             prog->step();
-            std::cout << LHC.E() << " " << LHC.collimators[0].left << " " << LHC.collimators[0].right << std::endl;
+            if (i % 11245 == 0)
+                std::cout << i << " " << LHC.lag_phase() << " " << LHC.collimators[0].left << " " << LHC.collimators[0].right << std::endl;
         }
         
     }
