@@ -21,23 +21,13 @@ void generatePhasespaceLines(int seconds)
     int freq = int(acc.f_rev);
     int turns = seconds*freq;
 
-    //std::vector<double> E;
-    //readRamp(turns, E, LHC_RAMP);
     auto program = stron::ramp::create(acc, turns, stron::ramp::ProgramType::LHCRamp);
 
     for (int i = 0; i < seconds; ++i) {
-        int turn = i*freq;
         for (int j = 0; j < freq; ++j) program->step();
-        
-        // Caluclated from LHC_ramp.dat
-        const double k = 2.9491187074838457087e-07;
-        acc.V_rf = (6 + k*turn)*1e6;
-        
-        if (turn % 11245 == 0)
-            std::cout << i << " " << acc.V_rf << std::endl;
-        //std::stringstream ss;
-        //ss << "phasespace/" << i << "lines.dat";
-        //writePhasespaceFrame(acc, ss.str());
+        std::stringstream ss;
+        ss << "phasespace/" << i << "lines.dat";
+        writePhasespaceFrame(acc, ss.str());
     }
 }
 
@@ -55,7 +45,7 @@ int main(int argc, char* argv[])
     //auto LHC = SimpleSynchrotron::Acc::getLHC();
 
     // CHANGE FOR DIFFERENT SIMULATIONS
-    ProgramType progType = ProgramType::AggressiveRamp;
+    ProgramType progType = ProgramType::LHCRamp;
 
     if (args.size() < 2) {
         std::cout << "Not enough arguments specified" << std::endl;
@@ -63,11 +53,9 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist") {
         // We often work with these two together, so we make sure we have the same
         // SimpleSynchrotron for both of these
-        //SimpleSynchrotron ss(2500, type, SimpleSynchrotron::LinearDecay());
 
         SimpleSynchrotron ss(Acc::getLHC());
         ss.addParticles(stron::pdist::ActionValues<double>(2500, ss.getAcc()));
-        //SimpleSynchrotron ss(250, type, SimpleSynchrotron::ActionValues());
         if (args[1] == "lossmap")
             ss.runLossmap(stron::ramp::create(ss.getAcc(), 50*11245, progType));
 
@@ -99,7 +87,7 @@ int main(int argc, char* argv[])
     } else if (args[1] == "phasespace") {
         writePhasespaceFrame(SimpleSynchrotron::Acc::getLHC(), stron::LINE_FILE);
     } else if (args[1] == "phasespace-mov") {
-        generatePhasespaceLines(100);
+        generatePhasespaceLines(300);
 
     } else if (args[1] == "test") {
         using namespace stron;

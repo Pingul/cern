@@ -31,13 +31,13 @@ protected:
  *
  */
 template <typename Acc, typename Program = Program<Acc>>
-class EnergyRamp : virtual public Program
+class EnergyProgram : virtual public Program
 {
 public:
-    EnergyRamp(Acc& acc, unsigned steps)
+    EnergyProgram(Acc& acc, unsigned steps)
         : Program(acc, steps), mIndex(0) {}
 
-    EnergyRamp(Acc& acc, unsigned steps, std::string energyProgram)
+    EnergyProgram(Acc& acc, unsigned steps, std::string energyProgram)
         : Program(acc, steps), mIndex(0)
     {
         using common::skip;
@@ -64,22 +64,22 @@ protected:
     std::vector<T> mEnergy;
 };
 
-template <typename Acc, typename EnergyRamp = EnergyRamp<Acc>>
-class DefaultEnergyRamp : public EnergyRamp
+template <typename Acc, typename EnergyProgram = EnergyProgram<Acc>>
+class DefaultEnergyProgram : public EnergyProgram
 {
     using Program = Program<Acc>;
 public:
-    DefaultEnergyRamp(Acc& acc, unsigned steps)
-        : Program(acc, steps), EnergyRamp(acc, steps, LHC_RAMP_FILE) {}
+    DefaultEnergyProgram(Acc& acc, unsigned steps)
+        : Program(acc, steps), EnergyProgram(acc, steps, LHC_RAMP_FILE) {}
 };
 
-template <typename Acc, typename EnergyRamp = EnergyRamp<Acc>>
-class AggressiveEnergyRamp : public EnergyRamp
+template <typename Acc, typename EnergyProgram = EnergyProgram<Acc>>
+class AggressiveEnergyProgram : public EnergyProgram
 {
     using Program = Program<Acc>;
 public:
-    AggressiveEnergyRamp(Acc& acc, unsigned steps)
-        : Program(acc, steps), EnergyRamp(acc, steps)
+    AggressiveEnergyProgram(Acc& acc, unsigned steps)
+        : Program(acc, steps), EnergyProgram(acc, steps)
     {
         this->mEnergy.reserve(steps);
         for (int i = 0; i <= steps; ++i) this->mEnergy.emplace_back(450e9 + i*1e7);
@@ -92,10 +92,10 @@ public:
  *
  */
 template <typename Acc, typename Program = Program<Acc>>
-class CollimatorRamp : virtual public Program
+class CollimatorProgram : virtual public Program
 {
 public:
-    CollimatorRamp(Acc& acc, unsigned steps, std::string motorProgram, unsigned collIndex)
+    CollimatorProgram(Acc& acc, unsigned steps, std::string motorProgram, unsigned collIndex)
         : Program(acc, steps), mCollIndex(collIndex) 
     {
         using common::skip;
@@ -144,15 +144,36 @@ protected:
     std::vector<std::pair<T, T>> mData;
 };
 
-template <typename Acc, typename CollimatorRamp = CollimatorRamp<Acc>>
-class TCP_IR3Ramp : public CollimatorRamp
+template <typename Acc, typename CollimatorProgram = CollimatorProgram<Acc>>
+class TCP_IR3Program : public CollimatorProgram
 {
     using Program = Program<Acc>;
 public:
-    TCP_IR3Ramp(Acc& acc, unsigned steps)
-        : Program(acc, steps), CollimatorRamp(acc, steps, COLL_MOTOR_FILE, 0) {}
+    TCP_IR3Program(Acc& acc, unsigned steps)
+        : Program(acc, steps), CollimatorProgram(acc, steps, COLL_MOTOR_FILE, 0) {}
 };
 
+
+/*
+ * Voltage reference programs
+ *
+ */
+template <typename Acc, typename Program = Program<Acc>>
+class VoltageProgram : virtual public Program
+{
+public:
+    VoltageProgram(Acc& acc, unsigned steps)
+        : Program(acc, steps), mIndex(0)
+    {}
+    virtual void setup() override { mIndex = 0; }
+    virtual void step() override { ++mIndex; Program::mAcc.V_rf = (6 + V_k*mIndex)*1e6; }
+protected:
+    using T = typename Acc::ValType;
+
+    // Calculated from the LHC ramp
+    const T V_k = 2.9491187074838457087e-07;
+    unsigned mIndex;
+};
 
 
 /*
@@ -160,11 +181,11 @@ public:
  *
  */
 template <typename Acc, typename ...Programs>
-class RampGenerator : public Programs...
+class ProgramGenerator : public Programs...
 {
     using Base = Program<Acc>;
 public:
-    RampGenerator(Acc& acc, unsigned steps) : Base(acc, steps), Programs(acc, steps)... {} 
+    ProgramGenerator(Acc& acc, unsigned steps) : Base(acc, steps), Programs(acc, steps)... {} 
     
     virtual void setup() override { int dummy[] = {0, (Programs::setup(), void(), 0)...}; static_cast<void>(dummy); }
     virtual void step() override { int dummy[] = {0, (Programs::step(), void(), 0)...}; static_cast<void>(dummy); }
@@ -186,9 +207,14 @@ typename Program<Acc>::Ptr create(Acc& acc, unsigned steps, ProgramType type)
         case NoRamp:
             return Ptr(new Program<Acc>(acc, steps));
         case LHCRamp:
-            return Ptr(new RampGenerator<Acc, DefaultEnergyRamp<Acc>, TCP_IR3Ramp<Acc>>(acc, steps));
+            return Ptr(new ProgramGenerator< 
+                    Acc, 
+                    DefaultEnergyProgram<Acc>, 
+                    TCP_IR3Program<Acc>,
+                    VoltageProgram<Acc>
+                >(acc, steps));
         case AggressiveRamp:
-            return Ptr(new RampGenerator<Acc, AggressiveEnergyRamp<Acc>>(acc, steps));
+            return Ptr(new ProgramGenerator<Acc, AggressiveEnergyProgram<Acc>>(acc, steps));
         default:
             throw std::runtime_error("ProgramType not supported");
     }

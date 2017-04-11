@@ -30,70 +30,70 @@
 
 namespace stron {
 
-enum RAMP_TYPE
-{
-    NO_RAMP,
-    LHC_RAMP,
-    EXTENDED_LHC_RAMP,
-    SEMI_AGGRESSIVE_RAMP,
-    AGGRESSIVE_RAMP,
-    EXTERNAL_RAMP,
-};
+//enum RAMP_TYPE
+//{
+    //NO_RAMP,
+    //LHC_RAMP,
+    //EXTENDED_LHC_RAMP,
+    //SEMI_AGGRESSIVE_RAMP,
+    //AGGRESSIVE_RAMP,
+    //EXTERNAL_RAMP,
+//};
 
 
-template <typename T>
-inline void readRampFile(int steps, std::string filePath, std::vector<T>& E_ramp)
-{
-    using common::skip;
+//template <typename T>
+//inline void readRampFile(int steps, std::string filePath, std::vector<T>& E_ramp)
+//{
+    //using common::skip;
 
-    E_ramp.reserve(steps);
-    T data;
-    std::cout << "Reading '" << filePath << "'..." << std::endl;
-    std::ifstream ramp_file(filePath);
-    for (int i = 0; i < steps; ++i) {
-        ramp_file >> skip >> data;
-        E_ramp.push_back(data*1e6);
-    }
-}
+    //E_ramp.reserve(steps);
+    //T data;
+    //std::cout << "Reading '" << filePath << "'..." << std::endl;
+    //std::ifstream ramp_file(filePath);
+    //for (int i = 0; i < steps; ++i) {
+        //ramp_file >> skip >> data;
+        //E_ramp.push_back(data*1e6);
+    //}
+//}
 
-template <typename T>
-inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
-{
-    E_ramp.reserve(steps);
-    switch (type) {
-        default:
-        case LHC_RAMP: {
-            readRampFile(steps, LHC_RAMP_FILE, E_ramp);
-            break;
-        }
-        case EXTENDED_LHC_RAMP: {
-            int extra_steps = 150; // A particle close to the separatrix takes ~600 turns to go around
-            readRamp(steps - extra_steps, E_ramp, LHC_RAMP);
-            std::vector<T> extension(extra_steps, 450e9); 
-            E_ramp.insert(E_ramp.begin(), extension.begin(), extension.end());
+//template <typename T>
+//inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
+//{
+    //E_ramp.reserve(steps);
+    //switch (type) {
+        //default:
+        //case LHC_RAMP: {
+            //readRampFile(steps, LHC_RAMP_FILE, E_ramp);
+            //break;
+        //}
+        //case EXTENDED_LHC_RAMP: {
+            //int extra_steps = 150; // A particle close to the separatrix takes ~600 turns to go around
+            //readRamp(steps - extra_steps, E_ramp, LHC_RAMP);
+            //std::vector<T> extension(extra_steps, 450e9); 
+            //E_ramp.insert(E_ramp.begin(), extension.begin(), extension.end());
 
-            std::cout << "--- VERIFY EXTENSION DATA ----" << std::endl;
-            for (int i = 0; i < 50; ++i) {
-                for (int j = 0; j < 8; ++j) {
-                    int index = i*8 + j;
-                    std::cout << std::setw(20) << std::setprecision(16) << E_ramp[index];
-                }
-                std::cout << std::endl;
-            }
-            std::cout << "------------------------------" << std::endl;
-            break;
-        }
-        case EXTERNAL_RAMP: 
-            readRampFile(steps, EXTERNAL_RAMP_FILE, E_ramp);
-            break;
-        case AGGRESSIVE_RAMP:
-            for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*1e7);
-            break;
-        case SEMI_AGGRESSIVE_RAMP:
-            for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*3e6);
-            break;
-    }
-}
+            //std::cout << "--- VERIFY EXTENSION DATA ----" << std::endl;
+            //for (int i = 0; i < 50; ++i) {
+                //for (int j = 0; j < 8; ++j) {
+                    //int index = i*8 + j;
+                    //std::cout << std::setw(20) << std::setprecision(16) << E_ramp[index];
+                //}
+                //std::cout << std::endl;
+            //}
+            //std::cout << "------------------------------" << std::endl;
+            //break;
+        //}
+        //case EXTERNAL_RAMP: 
+            //readRampFile(steps, EXTERNAL_RAMP_FILE, E_ramp);
+            //break;
+        //case AGGRESSIVE_RAMP:
+            //for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*1e7);
+            //break;
+        //case SEMI_AGGRESSIVE_RAMP:
+            //for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*3e6);
+            //break;
+    //}
+//}
 
 //template <typename T>
 //inline void readCollimators(int steps, std::vector<std::pair<T, T>>& collimators, const std::vector<T>& E_ramp)
@@ -255,9 +255,6 @@ public:
     {
         int n = program->steps();
         program->setup();
-        //mProgram = program;
-        //mProgram.reset(new EnergyRamp<Acc>(mAcc, n, typename EnergyRamp<Acc>::AggressiveRamp()));
-        //mProgram->setup();
 
         if (filePath.empty())
             std::cout << "Will not save particle path data" << std::endl;
@@ -265,16 +262,6 @@ public:
             createTurnFileHeader(filePath, 1 + n/saveFreq); // +1 as we are saving the first starting configuration as well
             writeDistribution(filePath);
         }
-
-        //std::vector<T> E_ramp;
-        //std::vector<std::pair<T, T>> ext_collimators;
-        //if (mType > NO_RAMP) {
-            //readRamp<T>(n, E_ramp, mType);
-            //readCollimators<T>(n, ext_collimators, E_ramp);
-            ////mAcc.setE(E_ramp[0], true);
-            //mAcc.coll_bot = ext_collimators[0].first;
-            //mAcc.coll_top = ext_collimators[0].second;
-        //}
 
         std::cout << "Tracking " << mParticles->size() << " particles for " << n << " turns" << std::endl;
         std::cout << "Starting simulation..." << std::endl;
@@ -284,21 +271,6 @@ public:
         timer.start();
         for (int i = 1; i < n; ++i) {
             program->step();
-
-            //if (mType > NO_RAMP) {
-                ////mAcc.setE(E_ramp[i]);
-
-                //// Caluclated from LHC_ramp.dat
-                //const T k = 2.9491187074838457087e-07;
-                //mAcc.V_rf = (6 + k*i)*1e6;
-
-                //// Comment out to remove motor motion
-                //if (!ext_collimators.empty()) {
-                    //mAcc.coll_bot = ext_collimators[i].first;
-                    //mAcc.coll_top = ext_collimators[i].second;
-                //}
-            //}
-
             simulateTurn(i);
 
             // reduce the memory footprint a little if it's not necessary
