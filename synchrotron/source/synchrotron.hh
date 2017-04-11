@@ -119,7 +119,7 @@ public:
     using Acc = Accelerator<T>;
     using Particles = ParticleCollection<T>;
     using ParticlesPtr = typename Particles::Ptr;
-    using Collimator = typename Acc::Collimator;
+    using Collimat = typename Acc::Collimat;
     using ProgramPtr = typename ramp::Program<Acc>::Ptr;
 
     SimpleSynchrotron(const Acc acc) 
@@ -343,14 +343,14 @@ private:
             bool collided = false;
             for (auto& coll : mAcc.collimators) {
                 switch (coll.type) {
-                    case Collimator::Type::TCP_IR3: {
+                    case Collimat::Type::TCP_IR3: {
                         // Very not sure if this is correct
                         const T& momentum = mPart.momentum[index];
                         const T dispersion = -2.07e3;
                         const T cut = (mAcc.E() + momentum)/dispersion;
                         collided |= momentum > coll.left*cut || momentum < coll.right*cut;
                         break;
-                    } case Collimator::Type::TCPc_IR7: {
+                    } case Collimat::Type::TCPc_IR7: {
                         break;
                     }
                 }

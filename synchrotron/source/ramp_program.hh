@@ -30,15 +30,15 @@ protected:
  * Energy programs
  *
  */
-template <typename Acc, typename Program = Program<Acc>>
-class EnergyProgram : virtual public Program
+template <typename Acc, typename Prog = Program<Acc>>
+class EnergyProgram : virtual public Prog
 {
 public:
     EnergyProgram(Acc& acc, unsigned steps)
-        : Program(acc, steps), mIndex(0) {}
+        : Prog(acc, steps), mIndex(0) {}
 
     EnergyProgram(Acc& acc, unsigned steps, std::string energyProgram)
-        : Program(acc, steps), mIndex(0)
+        : Prog(acc, steps), mIndex(0)
     {
         using common::skip;
         
@@ -47,7 +47,7 @@ public:
         std::ifstream file(energyProgram);
         if (!file.is_open())
             throw std::runtime_error("Could not open file");
-        for (int i = 0; i <= steps; ++i) {
+        for (unsigned i = 0; i <= steps; ++i) {
             T data;
             file >> skip >> data;
             mEnergy.emplace_back(data*1e6);
@@ -55,8 +55,8 @@ public:
     }
 
     // Parameter passing for constructors
-    virtual void setup() override { mIndex = 0; Program::mAcc.setE(mEnergy.at(mIndex), true); }
-    virtual void step() override { Program::mAcc.setE(mEnergy.at(++mIndex)); }
+    virtual void setup() override { mIndex = 0; Prog::mAcc.setE(mEnergy.at(mIndex), true); }
+    virtual void step() override { Prog::mAcc.setE(mEnergy.at(++mIndex)); }
 protected:
     using T = typename Acc::ValType;
 
@@ -67,22 +67,22 @@ protected:
 template <typename Acc, typename EnergyProgram = EnergyProgram<Acc>>
 class DefaultEnergyProgram : public EnergyProgram
 {
-    using Program = Program<Acc>;
+    using Prog = Program<Acc>;
 public:
     DefaultEnergyProgram(Acc& acc, unsigned steps)
-        : Program(acc, steps), EnergyProgram(acc, steps, LHC_RAMP_FILE) {}
+        : Prog(acc, steps), EnergyProgram(acc, steps, LHC_RAMP_FILE) {}
 };
 
 template <typename Acc, typename EnergyProgram = EnergyProgram<Acc>>
 class AggressiveEnergyProgram : public EnergyProgram
 {
-    using Program = Program<Acc>;
+    using Prog = Program<Acc>;
 public:
     AggressiveEnergyProgram(Acc& acc, unsigned steps)
-        : Program(acc, steps), EnergyProgram(acc, steps)
+        : Prog(acc, steps), EnergyProgram(acc, steps)
     {
         this->mEnergy.reserve(steps);
-        for (int i = 0; i <= steps; ++i) this->mEnergy.emplace_back(450e9 + i*1e7);
+        for (unsigned i = 0; i <= steps; ++i) this->mEnergy.emplace_back(450e9 + i*1e7);
     }
 };
 
@@ -91,12 +91,12 @@ public:
  * Collimator programs
  *
  */
-template <typename Acc, typename Program = Program<Acc>>
-class CollimatorProgram : virtual public Program
+template <typename Acc, typename Prog = Program<Acc>>
+class CollimatorProgram : virtual public Prog
 {
 public:
     CollimatorProgram(Acc& acc, unsigned steps, std::string motorProgram, unsigned collIndex)
-        : Program(acc, steps), mCollIndex(collIndex) 
+        : Prog(acc, steps), mCollIndex(collIndex) 
     {
         using common::skip;
 
@@ -106,7 +106,7 @@ public:
             throw std::runtime_error("Could not open file");
 
         mData.reserve(steps);
-        for (int i = 0; i <= steps; ++i) {
+        for (unsigned i = 0; i <= steps; ++i) {
             T left, right;
             coll_file >> skip >> left >> right;
             mData.emplace_back(std::make_pair(left, right));
@@ -125,7 +125,7 @@ protected:
         T frac = s - std::floor(s);
 
         T left, right;
-        if (mIndex < Program::mSteps) {
+        if (mIndex < Prog::mSteps) {
             // linear interpolation
             left = mData.at(i_s).first*(T(1) - frac) + mData.at(i_s + 1).first*frac;
             right = mData.at(i_s).second*(T(1) - frac) + mData.at(i_s + 1).second*frac;
@@ -134,7 +134,7 @@ protected:
             right = mData.at(i_s).second;
         }
 
-        typename Acc::Collimator& coll = Program::mAcc.collimators.at(mCollIndex);
+        typename Acc::Collimat& coll = Prog::mAcc.collimators.at(mCollIndex);
         coll.left = left; 
         coll.right = right; 
     }
@@ -147,10 +147,10 @@ protected:
 template <typename Acc, typename CollimatorProgram = CollimatorProgram<Acc>>
 class TCP_IR3Program : public CollimatorProgram
 {
-    using Program = Program<Acc>;
+    using Prog = Program<Acc>;
 public:
     TCP_IR3Program(Acc& acc, unsigned steps)
-        : Program(acc, steps), CollimatorProgram(acc, steps, COLL_MOTOR_FILE, 0) {}
+        : Prog(acc, steps), CollimatorProgram(acc, steps, COLL_MOTOR_FILE, 0) {}
 };
 
 
@@ -158,15 +158,15 @@ public:
  * Voltage reference programs
  *
  */
-template <typename Acc, typename Program = Program<Acc>>
-class VoltageProgram : virtual public Program
+template <typename Acc, typename Prog = Program<Acc>>
+class VoltageProgram : virtual public Prog
 {
 public:
     VoltageProgram(Acc& acc, unsigned steps)
-        : Program(acc, steps), mIndex(0)
+        : Prog(acc, steps), mIndex(0)
     {}
     virtual void setup() override { mIndex = 0; }
-    virtual void step() override { ++mIndex; Program::mAcc.V_rf = (6 + V_k*mIndex)*1e6; }
+    virtual void step() override { ++mIndex; Prog::mAcc.V_rf = (6 + V_k*mIndex)*1e6; }
 protected:
     using T = typename Acc::ValType;
 

@@ -31,7 +31,7 @@ struct Accelerator
 {
     using ValType = T;
     using Acc = Accelerator<T>;
-    using Collimator = Collimator<T>;
+    using Collimat = Collimator<T>;
 
 private:
     // Use accessor methods for these instead
@@ -48,7 +48,7 @@ public:
     T coll_bot;
     T f_rev;
     T w_rev;
-    std::vector<Collimator> collimators;
+    std::vector<Collimat> collimators;
 
     static Acc getLHC() 
     {
@@ -71,8 +71,8 @@ public:
         acc.w_rev = 2*cnst::pi*acc.f_rev; // Hz
         
         // Raw data from Timber measured in mm
-        acc.collimators.emplace_back(Collimator::Type::TCP_IR3, -7.385, 8.285);
-        acc.collimators.emplace_back(Collimator::Type::TCPc_IR7, -6.485, 5.425);
+        acc.collimators.emplace_back(Collimat::Type::TCP_IR3, -7.385, 8.285);
+        acc.collimators.emplace_back(Collimat::Type::TCPc_IR7, -6.485, 5.425);
 
         return acc;
     }

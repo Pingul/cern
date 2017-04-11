@@ -1,6 +1,6 @@
 #!/bin/bash
 
-toymodel="/afs/cern.ch/user/s/swretbor/test/cern/2d-synchrotron"
+toymodel="/afs/cern.ch/user/s/swretbor/test/cern/synchrotron"
 resources="$toymodel/resources"
 
 declare -a precopy_for_batch=(
