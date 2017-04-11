@@ -31,8 +31,8 @@ all: 2dsynch
 2dsynch: ${H_DEPS} source/main.cc ../common/timer.cc
 	$(CC) $(CPLUS_FLAGS) -o 2dsynch $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) $(CPP)
 
-#misc: source/misc.cc $(H_DEPS)
-	#$(CC) $(CPLUS_FLAGS) -o misc $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/misc.cc
+misc: source/misc.cc $(H_DEPS)
+	$(CC) $(CPLUS_FLAGS) -o misc $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/misc.cc
 
 clean :
 	rm -f 2dsynch misc
