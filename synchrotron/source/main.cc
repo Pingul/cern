@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 
     } else if (args[1].find("animate") == 0) {
         SimpleSynchrotron ss(Acc::getLHC());
-        ss.addParticles(stron::pdist::AroundSeparatrix<double>(500, ss.getAcc()));
+        ss.addParticles(stron::pdist::AroundSeparatrix<double>(1000, ss.getAcc()));
         if (args[1] == "animate") {
             ss.simulateTurns(stron::ramp::create(ss.getAcc(), 1000, progType), stron::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
@@ -69,6 +69,8 @@ int main(int argc, char* argv[])
         } else if (args[1] == "animate-background") {
             ss.simulateTurns(stron::ramp::create(ss.getAcc(), 300*11245, progType), stron::PATH_FILE, 11245);
             generatePhasespaceLines(300);
+        } else {
+            throw std::runtime_error("Invalid function call");
         }
         ss.writeCollHits(stron::COLL_FILE);
         writePhasespaceFrame(Acc::getLHC(), stron::LINE_FILE);
