@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
         if (args[1] == "animate") {
             ss.simulateTurns(stron::ramp::create(ss.getAcc(), 1000, progType), stron::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
-            ss.simulateTurns(stron::ramp::create(ss.getAcc(), 20*11245, progType), stron::PATH_FILE, 1000);
+            ss.simulateTurns(stron::ramp::create(ss.getAcc(), 300*11245, progType), stron::PATH_FILE, 11245);
         } else if (args[1] == "animate-background") {
             ss.simulateTurns(stron::ramp::create(ss.getAcc(), 300*11245, progType), stron::PATH_FILE, 11245);
             generatePhasespaceLines(300);
