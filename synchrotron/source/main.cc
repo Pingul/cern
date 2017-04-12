@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
         // SimpleSynchrotron for both of these
 
         SimpleSynchrotron ss(Acc::getLHC());
-        ss.addParticles(stron::pdist::ActionValues<double>(2500, ss.getAcc()));
+        ss.addParticles(stron::pdist::ActionValues<double>(1000, ss.getAcc()));
         if (args[1] == "lossmap")
             ss.runLossmap(stron::ramp::create(ss.getAcc(), 50*11245, progType));
 

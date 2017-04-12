@@ -30,88 +30,6 @@
 
 namespace stron {
 
-//enum RAMP_TYPE
-//{
-    //NO_RAMP,
-    //LHC_RAMP,
-    //EXTENDED_LHC_RAMP,
-    //SEMI_AGGRESSIVE_RAMP,
-    //AGGRESSIVE_RAMP,
-    //EXTERNAL_RAMP,
-//};
-
-
-//template <typename T>
-//inline void readRampFile(int steps, std::string filePath, std::vector<T>& E_ramp)
-//{
-    //using common::skip;
-
-    //E_ramp.reserve(steps);
-    //T data;
-    //std::cout << "Reading '" << filePath << "'..." << std::endl;
-    //std::ifstream ramp_file(filePath);
-    //for (int i = 0; i < steps; ++i) {
-        //ramp_file >> skip >> data;
-        //E_ramp.push_back(data*1e6);
-    //}
-//}
-
-//template <typename T>
-//inline void readRamp(int steps, std::vector<T>& E_ramp, RAMP_TYPE type)
-//{
-    //E_ramp.reserve(steps);
-    //switch (type) {
-        //default:
-        //case LHC_RAMP: {
-            //readRampFile(steps, LHC_RAMP_FILE, E_ramp);
-            //break;
-        //}
-        //case EXTENDED_LHC_RAMP: {
-            //int extra_steps = 150; // A particle close to the separatrix takes ~600 turns to go around
-            //readRamp(steps - extra_steps, E_ramp, LHC_RAMP);
-            //std::vector<T> extension(extra_steps, 450e9); 
-            //E_ramp.insert(E_ramp.begin(), extension.begin(), extension.end());
-
-            //std::cout << "--- VERIFY EXTENSION DATA ----" << std::endl;
-            //for (int i = 0; i < 50; ++i) {
-                //for (int j = 0; j < 8; ++j) {
-                    //int index = i*8 + j;
-                    //std::cout << std::setw(20) << std::setprecision(16) << E_ramp[index];
-                //}
-                //std::cout << std::endl;
-            //}
-            //std::cout << "------------------------------" << std::endl;
-            //break;
-        //}
-        //case EXTERNAL_RAMP: 
-            //readRampFile(steps, EXTERNAL_RAMP_FILE, E_ramp);
-            //break;
-        //case AGGRESSIVE_RAMP:
-            //for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*1e7);
-            //break;
-        //case SEMI_AGGRESSIVE_RAMP:
-            //for (int i = 0; i < steps; ++i) E_ramp.push_back(450e9 + i*3e6);
-            //break;
-    //}
-//}
-
-//template <typename T>
-//inline void readCollimators(int steps, std::vector<std::pair<T, T>>& collimators, const std::vector<T>& E_ramp)
-//{
-    //using common::skip;
-
-    //std::cout << "Reading collimators from '" << COLL_MOTOR_FILE << "'" << std::endl;
-    //std::ifstream coll_file(COLL_MOTOR_FILE);
-    //if (!coll_file.is_open())
-        //throw std::runtime_error("could not open file");
-
-    //for (int i = 0; i < steps; ++i) {
-        //T bot_coll, top_coll;
-        //coll_file >> skip >> bot_coll >> top_coll;
-        //collimators.push_back(std::make_pair(bot_coll*E_ramp[i], top_coll*E_ramp[i]));
-    //}
-//}
-
 template <typename T>
 class SimpleSynchrotron 
 {
@@ -124,32 +42,6 @@ public:
 
     SimpleSynchrotron(const Acc acc) 
         : mAcc(acc), mParticles(nullptr), mProgram(nullptr) {}
-
-    //
-    // FILE IO
-    //
-
-    //void readDistribution(std::string filePath)
-    //{
-        //std::cout << "Reading distribution from '" << filePath << "'" << std::endl;
-        //std::ifstream file(filePath.c_str());
-        //if (!file.is_open())
-            //throw std::runtime_error("could not open file");
-
-        //using common::skip;
-
-        //int n;
-        //file >> n >> skip;
-        //initStorage(n);
-    
-        //for (int i = 0; i < n; ++i) {
-            //T de, phase;
-            //file >> de >> skip<char> >> phase >> skip; // we need to consume end of line
-            //mParticles->momentum[i] = de;
-            //mParticles->phase[i] = phase;
-        //}
-        //std::cout << "Read " << size() << " particles" << std::endl;
-    //}
 
     void addParticles(ParticlesPtr particles)
     {
@@ -211,7 +103,8 @@ public:
         // FILE:
         //     id / turn_lost / phase_lost / energy_lost
         file << mParticles->size() << std::endl;
-        file << mAcc.coll_top << ", " << mAcc.coll_bot << std::endl;
+        //file << mAcc.coll_top << ", " << mAcc.coll_bot << std::endl;
+        file << 0.0 << ", " << 0.0 << std::endl;
         for (size_t i = 0; i < mParticles->size(); ++i) {
             if (mCollHits[i] == -1) continue;
             std::stringstream ss;
@@ -270,8 +163,9 @@ public:
 
         timer.start();
         for (int i = 1; i < n; ++i) {
-            program->step();
             simulateTurn(i);
+            program->step();
+            mAcc.recalc();
 
             // reduce the memory footprint a little if it's not necessary
             if (!filePath.empty() && (i + 1) % saveFreq == 0)
@@ -344,11 +238,11 @@ private:
             for (auto& coll : mAcc.collimators) {
                 switch (coll.type) {
                     case Collimat::Type::TCP_IR3: {
-                        // Very not sure if this is correct
                         const T& momentum = mPart.momentum[index];
                         const T dispersion = -2.07e3;
-                        const T cut = (mAcc.E() + momentum)/dispersion;
-                        collided |= momentum > coll.left*cut || momentum < coll.right*cut;
+                        const T cut = (std::abs(coll.left) + std::abs(coll.right))/(2.0*dispersion);
+                        const T mcut = mAcc.E()*cut;
+                        collided |= momentum < mcut || momentum > -mcut;
                         break;
                     } case Collimat::Type::TCPc_IR7: {
                         break;

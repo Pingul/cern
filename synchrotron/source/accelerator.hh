@@ -44,8 +44,8 @@ public:
     T h_rf;
     T k_rf;
     T m_compaction;
-    T coll_top;
-    T coll_bot;
+    //T coll_top;
+    //T coll_bot;
     T f_rev;
     T w_rev;
     std::vector<Collimat> collimators;
@@ -61,15 +61,10 @@ public:
         acc.h_rf = 35640;
         acc.k_rf = acc.h_rf*T(2)*cnst::pi/acc.C;
         acc.m_compaction = 0.0003225;
-        acc.coll_top = 0.5e9; // ∆eV
-        acc.coll_bot = -0.5e9;
-        
-        auto p = acc.calcParticleProp(0.0, 0.0); // This is ok: we only want b
-        acc.f_rev = p.b*cnst::c/acc.C;
-        acc.f_rf = acc.f_rev*acc.h_rf;
+        //acc.coll_top = 0.5e9; // ∆eV
+        //acc.coll_bot = -0.5e9;
+        acc.recalc();
 
-        acc.w_rev = 2*cnst::pi*acc.f_rev; // Hz
-        
         // Raw data from Timber measured in mm
         acc.collimators.emplace_back(Collimat::Type::TCP_IR3, -7.385, 8.285);
         acc.collimators.emplace_back(Collimat::Type::TCPc_IR7, -6.485, 5.425);
@@ -116,6 +111,15 @@ public:
     T E_prev() const { return mE_pref; }
     T lag_phase() const { return cnst::pi - (std::asin((E() - E_prev())/V_rf)); }
     //T lag_phase() const { return cnst::pi - 0.3; }
+
+    // calculates all relative measures we use in the accelerator
+    void recalc() 
+    {
+        auto p = calcParticleProp(0.0, 0.0); // This is ok: we only want b
+        f_rev = p.b*cnst::c/C;
+        f_rf = f_rev*h_rf;
+        w_rev = 2*cnst::pi*f_rev; // Hz
+    }
 };
 
 } // namespace stron
