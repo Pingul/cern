@@ -10,19 +10,20 @@ namespace stron {
 namespace ramp {
 
 namespace except {
-
 struct ProgramOutOfBounds : public std::runtime_error 
 { 
-    ProgramOutOfBounds(const std::string& message) : std::runtime_error("ramp_program.hh: " + message) {}
+    ProgramOutOfBounds(const std::string& program, unsigned programSteps, unsigned programBounds) 
+        : std::runtime_error("ramp_program.hh: " + program + ". Requested " + std::to_string(programSteps) + " steps, can take " + std::to_string(programBounds)) {} 
 };
 struct FileNotFound : public std::runtime_error 
-{
-    FileNotFound(const std::string& message) : std::runtime_error("ramp_program.hh: " + message) {}
+{ 
+    FileNotFound(const std::string& filename) 
+        : std::runtime_error("ramp_program.hh: " + filename) {} 
 };
-
-struct ProgramTypeNotFound : public std::runtime_error
-{
-    ProgramTypeNotFound() : std::runtime_error("ProgramType not found") {}
+struct ProgramTypeNotFound : public std::runtime_error 
+{ 
+    ProgramTypeNotFound() 
+        : std::runtime_error("ramp_program.hh: ProgramType not found") {}
 };
 
 } // namespace except
@@ -72,8 +73,8 @@ public:
             mEnergy.emplace_back(data*1e6);
         }
 
-        if (Prog::mSteps < mEnergy.size()) 
-            throw except::ProgramOutOfBounds("energy");
+        if (mEnergy.size() < Prog::mSteps + 1) 
+            throw except::ProgramOutOfBounds("energy", Prog::mSteps, mEnergy.size());
     }
 
     // Parameter passing for constructors
@@ -134,8 +135,8 @@ public:
             mData.emplace_back(std::make_pair(left, right));
         }
 
-        if (Prog::mSteps < mData.size()) 
-            throw except::ProgramOutOfBounds("collimator");
+        if (mData.size() < Prog::mSteps + 1) 
+            throw except::ProgramOutOfBounds("collimator", Prog::mSteps, mData.size());
     }
     virtual void setup() override { mIndex = 0; set(); }
     virtual void step() override { ++mIndex; set(); }
