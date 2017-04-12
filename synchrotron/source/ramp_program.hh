@@ -1,12 +1,22 @@
 #ifndef RAMP_PROGRAM
 #define RAMP_PROGRAM
 
+#include <stdexcept>
 #include "common.hh"
 #include "accelerator.hh"
 #include "settings.hh"
 
 namespace stron {
 namespace ramp {
+
+namespace except {
+
+struct ProgramOutOfBounds : public std::runtime_error 
+{ 
+    ProgramOutOfBounds(const std::string& message) : std::runtime_error("ramp_program.hh: " + message) {}
+};
+
+} // namespace except
 
 template <typename Acc>
 class Program
@@ -52,6 +62,9 @@ public:
             file >> skip >> data;
             mEnergy.emplace_back(data*1e6);
         }
+
+        if (Prog::mSteps < mEnergy.size()) 
+            throw except::ProgramOutOfBounds("energy");
     }
 
     // Parameter passing for constructors
@@ -111,6 +124,9 @@ public:
             coll_file >> skip >> left >> right;
             mData.emplace_back(std::make_pair(left, right));
         }
+
+        if (Prog::mSteps < mData.size()) 
+            throw except::ProgramOutOfBounds("collimator");
     }
     virtual void setup() override { mIndex = 0; set(); }
     virtual void step() override { ++mIndex; set(); }
@@ -187,6 +203,7 @@ class ProgramGenerator : public Programs...
 public:
     ProgramGenerator(Acc& acc, unsigned steps) : Base(acc, steps), Programs(acc, steps)... {} 
     
+    // Explanation at http://stackoverflow.com/questions/43322854/multiple-inheritance-with-variadic-templates-how-to-call-function-for-each-base/43322961?noredirect=1#comment73711445_43322961
     virtual void setup() override { int dummy[] = {0, (Programs::setup(), void(), 0)...}; static_cast<void>(dummy); }
     virtual void step() override { int dummy[] = {0, (Programs::step(), void(), 0)...}; static_cast<void>(dummy); }
 };
@@ -195,6 +212,7 @@ enum ProgramType
 {
     NoRamp,
     LHCRamp,
+    LHCWithoutEnergy,
     AggressiveRamp,
 };
 
@@ -210,6 +228,12 @@ typename Program<Acc>::Ptr create(Acc& acc, unsigned steps, ProgramType type)
             return Ptr(new ProgramGenerator< 
                     Acc, 
                     DefaultEnergyProgram<Acc>, 
+                    TCP_IR3Program<Acc>,
+                    VoltageProgram<Acc>
+                >(acc, steps));
+        case LHCWithoutEnergy:
+            return Ptr(new ProgramGenerator<
+                    Acc,
                     TCP_IR3Program<Acc>,
                     VoltageProgram<Acc>
                 >(acc, steps));
