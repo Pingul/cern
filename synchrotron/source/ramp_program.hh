@@ -14,6 +14,8 @@ namespace except {
 struct ProgramOutOfBounds : public std::runtime_error 
 { 
     ProgramOutOfBounds(const std::string& message) : std::runtime_error("ramp_program.hh: " + message) {}
+    FileNotFound(cosnt std::string& message) : std::runtime_error("ramp_program.hh: " + message) {}
+    ProgramTypeNotFound() : std::runtime_error() {}
 };
 
 } // namespace except
@@ -56,7 +58,7 @@ public:
         std::cout << "Reading '" << energyProgram << "'..." << std::endl;
         std::ifstream file(energyProgram);
         if (!file.is_open())
-            throw std::runtime_error("Could not open file");
+            throw except::FileNotFound(energyProgram);
         for (unsigned i = 0; i <= steps; ++i) {
             T data;
             file >> skip >> data;
@@ -116,7 +118,7 @@ public:
         std::cout << "Reading '" << motorProgram << "'" << std::endl;
         std::ifstream coll_file(motorProgram);
         if (!coll_file.is_open())
-            throw std::runtime_error("Could not open file");
+            throw except::FileNotFound(motorProgram);
 
         mData.reserve(steps);
         for (unsigned i = 0; i <= steps; ++i) {
@@ -240,7 +242,7 @@ typename Program<Acc>::Ptr create(Acc& acc, unsigned steps, ProgramType type)
         case AggressiveRamp:
             return Ptr(new ProgramGenerator<Acc, AggressiveEnergyProgram<Acc>>(acc, steps));
         default:
-            throw std::runtime_error("ProgramType not supported");
+            throw except::ProgramTypeNotFound();
     }
 }
 
