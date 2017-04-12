@@ -14,8 +14,15 @@ namespace except {
 struct ProgramOutOfBounds : public std::runtime_error 
 { 
     ProgramOutOfBounds(const std::string& message) : std::runtime_error("ramp_program.hh: " + message) {}
-    FileNotFound(cosnt std::string& message) : std::runtime_error("ramp_program.hh: " + message) {}
-    ProgramTypeNotFound() : std::runtime_error() {}
+};
+struct FileNotFound : public std::runtime_error 
+{
+    FileNotFound(const std::string& message) : std::runtime_error("ramp_program.hh: " + message) {}
+};
+
+struct ProgramTypeNotFound : public std::runtime_error
+{
+    ProgramTypeNotFound() : std::runtime_error("ProgramType not found") {}
 };
 
 } // namespace except
