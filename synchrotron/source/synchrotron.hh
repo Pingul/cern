@@ -235,10 +235,10 @@ private:
                     case Collimat::Type::TCP_IR3: {
                         const T& momentum = mPart.momentum[index];
                         const T dispersion = -2.07e3;
-                        const T cut = (std::abs(ch.collimat.left) + std::abs(ch.collimat.right))/(2.0*dispersion);
-                        const T mcut = mAcc.E()*cut;
-                        bool c = momentum < mcut || momentum > -mcut;
-                        if (c) ch.registerHit(index, mTurn, momentum/mAcc.E()*dispersion);
+                        const T x = momentum/mAcc.E()*dispersion + mPart.x[index];
+                        const T xcut = (std::abs(ch.collimat.left) + std::abs(ch.collimat.right))/2.0;
+                        bool c = x < -xcut || x > xcut;
+                        if (c) ch.registerHit(index, mTurn, x);
                         collided |= c;
                         break;
                     } case Collimat::Type::TCPc_IR7: {
