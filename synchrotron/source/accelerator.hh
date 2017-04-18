@@ -44,8 +44,6 @@ public:
     T h_rf;
     T k_rf;
     T m_compaction;
-    //T coll_top;
-    //T coll_bot;
     T f_rev;
     T w_rev;
     std::vector<Collimat> collimators;
@@ -61,8 +59,6 @@ public:
         acc.h_rf = 35640;
         acc.k_rf = acc.h_rf*T(2)*cnst::pi/acc.C;
         acc.m_compaction = 0.0003225;
-        //acc.coll_top = 0.5e9; // ∆eV
-        //acc.coll_bot = -0.5e9;
         acc.recalc();
 
         // Raw data from Timber measured in mm

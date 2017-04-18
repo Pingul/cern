@@ -40,12 +40,14 @@ int main(int argc, char* argv[])
 
     using SimpleSynchrotron = stron::SimpleSynchrotron<double>;
     using Acc = typename SimpleSynchrotron::Acc;
+    using ParticleGenerator = stron::ParticleGenerator<Acc>;
     using ProgramType = stron::ramp::ProgramType;
 
-    //auto LHC = SimpleSynchrotron::Acc::getLHC();
-
     // CHANGE FOR DIFFERENT SIMULATIONS
-    ProgramType progType = ProgramType::LHCRamp;
+    ProgramType progType = ProgramType::NoRamp;
+
+    SimpleSynchrotron ss(Acc::getLHC());
+    ParticleGenerator pgen(ss.getAcc());
 
     if (args.size() < 2) {
         std::cout << "Not enough arguments specified" << std::endl;
@@ -53,15 +55,12 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist") {
         // We often work with these two together, so we make sure we have the same
         // SimpleSynchrotron for both of these
-
-        SimpleSynchrotron ss(Acc::getLHC());
-        ss.addParticles(stron::pdist::ActionValues<double>(1000, ss.getAcc()));
+        ss.addParticles(pgen.AroundSeparatrix(1000));
         if (args[1] == "lossmap")
             ss.runLossmap(stron::ramp::create(ss.getAcc(), 50*11245, progType));
 
     } else if (args[1].find("animate") == 0) {
-        SimpleSynchrotron ss(Acc::getLHC());
-        ss.addParticles(stron::pdist::AroundSeparatrix<double>(1000, ss.getAcc()));
+        ss.addParticles(pgen.AroundSeparatrix(1000));
         if (args[1] == "animate") {
             ss.simulateTurns(stron::ramp::create(ss.getAcc(), 1000, progType), stron::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
@@ -82,14 +81,29 @@ int main(int argc, char* argv[])
             momentum = std::stod(args[2])*1e6;
         std::cout << "∆E = " << std::setprecision(16) << momentum << std::endl;
 
-        SimpleSynchrotron ss(Acc::getLHC());
-        ss.addParticles(stron::pdist::SixTrackTest<double>(momentum));
+        auto p = stron::ParticleCollection<double>::create(1);
+        p->momentum[0] = momentum;
+        p->phase[0] = stron::cnst::pi;
+        ss.addParticles(p);
         ss.simulateTurns(stron::ramp::create(ss.getAcc(), 224900, progType), stron::SIXTRACK_TEST_FILE);
 
     } else if (args[1] == "phasespace") {
         writePhasespaceFrame(SimpleSynchrotron::Acc::getLHC(), stron::LINE_FILE);
     } else if (args[1] == "phasespace-mov") {
         generatePhasespaceLines(300);
+
+    } else if (args[1] == "onep") {
+        SimpleSynchrotron ss(Acc::getLHC());
+
+        int n = 3;
+        auto p = stron::ParticleCollection<double>::create(n);
+        for (int i = 0; i < n; ++i) {
+            p->phase[i] = (1 + i)/2.0*stron::cnst::pi;
+            p->momentum[i] = stron::levelCurve(ss.getAcc(), p->phase[i], stron::separatrix(ss.getAcc()));
+        }
+        ss.addParticles(p);
+        ss.simulateTurns(stron::ramp::create(ss.getAcc(), 1000, ProgramType::NoRamp), stron::PATH_FILE, 1);
+        ss.writeCollHits(stron::COLL_FILE);
 
     } else if (args[1] == "test") {
         using namespace stron;

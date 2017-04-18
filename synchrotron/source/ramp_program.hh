@@ -9,6 +9,7 @@
 namespace stron {
 namespace ramp {
 
+// Custom exceptions for this module
 namespace except {
 struct ProgramOutOfBounds : public std::runtime_error 
 { 
@@ -17,13 +18,11 @@ struct ProgramOutOfBounds : public std::runtime_error
 };
 struct FileNotFound : public std::runtime_error 
 { 
-    FileNotFound(const std::string& filename) 
-        : std::runtime_error("ramp_program.hh: " + filename) {} 
+    FileNotFound(const std::string& filename) : std::runtime_error("ramp_program.hh: " + filename) {} 
 };
 struct ProgramTypeNotFound : public std::runtime_error 
 { 
-    ProgramTypeNotFound() 
-        : std::runtime_error("ramp_program.hh: ProgramType not found") {}
+    ProgramTypeNotFound() : std::runtime_error("ramp_program.hh: ProgramType not found") {}
 };
 
 } // namespace except
@@ -77,7 +76,6 @@ public:
             throw except::ProgramOutOfBounds("energy", Prog::mSteps, mEnergy.size());
     }
 
-    // Parameter passing for constructors
     virtual void setup() override { mIndex = 0; Prog::mAcc.setE(mEnergy.at(mIndex), true); }
     virtual void step() override { Prog::mAcc.setE(mEnergy.at(++mIndex)); }
 protected:
@@ -222,8 +220,10 @@ enum ProgramType
 {
     NoRamp,
     LHCRamp,
-    LHCWithoutEnergy,
+    LHCWithoutEnergyRamp,
     AggressiveRamp,
+    Voltage,
+    Energy,
 };
 
 template <typename Acc>
@@ -241,7 +241,7 @@ typename Program<Acc>::Ptr create(Acc& acc, unsigned steps, ProgramType type)
                     TCP_IR3Program<Acc>,
                     VoltageProgram<Acc>
                 >(acc, steps));
-        case LHCWithoutEnergy:
+        case LHCWithoutEnergyRamp:
             return Ptr(new ProgramGenerator<
                     Acc,
                     TCP_IR3Program<Acc>,
@@ -249,6 +249,10 @@ typename Program<Acc>::Ptr create(Acc& acc, unsigned steps, ProgramType type)
                 >(acc, steps));
         case AggressiveRamp:
             return Ptr(new ProgramGenerator<Acc, AggressiveEnergyProgram<Acc>>(acc, steps));
+        case Voltage:
+            return Ptr(new VoltageProgram<Acc>(acc, steps));
+        case Energy:
+            return Ptr(new DefaultEnergyProgram<Acc>(acc, steps));
         default:
             throw except::ProgramTypeNotFound();
     }

@@ -12,7 +12,7 @@
 namespace stron {
 
 namespace cnst {
-constexpr double pi = 3.14159265359;
+constexpr double pi = 3.14159265358979324;
 constexpr double c = 299792458.0; // m/s
 constexpr double m_proton = 938.2796e6; // eV
 constexpr double s_to_turn = 11245.0;
