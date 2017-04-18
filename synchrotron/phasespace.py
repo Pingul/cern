@@ -53,23 +53,39 @@ class PhaseSpace:
     def __init__(self, pfile, mute=False):
         self.nbr_p = 0
         self.nbr_turns = 0
-        self.denergy = np.array([])
-        self.phase = np.array([])
         self.background_lines = []
 
+        self.denergy = np.array([])
+        self.phase = np.array([])
+        self.x = np.array([])
+        self.px = np.array([])
+        self.h = np.array([])
 
         if pfile:
             if not mute: print("reading in particles from '{}'".format(pfile))
-            with open(pfile, 'r') as file:
-                self.nbr_p , self.nbr_turns = map(int, file.readline().strip().split(','))
-                self.denergy = np.empty(self.nbr_p*self.nbr_turns)
-                self.phase = np.empty(self.nbr_p*self.nbr_turns)
-                self.h = np.empty(self.nbr_p*self.nbr_turns)
-                for i, line in enumerate(file.readlines()):
-                    denergy, phase, h = map(float, line.rstrip('\n').split(','))
-                    self.denergy[i] = denergy
-                    self.phase[i] = phase
-                    self.h[i] = h
+            try: # new way -- includes horizontal motion
+                ids, self.x, self.px, self.denergy, self.phase, self.h = np.loadtxt(
+                        pfile,
+                        delimiter = ',',
+                        unpack = True)
+                self.nbr_p = int(ids.max()) + 1
+                self.nbr_turns =int(self.x.size/self.nbr_p)
+            except: # try the old way instead
+                with open(pfile, 'r') as file:
+                    self.nbr_p , self.nbr_turns = map(int, file.readline().strip().split(','))
+
+                    size = self.nbr_p*self.nbr_turns
+                    self.denergy = np.empty(size)
+                    self.phase = np.empty(size)
+                    self.h = np.empty(size)
+                    self.x = np.zeros(size)
+                    self.px = np.zeros(size)
+
+                    for i, line in enumerate(file.readlines()):
+                        denergy, phase, h = map(float, line.rstrip('\n').split(','))
+                        self.denergy[i] = denergy
+                        self.phase[i] = phase
+                        self.h[i] = h
 
     def create_plot(self):
         self.fig, self.ax = plt.subplots()

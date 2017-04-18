@@ -54,25 +54,7 @@ public:
     {
         mParticles = particles;
         mCollHits.assign(mParticles->size(), -1);
-        writeSingleDistribution(STARTDIST_FILE);
-    }
-
-    void createTurnFileHeader(std::string filePath, int turns) const
-    {
-        std::ofstream file(filePath.c_str());
-        if (file.is_open()) {
-            std::cout << "Saving turns data in '" << filePath << "'" << std::endl;
-            file << mParticles->size() << "," << turns << std::endl; 
-        } else 
-            std::cerr << "could not write headers" << std::endl;
-        file.close();
-    }
-
-    void writeMetaData(const std::string& filePath) const 
-    {
-        std::ofstream f(filePath.c_str());
-        if (!f.is_open())
-            throw FileNotFound(filePath);
+        writeDistribution(STARTDIST_FILE);
     }
 
     void writeDistribution(std::string filePath) const 
@@ -82,26 +64,16 @@ public:
         if (!file.is_open()) 
             throw FileNotFound(filePath);
 
-        // FILE:
-        //      x, px, ∆energy,phase,h        p1
-        //      ...                           p2
         for (size_t i = 0; i < mParticles->size(); ++i) {
-            std::stringstream ss;
-            const T de = mParticles->momentum[i];
-            const T phase = mParticles->phase[i];
-            ss << std::setprecision(16) << 
-                de << "," << 
-                phase << "," << 
-                hamiltonian(mAcc, de, phase) << std::endl;
-            file << ss.str();
+            file << i << ","
+                 << mParticles->x[i] << ","
+                 << mParticles->px[i] << ","
+                 << mParticles->momentum[i] << ","
+                 << mParticles->phase[i] << ","
+                 << hamiltonian(mAcc, mParticles->momentum[i], mParticles->phase[i]) 
+                 << std::endl;
         }
         file.close();
-    }
-
-    void writeSingleDistribution(std::string filePath) const
-    {
-        createTurnFileHeader(filePath, 1);
-        writeDistribution(filePath);
     }
 
     void writeCollHits(std::string filePath) const
@@ -109,7 +81,7 @@ public:
         std::cout << "Saving coll hits to '" << filePath << "'" << std::endl;
         std::ofstream file(filePath.c_str());
         if (!file.is_open())
-            throw std::runtime_error("could not open file");
+            throw FileNotFound(filePath);
         else if (mCollHits.empty())
             throw std::runtime_error("could not save coll hits -- no data was recorded");
 
@@ -159,36 +131,41 @@ public:
     //void simulateTurns(int n, std::string filePath = "", int saveFreq = 1)
     void simulateTurns(ProgramPtr program, std::string filePath = "", int saveFreq = 1)
     {
-        mTurns = program->steps();
-        program->setup();
+        MetaData meta;
+        meta.nbrp = mParticles->size();
+        meta.turns = program->steps();
+        meta.saveFreq = saveFreq;
 
         if (filePath.empty())
             std::cout << "Will not save particle path data" << std::endl;
         else  {
-            createTurnFileHeader(filePath, 1 + mTurns/saveFreq); // +1 as we are saving the first starting configuration as well
+            //createTurnFileHeader(filePath, 1 + meta.turns/saveFreq); // +1 as we are saving the first starting configuration as well
             writeDistribution(filePath);
+            ++meta.savedTurns;
         }
 
-        std::cout << "Tracking " << mParticles->size() << " particles for " << mTurns << " turns" << std::endl;
+        std::cout << "Tracking " << meta.nbrp << " particles for " << meta.turns << " turns" << std::endl;
         std::cout << "Starting simulation..." << std::endl;
 
         common::SilentTimer timer;
-
         timer.start();
-        for (int i = 1; i < mTurns; ++i) {
+
+        program->setup();
+        for (int i = 1; i < meta.turns; ++i) {
             simulateTurn(i);
             program->step();
             mAcc.recalc();
 
-            // reduce the memory footprint a little if it's not necessary
-            if (!filePath.empty() && (i + 1) % saveFreq == 0)
+            if (!filePath.empty() && (i + 1) % saveFreq == 0) {
                 writeDistribution(filePath);
+                ++meta.savedTurns;
+            }
 
-            const int d = mTurns/10;
+            const int d = meta.turns/10;
             if (d > 0 && i % d == 0) {
                 int percent = 10*i/d;
                 ParticleStats stats = getStats();
-                std::cout << "\t" << std::setw(9) << i << " of " << mTurns << " turns (" << percent << "%).";
+                std::cout << "\t" << std::setw(9) << i << " of " << meta.turns << " turns (" << percent << "%).";
 
                 int pleft = (100*stats.pleft)/mParticles->size();
                 std::cout << " #=" << pleft << "%. φ=[" << std::setprecision(3) << stats.phmin << ", " << stats.phmax << "]" << std::endl;
@@ -205,7 +182,8 @@ public:
         if (dur.s > 0) std::cout << dur.s << "s ";
         std::cout << dur.ms << "ms" << std::endl;
 
-        writeSingleDistribution(ENDDIST_FILE);
+        writeDistribution(ENDDIST_FILE);
+        meta.write(META_FILE);
     }
 
     void runLossmap(ProgramPtr program)
@@ -313,7 +291,28 @@ private:
         std::vector<int>& mCollHits;
     }; // CalcOp
 
-    int mTurns;
+    struct MetaData
+    {
+        int nbrp{0};
+        int turns{0};
+        int saveFreq{0};
+        int savedTurns{0};
+
+        void write(const std::string& filePath) const 
+        {
+            std::ofstream f(filePath.c_str());
+            if (!f.is_open())
+                throw FileNotFound(filePath);
+
+            f << "{" << std::endl;
+            f << "\t\"nbrp\": " << nbrp << "," << std::endl;
+            f << "\t\"turns\": " << turns << "," << std::endl;;
+            f << "\t\"saveFreq\": " << saveFreq << "," << std::endl;;
+            f << "\t\"savedTurns\": " << savedTurns << std::endl;;
+            f << "}" << std::endl;
+        }
+    };
+
     Acc mAcc;
     ParticlesPtr mParticles;
     std::vector<int> mCollHits; // Turn hitting collimator
