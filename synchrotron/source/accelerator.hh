@@ -11,6 +11,8 @@ namespace stron {
 template <typename T>
 struct Collimator
 {
+    using ValType = T;
+
     enum Type {
         TCP_IR3,
         TCPc_IR7,
@@ -24,7 +26,6 @@ struct Collimator
     T left;
     T right;
 };
-
 
 template <typename T>
 struct Accelerator

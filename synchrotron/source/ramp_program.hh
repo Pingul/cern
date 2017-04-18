@@ -20,6 +20,9 @@ public:
     virtual void setup() {}
     virtual void step() {}
     virtual unsigned steps() { return mSteps; }
+
+    Program() = delete;
+    Program(const Program&) = delete;
 protected:
     Acc& mAcc;
     unsigned mSteps;

@@ -58,13 +58,11 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist") {
         // We often work with these two together, so we make sure we have the same
         // particle distribution for both
-        //ss.addParticles(partGen.AroundSeparatrix(1000));
-        ss.addParticles(partGen.create(1000, stron::AroundSeparatrix));
+        ss.addParticles(partGen.create(1000, stron::ActionValues));
         if (args[1] == "lossmap")
-            ss.runLossmap(progGen.create(50*11245, progType));
+            ss.runLossmap(progGen.create(20*11245, progType));
 
     } else if (args[1].find("animate") == 0) {
-        //ss.addParticles(partGen.AroundSeparatrix(1000));
         ss.addParticles(partGen.create(1000, stron::AroundSeparatrix));
         if (args[1] == "animate") {
             ss.simulateTurns(progGen.create(1000, progType), stron::PATH_FILE, 2);
@@ -76,8 +74,7 @@ int main(int argc, char* argv[])
         } else {
             throw std::runtime_error("Invalid function call");
         }
-        ss.writeCollHits(stron::COLL_FILE);
-        writePhasespaceFrame(Acc::getLHC(), stron::LINE_FILE);
+        writePhasespaceFrame(ss.getAcc(), stron::LINE_FILE);
 
     } else if (args[1] == "sixtrack-comp") {
         std::cout << "Sixtrack comparison" << std::endl;
@@ -108,7 +105,6 @@ int main(int argc, char* argv[])
         }
         ss.addParticles(p);
         ss.simulateTurns(progGen.create(1000, stron::ProgramType::NoRamp), stron::PATH_FILE, 1);
-        ss.writeCollHits(stron::COLL_FILE);
 
     } else if (args[1] == "test") {
         using namespace stron;

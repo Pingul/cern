@@ -20,7 +20,7 @@ struct ParticleCollection
     static Ptr create(int n ) { return Ptr(new ParticleCollection(n)); }
 
     ParticleCollection(int n)
-        : momentum(n), phase(n), x(n), px(n) {}
+        : momentum(n), phase(n), x(n), px(n), mActive(n, true) {}
 
     std::vector<T> momentum;
     std::vector<T> phase;
@@ -34,6 +34,11 @@ struct ParticleCollection
     // To avoid mistakes
     ParticleCollection(const ParticleCollection&) = delete;
     ParticleCollection(ParticleCollection&&) = delete;
+
+    bool isActive(int i) const { return mActive[i]; }
+    void setActive(int i, bool v) { mActive[i] = v; }
+private:
+    std::vector<int> mActive; // using int to allow for concurrent writes
 };
 
 enum LongitudinalDist
