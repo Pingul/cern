@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <random>
+#include <stdexcept>
 
 #include "hamiltonian.hh"
 #include "accelerator.hh"
@@ -28,10 +29,31 @@ struct ParticleCollection
 
     //void write(std::string filePath) const;
     size_t size() const { return momentum.size(); }
+    void resize(int n) { momentum.resize(n); phase.resize(n); x.resize(n); px.resize(n); }
 
     // To avoid mistakes
     ParticleCollection(const ParticleCollection&) = delete;
     ParticleCollection(ParticleCollection&&) = delete;
+};
+
+enum LongitudinalDist
+{
+    AroundSeparatrix,
+    ActionValues,
+    LinearDecay,
+    ExponentialDecay,
+};
+
+enum TransverseDist
+{
+    Zero,
+    //Random,
+};
+
+struct DistributionNotFound : public std::runtime_error
+{
+    DistributionNotFound(const std::string& type)
+        : std::runtime_error("particles.hh: " + type) {}
 };
 
 template <typename Acc>
@@ -43,29 +65,61 @@ struct ParticleGenerator
 
     ParticleGenerator(const Acc& acc)
         : mAcc(acc), mRDev(), mGenerator(mRDev()) {}
-    
-    PCollPtr AroundSeparatrix(int n)
-    {
-        auto particles = PColl::create(n);
 
+    PCollPtr create(int n, LongitudinalDist lDist, TransverseDist tDist = Zero)
+    {
+        auto p = PColl::create(n);
+        switch (lDist) {
+            case AroundSeparatrix:
+                GenAroundSeparatrix(*p);
+                break;
+            case ActionValues:
+                GenActionValues(*p);
+                break;
+            case LinearDecay:
+                GenLinearDecay(*p);
+                break;
+            case ExponentialDecay:
+                GenExponentialDecay(*p);
+                break;
+            default:
+                throw DistributionNotFound("longitudinal");
+        }
+        switch (tDist) {
+            case Zero:
+            {
+                for (int i = 0; i < p->size(); ++i) {
+                    p->x[i] = 0;
+                    p->px[i] = 0;
+                }
+                break;
+            }
+            default:
+                throw DistributionNotFound("transverse");
+        }
+        return p;
+    }
+    
+private:
+    void GenAroundSeparatrix(PColl& particles)
+    {
         std::uniform_real_distribution<> e_dist(-0.5e9, 0.5e9);
         std::uniform_real_distribution<> ph_dist(0, 2*cnst::pi);
         int count = 0;
         const T sep = separatrix<T>(mAcc);
-        while (count < n) {
+        while (count < particles.size()) {
             const T deltaE = e_dist(mGenerator);
             const T phase = ph_dist(mGenerator);
             const T H = hamiltonian(mAcc, deltaE, phase);
             if ((sep - 1e6) < H && H < (sep + 1e6)) {
-                particles->momentum[count] = deltaE;
-                particles->phase[count] = phase;
+                particles.momentum[count] = deltaE;
+                particles.phase[count] = phase;
                 count++;
             }
         }
-        return particles;
     }
 
-    PCollPtr ActionValues(int n)
+    void GenActionValues(PColl& particles)
     {
         // n here is a request for number of particles -- the resulting might be lower
         const T sep = separatrix(mAcc);
@@ -83,9 +137,9 @@ struct ParticleGenerator
             d_actions.push_back(T(-8000 + 500*i));
         }
 
-        const int n_per_level = n/(2*d_actions.size());
+        const int n_per_level = particles.size()/(2*d_actions.size());
         const int N = 2*n_per_level*d_actions.size();
-        auto particles = PColl::create(N);
+        particles.resize(N);
 
         int count = 0;
         for (T action : d_actions) {
@@ -96,19 +150,16 @@ struct ParticleGenerator
                     const T phase = dist(mGenerator);
                     const T energy = levelCurve(mAcc, phase, action, sign);
                     if (std::isnan(energy)) { --i; continue; }
-                    particles->momentum[count] = energy;
-                    particles->phase[count++] = phase;
+                    particles.momentum[count] = energy;
+                    particles.phase[count++] = phase;
                 }
             }
         }
-        return particles;
     }
 
-    PCollPtr LinearDecay(int n)
+    void GenLinearDecay(PColl& particles)
     {
-        auto particles = PColl::create(n);    
         const T sep = separatrix(mAcc);
-    
         // Distribution as (relative to separatrix)
         //  -15k        -10k         +5k
         //    | constant  | linear dec.|
@@ -118,36 +169,32 @@ struct ParticleGenerator
     
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
     
-        for (int i = 0; i < n; ++i) {
+        for (int i = 0, n = particles.size(); i < n; ++i) {
             const T phase = uni_dist(mGenerator);
             const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -1.0;
             const T action = H_dist(mGenerator);
             const T energy = levelCurve(mAcc, phase, action, sign);
             if (std::isnan(energy)) { --i; continue; }
-            particles->momentum[i] = energy;
-            particles->phase[i] = phase;
+            particles.momentum[i] = energy;
+            particles.phase[i] = phase;
         }
-        return particles;
     }
 
-    PCollPtr ExponentialDecay(int n)
+    void GenExponentialDecay(PColl& particles)
     {
-        auto particles = PColl::create(n);
-    
         std::exponential_distribution<> H_dist(0.0003);                
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);    
                                                                        
         const T H_low = separatrix(mAcc) - 15000;                      
-        for (int i = 0; i < n; ++i) {                                  
+        for (int i = 0, n = particles.size(); i < n; ++i) {                                  
             const T phase = uni_dist(mGenerator);                       
             const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -    1.0;
             const T action = H_low + H_dist(mGenerator);                
             const T energy = levelCurve(mAcc, phase, action, sign);    
             if (std::isnan(energy)) { --i; continue; }                 
-            particles->momentum[i] = energy;                          
-            particles->phase[i] = phase;                              
+            particles.momentum[i] = energy;                          
+            particles.phase[i] = phase;                              
         }
-        return particles;
     }
 
 private:
@@ -155,15 +202,6 @@ private:
     std::random_device mRDev;
     std::mt19937 mGenerator;
 };
-
-//enum DIST_TYPE
-//{
-    //RANDOM,
-    //AROUND_SEPARATRIX,
-    //LINEAR,
-    //EXPONENTIAL,
-//};
-
 
 
 } // namespace stron

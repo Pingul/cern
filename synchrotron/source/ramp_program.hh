@@ -7,25 +7,6 @@
 #include "settings.hh"
 
 namespace stron {
-namespace ramp {
-
-// Custom exceptions for this module
-namespace except {
-struct ProgramOutOfBounds : public std::runtime_error 
-{ 
-    ProgramOutOfBounds(const std::string& program, unsigned programSteps, unsigned programBounds) 
-        : std::runtime_error("ramp_program.hh: " + program + ". Requested " + std::to_string(programSteps) + " steps, can take " + std::to_string(programBounds)) {} 
-};
-struct FileNotFound : public std::runtime_error 
-{ 
-    FileNotFound(const std::string& filename) : std::runtime_error("ramp_program.hh: " + filename) {} 
-};
-struct ProgramTypeNotFound : public std::runtime_error 
-{ 
-    ProgramTypeNotFound() : std::runtime_error("ramp_program.hh: ProgramType not found") {}
-};
-
-} // namespace except
 
 template <typename Acc>
 class Program
@@ -44,6 +25,25 @@ protected:
     unsigned mSteps;
 };
 
+namespace program {
+
+// Custom exceptions for this module
+namespace except {
+struct ProgramOutOfBounds : public std::runtime_error 
+{ 
+    ProgramOutOfBounds(const std::string& program, unsigned programSteps, unsigned programBounds) 
+        : std::runtime_error("ramp_program.hh: " + program + ". Requested " + std::to_string(programSteps) + " steps, can take " + std::to_string(programBounds)) {} 
+};
+struct FileNotFound : public std::runtime_error 
+{ 
+    FileNotFound(const std::string& filename) : std::runtime_error("ramp_program.hh: " + filename) {} 
+};
+struct ProgramTypeNotFound : public std::runtime_error 
+{ 
+    ProgramTypeNotFound() : std::runtime_error("ramp_program.hh: ProgramType not found") {}
+};
+
+} // namespace except
 
 /*
  * Energy programs
@@ -205,16 +205,19 @@ protected:
  *
  */
 template <typename Acc, typename ...Programs>
-class ProgramGenerator : public Programs...
+class ProgramCombiner : public Programs...
 {
     using Base = Program<Acc>;
 public:
-    ProgramGenerator(Acc& acc, unsigned steps) : Base(acc, steps), Programs(acc, steps)... {} 
+    ProgramCombiner(Acc& acc, unsigned steps) : Base(acc, steps), Programs(acc, steps)... {} 
     
     // Explanation at http://stackoverflow.com/questions/43322854/multiple-inheritance-with-variadic-templates-how-to-call-function-for-each-base/43322961?noredirect=1#comment73711445_43322961
     virtual void setup() override { int dummy[] = {0, (Programs::setup(), void(), 0)...}; static_cast<void>(dummy); }
     virtual void step() override { int dummy[] = {0, (Programs::step(), void(), 0)...}; static_cast<void>(dummy); }
 };
+
+
+} // namespace program
 
 enum ProgramType
 {
@@ -227,39 +230,51 @@ enum ProgramType
 };
 
 template <typename Acc>
-typename Program<Acc>::Ptr create(Acc& acc, unsigned steps, ProgramType type)
+struct ProgramGenerator
 {
-    using Ptr = typename Program<Acc>::Ptr;
-    switch (type)
+
+    using Program = Program<Acc>;
+    using ProgramPtr = typename Program::Ptr;
+
+    ProgramGenerator(Acc& acc)
+        : mAcc(acc) {}
+
+    ProgramPtr create(unsigned steps, ProgramType type) 
     {
-        case NoRamp:
-            return Ptr(new Program<Acc>(acc, steps));
-        case LHCRamp:
-            return Ptr(new ProgramGenerator< 
-                    Acc, 
-                    DefaultEnergyProgram<Acc>, 
-                    TCP_IR3Program<Acc>,
-                    VoltageProgram<Acc>
-                >(acc, steps));
-        case LHCWithoutEnergyRamp:
-            return Ptr(new ProgramGenerator<
-                    Acc,
-                    TCP_IR3Program<Acc>,
-                    VoltageProgram<Acc>
-                >(acc, steps));
-        case AggressiveRamp:
-            return Ptr(new ProgramGenerator<Acc, AggressiveEnergyProgram<Acc>>(acc, steps));
-        case Voltage:
-            return Ptr(new VoltageProgram<Acc>(acc, steps));
-        case Energy:
-            return Ptr(new DefaultEnergyProgram<Acc>(acc, steps));
-        default:
-            throw except::ProgramTypeNotFound();
+        using namespace program;
+        switch (type)
+        {
+            case NoRamp:
+                return ProgramPtr(new Program(mAcc, steps));
+            case LHCRamp:
+                return ProgramPtr(new ProgramCombiner< 
+                        Acc, 
+                        DefaultEnergyProgram<Acc>, 
+                        TCP_IR3Program<Acc>,
+                        VoltageProgram<Acc>
+                    >(mAcc, steps));
+            case LHCWithoutEnergyRamp:
+                return ProgramPtr(new ProgramCombiner<
+                        Acc,
+                        TCP_IR3Program<Acc>,
+                        VoltageProgram<Acc>
+                    >(mAcc, steps));
+            case AggressiveRamp:
+                return ProgramPtr(new ProgramCombiner<Acc, AggressiveEnergyProgram<Acc>>(mAcc, steps));
+            case Voltage:
+                return ProgramPtr(new VoltageProgram<Acc>(mAcc, steps));
+            case Energy:
+                return ProgramPtr(new DefaultEnergyProgram<Acc>(mAcc, steps));
+            default:
+                throw except::ProgramTypeNotFound();
+        }
     }
-}
+
+private:
+    Acc& mAcc;
+};
 
 
-} // namespace ramp
 } // namespace stron
 
 #endif

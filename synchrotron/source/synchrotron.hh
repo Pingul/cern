@@ -10,6 +10,7 @@
 #include <tbb/parallel_for.h>
 #include <iomanip>
 #include <limits>
+#include <stdexcept>
 #include "common.hh"
 #include "timer.hh"
 
@@ -30,15 +31,21 @@
 
 namespace stron {
 
+
+
 template <typename T>
 class SimpleSynchrotron 
 {
+    struct FileNotFound : public std::runtime_error {
+        FileNotFound(const std::string& fn) : std::runtime_error(fn) {}
+    };
+
 public:
     using Acc = Accelerator<T>;
     using Particles = ParticleCollection<T>;
     using ParticlesPtr = typename Particles::Ptr;
     using Collimat = typename Acc::Collimat;
-    using ProgramPtr = typename ramp::Program<Acc>::Ptr;
+    using ProgramPtr = typename Program<Acc>::Ptr;
 
     SimpleSynchrotron(const Acc acc) 
         : mAcc(acc), mParticles(nullptr), mProgram(nullptr) {}
@@ -61,16 +68,23 @@ public:
         file.close();
     }
 
+    void writeMetaData(const std::string& filePath) const 
+    {
+        std::ofstream f(filePath.c_str());
+        if (!f.is_open())
+            throw FileNotFound(filePath);
+    }
+
     void writeDistribution(std::string filePath) const 
     {
         std::ofstream file(filePath.c_str(), std::ios::app);
 
         if (!file.is_open()) 
-            throw std::runtime_error("could not save particle coordinates");
+            throw FileNotFound(filePath);
 
         // FILE:
-        //      ∆energy,phase,h        p1
-        //      ...                    p2
+        //      x, px, ∆energy,phase,h        p1
+        //      ...                           p2
         for (size_t i = 0; i < mParticles->size(); ++i) {
             std::stringstream ss;
             const T de = mParticles->momentum[i];
@@ -93,7 +107,6 @@ public:
     void writeCollHits(std::string filePath) const
     {
         std::cout << "Saving coll hits to '" << filePath << "'" << std::endl;
-
         std::ofstream file(filePath.c_str());
         if (!file.is_open())
             throw std::runtime_error("could not open file");
@@ -146,23 +159,23 @@ public:
     //void simulateTurns(int n, std::string filePath = "", int saveFreq = 1)
     void simulateTurns(ProgramPtr program, std::string filePath = "", int saveFreq = 1)
     {
-        int n = program->steps();
+        mTurns = program->steps();
         program->setup();
 
         if (filePath.empty())
             std::cout << "Will not save particle path data" << std::endl;
         else  {
-            createTurnFileHeader(filePath, 1 + n/saveFreq); // +1 as we are saving the first starting configuration as well
+            createTurnFileHeader(filePath, 1 + mTurns/saveFreq); // +1 as we are saving the first starting configuration as well
             writeDistribution(filePath);
         }
 
-        std::cout << "Tracking " << mParticles->size() << " particles for " << n << " turns" << std::endl;
+        std::cout << "Tracking " << mParticles->size() << " particles for " << mTurns << " turns" << std::endl;
         std::cout << "Starting simulation..." << std::endl;
 
         common::SilentTimer timer;
 
         timer.start();
-        for (int i = 1; i < n; ++i) {
+        for (int i = 1; i < mTurns; ++i) {
             simulateTurn(i);
             program->step();
             mAcc.recalc();
@@ -171,11 +184,11 @@ public:
             if (!filePath.empty() && (i + 1) % saveFreq == 0)
                 writeDistribution(filePath);
 
-            const int d = n/10;
+            const int d = mTurns/10;
             if (d > 0 && i % d == 0) {
                 int percent = 10*i/d;
                 ParticleStats stats = getStats();
-                std::cout << "\t" << std::setw(9) << i << " of " << n << " turns (" << percent << "%).";
+                std::cout << "\t" << std::setw(9) << i << " of " << mTurns << " turns (" << percent << "%).";
 
                 int pleft = (100*stats.pleft)/mParticles->size();
                 std::cout << " #=" << pleft << "%. φ=[" << std::setprecision(3) << stats.phmin << ", " << stats.phmax << "]" << std::endl;
@@ -300,12 +313,10 @@ private:
         std::vector<int>& mCollHits;
     }; // CalcOp
 
-    int mStepID;
+    int mTurns;
     Acc mAcc;
     ParticlesPtr mParticles;
     std::vector<int> mCollHits; // Turn hitting collimator
-
-    //RAMP_TYPE mType;
     ProgramPtr mProgram;
 };
 

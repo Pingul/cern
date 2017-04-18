@@ -24,6 +24,7 @@ static constexpr double FRAME_X_HIGH = 4*cnst::pi;
 static constexpr double FRAME_Y_LOW = -2e9;
 static constexpr double FRAME_Y_HIGH = 2e9;
 
+static constexpr const char* META_FILE = OUTPUT_DIR"/meta.json";
 static constexpr const char* PATH_FILE = OUTPUT_DIR"/particles.dat";
 static constexpr const char* LINE_FILE = OUTPUT_DIR"/lines.dat";
 static constexpr const char* COLL_FILE = OUTPUT_DIR"/coll.dat";
