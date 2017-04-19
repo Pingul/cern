@@ -22,10 +22,10 @@ struct ParticleCollection
     ParticleCollection(int n)
         : momentum(n), phase(n), x(n), px(n), mActive(n, true) {}
 
-    std::vector<T> momentum;
-    std::vector<T> phase;
-    std::vector<T> x; // Normalized coordinates
-    std::vector<T> px;
+    std::vector<T> momentum; // [eV]
+    std::vector<T> phase; // [rad]
+    std::vector<T> x; // [m]
+    std::vector<T> px; // 
 
     struct HCoord { T x, px; }; // Horizontal coordinate
     HCoord xBeta(int i, T alpha, T beta) {
@@ -52,6 +52,7 @@ private:
     std::vector<int> mActive; // using int to allow for concurrent writes
 };
 
+static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "ActionValues", "LinearDecay", "ExponentialDecay"};
 enum LongitudinalDist
 {
     AroundSeparatrix,
@@ -59,12 +60,23 @@ enum LongitudinalDist
     LinearDecay,
     ExponentialDecay,
 };
+std::ostream& operator<<(std::ostream& os, LongitudinalDist e)
+{
+    os << LONGITUDINAL_DIST_NAMES[e];
+    return os;
+}
 
+static const char* TRANSVERSE_DIST_NAMES[] = {"Zero", "Random"};
 enum TransverseDist
 {
     Zero,
-    //Random,
+    Random,
 };
+std::ostream& operator<<(std::ostream& os, TransverseDist e)
+{
+    os << TRANSVERSE_DIST_NAMES[e];
+    return os;
+}
 
 struct DistributionNotFound : public std::runtime_error
 {
@@ -84,6 +96,9 @@ struct ParticleGenerator
 
     PCollPtr create(int n, LongitudinalDist lDist, TransverseDist tDist = Zero)
     {
+        std::cout << "Particle distribution" << std::endl
+                  << "\tLongitudinal: " << lDist << std::endl
+                  << "\tTransverse  : " << tDist << std::endl;
         auto p = PColl::create(n);
         switch (lDist) {
             case AroundSeparatrix:
@@ -107,6 +122,16 @@ struct ParticleGenerator
                 for (int i = 0; i < p->size(); ++i) {
                     p->x[i] = 0;
                     p->px[i] = 0;
+                }
+                break;
+            }
+            case Random:
+            {
+                std::uniform_real_distribution<> gx(-0.001, 0.001);
+                std::uniform_real_distribution<> gpx(-1e-4, 1e-4);
+                for (int i = 0; i < p->size(); ++i) {
+                    p->x[i] = gx(mGenerator);
+                    p->px[i] = gpx(mGenerator);
                 }
                 break;
             }

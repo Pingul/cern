@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist") {
         // We often work with these two together, so we make sure we have the same
         // particle distribution for both
-        ss.addParticles(partGen.create(1000, stron::ActionValues));
+        ss.addParticles(partGen.create(1000, stron::ActionValues, stron::Random));
         if (args[1] == "lossmap")
             ss.runLossmap(progGen.create(20*11245, progType));
 
