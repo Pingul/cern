@@ -277,6 +277,14 @@ private:
 
         void transverseStep(size_t index) const
         {
+            using std::cos;
+            using std::sin;
+            using cnst::Qx;
+
+            T& x = mPart.x[index];
+            T& px = mPart.px[index];
+            x = cos(Qx)*x + -sin(Qx)*px;
+            px = sin(Qx)*x + cos(Qx)*px;
         }
 
         void operator()(const tbb::blocked_range<size_t>& range) const
@@ -341,11 +349,8 @@ private:
         return ParticleStats{emax, emin, phmax, phmin, pleft};
     }
 
-
-
     Acc mAcc;
     ParticlesPtr mParticles;
-    //std::vector<int> mCollHits; // Turn hitting collimator
     std::vector<CollimatorHits> mCollHits;
     ProgramPtr mProgram;
 

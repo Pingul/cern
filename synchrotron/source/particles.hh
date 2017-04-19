@@ -24,8 +24,19 @@ struct ParticleCollection
 
     std::vector<T> momentum;
     std::vector<T> phase;
-    std::vector<T> x;
+    std::vector<T> x; // Normalized coordinates
     std::vector<T> px;
+
+    struct hCoord { T x, px; }; // Horizontal coordinate
+    hCoord xGeometric(int i, T alpha, T beta) {
+        // p. 165 in Wiedemann
+        T sb = std::sqrt(beta);
+        hCoord xc{
+            x[i]*sb,
+            px[i]/sb - x[i]*alpha/sb
+        };
+        return xc;
+    }
 
     //void write(std::string filePath) const;
     size_t size() const { return momentum.size(); }
