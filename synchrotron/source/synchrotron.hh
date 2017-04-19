@@ -231,15 +231,17 @@ private:
         {
             bool collided = false;
             for (auto& ch : mCHits) {
-                switch (ch.collimat.type) {
+                auto& coll = ch.collimat;
+                switch (coll.type) {
                     case Collimat::Type::TCP_IR3: {
-                        const T& momentum = mPart.momentum[index];
-                        const T dispersion = -2.07e3;
-                        const T x = momentum/mAcc.E()*dispersion + mPart.x[index];
-                        const T xcut = (std::abs(ch.collimat.left) + std::abs(ch.collimat.right))/2.0;
-                        bool c = x < -xcut || x > xcut;
-                        if (c) ch.registerHit(index, mTurn, x);
-                        collided |= c;
+                        const T& dp = mPart.momentum[index];
+                        const T xd = dp/mAcc.E()*coll.dispersion;
+                        const T xb = mPart.xBeta(index, coll.alpha, coll.beta).x;
+                        const T x = xb + xd;
+                        const T xcut = (std::abs(coll.left) + std::abs(coll.right))/2.0*1e-3;
+                        bool cond = x < -xcut || x > xcut;
+                        if (cond) ch.registerHit(index, mTurn, x);
+                        collided |= cond;
                         break;
                     } case Collimat::Type::TCPc_IR7: {
                         break;

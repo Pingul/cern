@@ -18,13 +18,24 @@ struct Collimator
         TCPc_IR7,
     };
 
-    Collimator(enum Type t, T l, T r)
-        : type(t), left(l), right(r) {}
+    Collimator(enum Type t, T l, T r, T d, T b, T a)
+        : type(t), 
+          left(l), 
+          right(r),
+          dispersion(d),
+          beta(b),
+          alpha(a)
+    {}
 
     enum Type type;
     // in mm
-    T left;
-    T right;
+    T left; // [1e-3m]
+    T right; // [1e-3m]
+
+    T dispersion; // [m]
+    T beta; // [m]
+    T alpha; // [1]
+
 };
 
 template <typename T>
@@ -62,9 +73,9 @@ public:
         acc.m_compaction = 0.0003225;
         acc.recalc();
 
-        // Raw data from Timber measured in mm
-        acc.collimators.emplace_back(Collimat::Type::TCP_IR3, -7.385, 8.285);
-        acc.collimators.emplace_back(Collimat::Type::TCPc_IR7, -6.485, 5.425);
+        // Raw data from Timber measured in mm and MADX, beam 1
+        acc.collimators.emplace_back(Collimat::Type::TCP_IR3,   -7.385, 8.285, -2.07/*2.147613*/, 131.519214, 1.725949);
+        acc.collimators.emplace_back(Collimat::Type::TCPc_IR7,  -6.485, 5.425, 0.320492, 149.862610, 2.041428);
 
         return acc;
     }

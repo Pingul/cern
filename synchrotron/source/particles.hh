@@ -27,11 +27,11 @@ struct ParticleCollection
     std::vector<T> x; // Normalized coordinates
     std::vector<T> px;
 
-    struct hCoord { T x, px; }; // Horizontal coordinate
-    hCoord xGeometric(int i, T alpha, T beta) {
+    struct HCoord { T x, px; }; // Horizontal coordinate
+    HCoord xBeta(int i, T alpha, T beta) {
         // p. 165 in Wiedemann
         T sb = std::sqrt(beta);
-        hCoord xc{
+        HCoord xc{
             x[i]*sb,
             px[i]/sb - x[i]*alpha/sb
         };
