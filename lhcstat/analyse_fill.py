@@ -1,6 +1,7 @@
 import numpy as np
 from oml import Fill, fills_from_file
 
+import sys
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
@@ -14,7 +15,8 @@ def moving_average(sequence, N):
     return average
 
 def merge_variable(fills, var):
-    xmax, xmin = 0, 0
+    xmin = sys.maxsize
+    xmax = -xmin
     for fill in fills:
         xmin = min(fill.data[var].x.min(), xmin)
         xmax = max(fill.data[var].x.max(), xmax)
@@ -88,7 +90,9 @@ def plot_aggregate_fill_overlayed(beam, fill_list):
     fig, ax = plt.subplots()
     for nbr in fill_list:
         fill = Fill(nbr, beam=beam)
-        ax.plot(*fill.blm_ir3(), color=np.random.rand(3), alpha=0.7)
+        # ax.plot(*fill.blm_ir3(), color=np.random.rand(3), alpha=0.3)
+        # ax.plot(*fill.energy(), color=np.random.rand(3), alpha=0.3)
+        ax.plot(fill.motor_ir7().x, fill.motor_ir7().y[1], color=np.random.rand(3), alpha=0.3)
 
     # aggr = aggregate_fill(beam, fill_list)
     # ax.plot(*aggr.blm_ir3(), color='black', label='Aggregate', zorder=5)
@@ -96,7 +100,7 @@ def plot_aggregate_fill_overlayed(beam, fill_list):
     ax.set_xlabel("t (s)")
     ax.set_ylabel("TCP IR3 BLM signal")
     # ax.set_xlim(aggr.blm_ir3().x[aggr.OML_period()] + np.array([-5, +120]))
-    ax.set_yscale("log")
+    # ax.set_yscale("log")
     plt.title("Overlay plot (beam {})".format(beam))
     plt.show()
 
@@ -196,18 +200,22 @@ def histogram_crossover_point(file):
     draw_histogram("Duration OML > transversal losses from '{}'".format(file), durations, 1, 'Duration (s) after spike with OML > TM', 'Count')
     return outliers
 
-def histogram_max_spike(file):
-    fills = fills_from_file(file, "OML")
-    spike_time = []
+def histogram_max_spike(fills):
+    spike_time = {1:[], 2:[]}
 
     for nbr in fills:
-        fill = Fill(nbr)
-
-        losses = fill.blm_ir3()
-        ispike = np.argmax(losses.y)
-        spike_time.append(losses.x[ispike])
-
-    draw_histogram('Max spike event for {}'.format(file), spike_time, 1.0, 'Delta t (s) from start of ramp till spike', 'Count')
+        for b in (1, 2):
+            fill = Fill(nbr, beam=b)
+            losses = fill.blm_ir3()
+            ispike = np.argmax(losses.y)
+            spike_time[b].append(losses.x[ispike])
+    fig, ax = plt.subplots()
+    ax.hist([spike_time[1], spike_time[2]], label=["Beam 1", "Beam 2"])
+    ax.legend(loc="upper right")
+    ax.set_xlabel("Delta t (s) from start of ramp till maximum OML")
+    ax.set_ylabel("Fill count")
+    plt.show()
+    # draw_histogram('Max spike event for beam {}'.format(beam), spike_time, 0.5, 'Delta t (s) from start of ramp till spike', 'Count')
 
 def histogram_max_abort_gap_before_OML(file):
     fills = fills_from_file(file, "OML")
