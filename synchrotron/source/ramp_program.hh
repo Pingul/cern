@@ -19,7 +19,7 @@ public:
     virtual ~Program() {}
     virtual void setup() {}
     virtual void step() {}
-    virtual unsigned steps() { return mSteps; }
+    virtual unsigned steps() const { return mSteps; }
 
     Program() = delete;
     Program(const Program&) = delete;
@@ -33,18 +33,11 @@ namespace program {
 // Custom exceptions for this module
 namespace except {
 struct ProgramOutOfBounds : public std::runtime_error 
-{ 
-    ProgramOutOfBounds(const std::string& program, unsigned programSteps, unsigned programBounds) 
-        : std::runtime_error("ramp_program.hh: " + program + ". Requested " + std::to_string(programSteps) + " steps, can take " + std::to_string(programBounds)) {} 
-};
+{ ProgramOutOfBounds(const std::string& program) : std::runtime_error("ramp_program.hh: " + program ) {} };
 struct FileNotFound : public std::runtime_error 
-{ 
-    FileNotFound(const std::string& filename) : std::runtime_error("ramp_program.hh: " + filename) {} 
-};
+{ FileNotFound(const std::string& filename) : std::runtime_error("ramp_program.hh: " + filename) {} };
 struct ProgramTypeNotFound : public std::runtime_error 
-{ 
-    ProgramTypeNotFound() : std::runtime_error("ramp_program.hh: ProgramType not found") {}
-};
+{ ProgramTypeNotFound() : std::runtime_error("ramp_program.hh: ProgramType not found") {} };
 
 } // namespace except
 
@@ -71,16 +64,17 @@ public:
         
         mEnergy.reserve(steps);
         T data;
-        while (file >> skip >> data) {
+        while (file >> skip >> data && !valid()) {
             mEnergy.emplace_back(data*1e6);
         }
 
-        if (mEnergy.size() < Prog::mSteps + 1) 
-            throw except::ProgramOutOfBounds("energy", Prog::mSteps, mEnergy.size());
+        if (!valid()) 
+            throw except::ProgramOutOfBounds("energy");
     }
 
     virtual void setup() override { mIndex = 0; Prog::mAcc.setE(mEnergy.at(mIndex), true); }
     virtual void step() override { Prog::mAcc.setE(mEnergy.at(++mIndex)); }
+    virtual bool valid() const { return mEnergy.size() >= Prog::mSteps; } // 1 extra step for the setup
 protected:
     using T = typename Acc::ValType;
 
@@ -131,15 +125,16 @@ public:
 
         mData.reserve(steps);
         T left, right;
-        while (coll_file >> skip >> left >> right) {
+        while (coll_file >> skip >> left >> right && !valid()) {
             mData.emplace_back(std::make_pair(left, right));
         }
 
-        if (mData.size() < Prog::mSteps + 1) 
-            throw except::ProgramOutOfBounds("collimator", Prog::mSteps, mData.size());
+        if (!valid()) 
+            throw except::ProgramOutOfBounds("collimator");
     }
     virtual void setup() override { mIndex = 0; set(); }
     virtual void step() override { ++mIndex; set(); }
+    virtual bool valid() const { return mData.size() > std::ceil(Prog::mSteps/cnst::s_to_turn); } 
 protected:
     using T = typename Acc::ValType;
 
