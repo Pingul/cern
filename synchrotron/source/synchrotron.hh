@@ -214,7 +214,7 @@ private:
             int n = 0;
             int last = 0;
             T maxX = 0.0;
-            for (int i = 0; i < mTurns.size(); ++i) {
+            for (size_t i = 0; i < mTurns.size(); ++i) {
                 if (mTurns[i] == -1) continue;
                 last = (mTurns[i] > last) ? mTurns[i] : last;
                 maxX = (mX[i] > maxX) ? mX[i] : maxX;
