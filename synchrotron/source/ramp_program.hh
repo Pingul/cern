@@ -64,14 +64,14 @@ public:
     {
         using common::skip;
         
-        mEnergy.reserve(steps);
         std::cout << "Reading '" << energyProgram << "'..." << std::endl;
         std::ifstream file(energyProgram);
         if (!file.is_open())
             throw except::FileNotFound(energyProgram);
-        for (unsigned i = 0; i <= steps; ++i) {
-            T data;
-            file >> skip >> data;
+        
+        mEnergy.reserve(steps);
+        T data;
+        while (file >> skip >> data) {
             mEnergy.emplace_back(data*1e6);
         }
 
@@ -130,9 +130,8 @@ public:
             throw except::FileNotFound(motorProgram);
 
         mData.reserve(steps);
-        for (unsigned i = 0; i <= steps; ++i) {
-            T left, right;
-            coll_file >> skip >> left >> right;
+        T left, right;
+        while (coll_file >> skip >> left >> right) {
             mData.emplace_back(std::make_pair(left, right));
         }
 

@@ -28,9 +28,9 @@ struct ParticleCollection
     std::vector<T> px; // 
 
     struct HCoord { T x, px; }; // Horizontal coordinate
-    HCoord xBeta(int i, T alpha, T beta) {
-        // p. 165 in Wiedemann
-        T sb = std::sqrt(beta);
+    HCoord xBeta(int i, T alpha, T beta, T mu_b, T mu_g) {
+        // p. 165 in Wiedemann             | relativistic beta and gamma
+        T sb = std::sqrt(beta/(mu_b*mu_g));
         HCoord xc{
             x[i]*sb,
             px[i]/sb - x[i]*alpha/sb
@@ -127,8 +127,8 @@ struct ParticleGenerator
             }
             case Random:
             {
-                std::uniform_real_distribution<> gx(-0.001, 0.001);
-                std::uniform_real_distribution<> gpx(-1e-4, 1e-4);
+                std::normal_distribution<> gx(0, 1e-2);
+                std::normal_distribution<> gpx(0, 1e-2);
                 for (int i = 0; i < p->size(); ++i) {
                     p->x[i] = gx(mGenerator);
                     p->px[i] = gpx(mGenerator);
@@ -204,7 +204,7 @@ private:
         // Distribution as (relative to separatrix)
         //  -15k        -10k         +5k
         //    | constant  | linear dec.|
-        std::vector<T> Hs{sep - 15e3, sep - 10e3, sep + 5e3, sep + 2.7e7};
+        std::vector<T> Hs{sep - 15e3, sep - 10e3, sep + 5e3, sep + 1e7};
         std::vector<T> prob{100.0, 100.0, 0.1, 0.1};
         std::piecewise_linear_distribution<> H_dist(Hs.begin(), Hs.end(), prob.begin());
     

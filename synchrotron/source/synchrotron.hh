@@ -71,23 +71,36 @@ public:
         if (!file.is_open()) 
             throw FileNotFound(filePath);
 
-        for (size_t i = 0; i < mParticles->size(); ++i) {
-            file << i << ","
-                 << mParticles->x[i] << ","
-                 << mParticles->px[i] << ","
-                 << mParticles->momentum[i] << ","
-                 << mParticles->phase[i] << ","
-                 << hamiltonian(mAcc, mParticles->momentum[i], mParticles->phase[i]) 
-                 << std::endl;
+        
+        for (const Collimat& c : mAcc.collimators) {
+            if (c.type == Collimat::TCP_IR3) {
+                for (size_t i = 0; i < mParticles->size(); ++i) {
+                    auto p = mAcc.calcParticleProp(mParticles->momentum[i], 0.0);
+                    auto xc = mParticles->xBeta(i, c.alpha, c.beta, p.b, p.g);
+                    file << i << ","
+                         << xc.x << ","
+                         << xc.px << ","
+                         //<< mParticles->x[i] << ","
+                         //<< mParticles->px[i] << ","
+                         << mParticles->momentum[i] << ","
+                         << mParticles->phase[i] << ","
+                         << hamiltonian(mAcc, mParticles->momentum[i], mParticles->phase[i]) 
+                         << std::endl;
+                }
+            }
         }
-        file.close();
     }
 
     void writeCollHits(std::string filePath) const
     {
-        for (const auto& ch : mCollHits)
-            if (ch.collimat.type == Collimat::Type::TCP_IR3)
+        std::cout << "** Collimator stats **" << std::endl;
+        for (const auto& ch : mCollHits) {
+            if (ch.collimat.type == Collimat::Type::TCP_IR3) {
+                ch.printStats();
                 ch.write(filePath);
+            }
+        }
+        std::cout << "**" << std::endl;
     }
 
     //
@@ -121,7 +134,7 @@ public:
         timer.start();
 
         program->setup();
-        for (int i = 1; i < meta.turns; ++i) {
+        for (int i = 0; i < meta.turns; ++i) {
             simulateTurn(i);
             program->step();
             mAcc.recalc();
@@ -235,8 +248,9 @@ private:
                 switch (coll.type) {
                     case Collimat::Type::TCP_IR3: {
                         const T& dp = mPart.momentum[index];
+                        auto p = mAcc.calcParticleProp(dp, 0.0);
                         const T xd = dp/mAcc.E()*coll.dispersion;
-                        const T xb = mPart.xBeta(index, coll.alpha, coll.beta).x;
+                        const T xb = mPart.xBeta(index, coll.alpha, coll.beta, p.b, p.g).x;
                         const T x = xb + xd;
                         const T xcut = (std::abs(coll.left) + std::abs(coll.right))/2.0*1e-3;
                         bool cond = x < -xcut || x > xcut;
@@ -253,7 +267,7 @@ private:
 
         bool outsideBucket(size_t index) const 
         {
-            return mPart.phase[index] < -0.1;
+            return mPart.phase[index] < -0.1 || mPart.phase[index] > 2.1*cnst::pi;
         }
 
         void longitudinalStep(size_t index) const
@@ -263,8 +277,7 @@ private:
 
             T deltaRef = mAcc.E() - mAcc.E_prev();
 
-            //int Ns = 100;
-            int Ns = 1;
+            int Ns = 20;
             // Particles outside of the bucket does not need to be tracked as carefully
             if (outsideBucket(index)) Ns = 1;
 
@@ -284,9 +297,10 @@ private:
             using cnst::Qx;
 
             T& x = mPart.x[index];
+            const T xc = x;
             T& px = mPart.px[index];
-            x = cos(Qx)*x + -sin(Qx)*px;
-            px = sin(Qx)*x + cos(Qx)*px;
+            x = cos(Qx)*xc + sin(Qx)*px;
+            px = -sin(Qx)*xc + cos(Qx)*px;
         }
 
         void operator()(const tbb::blocked_range<size_t>& range) const
