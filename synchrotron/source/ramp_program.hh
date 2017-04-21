@@ -236,8 +236,8 @@ template <typename Acc>
 struct ProgramGenerator
 {
 
-    using Program = Program<Acc>;
-    using ProgramPtr = typename Program::Ptr;
+    using Prog = Program<Acc>;
+    using ProgramPtr = typename Prog::Ptr;
 
     ProgramGenerator(Acc& acc)
         : mAcc(acc) {}
@@ -248,7 +248,7 @@ struct ProgramGenerator
         switch (type)
         {
             case NoRamp:
-                return ProgramPtr(new Program(mAcc, steps));
+                return ProgramPtr(new Prog(mAcc, steps));
             case LHCRamp:
                 return ProgramPtr(new ProgramCombiner< 
                         Acc, 

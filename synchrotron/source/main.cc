@@ -67,10 +67,7 @@ int main(int argc, char* argv[])
         if (args[1] == "animate") {
             ss.simulateTurns(progGen.create(1000, progType), stron::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
-            ss.simulateTurns(stron::ramp::create(ss.getAcc(), 300*11245, progType), stron::PATH_FILE, 11245);
-        } else if (args[1] == "animate-background") {
             ss.simulateTurns(progGen.create(300*11245, progType), stron::PATH_FILE, 11245);
-            generatePhasespaceLines(300);
         } else {
             throw std::runtime_error("Invalid function call");
         }

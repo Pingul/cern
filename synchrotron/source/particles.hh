@@ -119,7 +119,7 @@ struct ParticleGenerator
         switch (tDist) {
             case Zero:
             {
-                for (int i = 0; i < p->size(); ++i) {
+                for (size_t i = 0; i < p->size(); ++i) {
                     p->x[i] = 0;
                     p->px[i] = 0;
                 }
@@ -129,7 +129,7 @@ struct ParticleGenerator
             {
                 std::uniform_real_distribution<> gx(-0.001, 0.001);
                 std::uniform_real_distribution<> gpx(-1e-4, 1e-4);
-                for (int i = 0; i < p->size(); ++i) {
+                for (size_t i = 0; i < p->size(); ++i) {
                     p->x[i] = gx(mGenerator);
                     p->px[i] = gpx(mGenerator);
                 }
@@ -146,7 +146,7 @@ private:
     {
         std::uniform_real_distribution<> e_dist(-0.5e9, 0.5e9);
         std::uniform_real_distribution<> ph_dist(0, 2*cnst::pi);
-        int count = 0;
+        size_t count = 0;
         const T sep = separatrix<T>(mAcc);
         while (count < particles.size()) {
             const T deltaE = e_dist(mGenerator);
