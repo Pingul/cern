@@ -66,11 +66,11 @@ std::ostream& operator<<(std::ostream& os, LongitudinalDist e)
     return os;
 }
 
-static const char* TRANSVERSE_DIST_NAMES[] = {"Zero", "Random"};
+static const char* TRANSVERSE_DIST_NAMES[] = {"Zero", "DoubleGaussian"};
 enum TransverseDist
 {
     Zero,
-    Random,
+    DoubleGaussian,
 };
 std::ostream& operator<<(std::ostream& os, TransverseDist e)
 {
@@ -125,10 +125,10 @@ struct ParticleGenerator
                 }
                 break;
             }
-            case Random:
+            case DoubleGaussian:
             {
-                std::normal_distribution<> gx(0, 1e-2);
-                std::normal_distribution<> gpx(0, 1e-2);
+                std::normal_distribution<> gx(0, 5e-3);
+                std::normal_distribution<> gpx(0, 1e-3);
                 for (int i = 0; i < p->size(); ++i) {
                     p->x[i] = gx(mGenerator);
                     p->px[i] = gpx(mGenerator);
@@ -167,7 +167,7 @@ private:
         std::vector<T> d_actions;
         
         int outside = 80;
-        double maxdE = 1.6e9;
+        double maxdE = 1.2e9;
         double de = maxdE/double(outside);
         for (int i = 1; i <= outside; ++i) {
             d_actions.push_back(hamiltonian(mAcc, de*double(i), cnst::pi));

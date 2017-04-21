@@ -134,7 +134,7 @@ public:
         timer.start();
 
         program->setup();
-        for (int i = 0; i < meta.turns; ++i) {
+        for (int i = 0; i < meta.turns - 1; ++i) {
             simulateTurn(i);
             program->step();
             mAcc.recalc();
@@ -277,7 +277,7 @@ private:
 
             T deltaRef = mAcc.E() - mAcc.E_prev();
 
-            int Ns = 20;
+            int Ns = 100;
             // Particles outside of the bucket does not need to be tracked as carefully
             if (outsideBucket(index)) Ns = 1;
 

@@ -58,12 +58,12 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist") {
         // We often work with these two together, so we make sure we have the same
         // particle distribution for both
-        ss.addParticles(partGen.create(1000, stron::ActionValues, stron::Random));
+        ss.addParticles(partGen.create(10000, stron::ActionValues, stron::DoubleGaussian));
         if (args[1] == "lossmap")
-            ss.runLossmap(progGen.create(20*11245, progType));
+            ss.runLossmap(progGen.create(50*11245, progType));
 
     } else if (args[1].find("animate") == 0) {
-        ss.addParticles(partGen.create(1000, stron::AroundSeparatrix));
+        ss.addParticles(partGen.create(1000, stron::AroundSeparatrix, stron::DoubleGaussian));
         if (args[1] == "animate") {
             ss.simulateTurns(progGen.create(1000, progType), stron::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
@@ -95,17 +95,42 @@ int main(int argc, char* argv[])
         generatePhasespaceLines(300);
 
     } else if (args[1] == "onep") {
-        SimpleSynchrotron ss(Acc::getLHC());
-
-        int n = 3;
+        int n = 1;
         auto p = stron::ParticleCollection<double>::create(n);
         for (int i = 0; i < n; ++i) {
+            p->x[i] = 0.001;
+            p->px[i] = 0;
             p->phase[i] = (1 + i)/2.0*stron::cnst::pi;
-            p->momentum[i] = stron::levelCurve(ss.getAcc(), p->phase[i], stron::separatrix(ss.getAcc()));
+            p->momentum[i] = -1.0e8 + stron::levelCurve(ss.getAcc(), p->phase[i], stron::separatrix(ss.getAcc()));
         }
         ss.addParticles(p);
         ss.simulateTurns(progGen.create(1000, stron::ProgramType::NoRamp), stron::PATH_FILE, 1);
 
+
+    } else if (args[1] == "x-test") {
+        int n = 1;
+        auto p = stron::ParticleCollection<double>::create(n);
+        for (int i = 0; i < n; ++i) {
+            p->x[i] = (i+1)*1e-3;
+            p->px[i] = 0;
+            p->phase[i] = stron::cnst::pi;
+            p->momentum[i] = 0;
+        }
+        ss.addParticles(p);
+        //ss.simulateTurns(progGen.create(1000, stron::ProgramType::NoRamp), stron::PATH_FILE, 1);
+        ss.simulateTurns(progGen.create(60*11245, stron::ProgramType::LHCRamp), stron::PATH_FILE, 50);
+
+    } else if (args[1] == "p-test") {
+        int n = 10;
+        auto p = stron::ParticleCollection<double>::create(n);
+        for (int i = 0; i < n; ++i) {
+            p->x[i] = p->px[i] = 0;
+            p->phase[i] = stron::cnst::pi;
+            p->momentum[i] = 1e9 + 1e8*(i+1);
+        }
+        ss.addParticles(p);
+        ss.simulateTurns(progGen.create(1000, stron::ProgramType::NoRamp), stron::PATH_FILE, 1);
+        
     } else if (args[1] == "test") {
         using namespace stron;
 
