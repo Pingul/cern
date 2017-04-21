@@ -11,9 +11,11 @@ class Settings(SettingsBase):
         del self.STARTDIST_PATH
         del self.ENDDIST_PATH
         del self.RAMP_PATH 
+        del self.META_PATH
 
     def postload(self):
         # Special cases
+        self.META_PATH = "{}/{}".format(self.DATA_DIR, self.META_FILE)
         self.PARTICLE_PATH = "{}/{}".format(self.DATA_DIR, self.PARTICLE_FILE)
         self.LINE_PATH = "{}/{}".format(self.DATA_DIR, self.LINE_FILE)
         self.COLL_PATH = "{}/{}".format(self.DATA_DIR, self.COLL_FILE)

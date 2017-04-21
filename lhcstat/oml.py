@@ -93,7 +93,7 @@ class Fill:
         'abort_gap_int_b1' : 'LHC.BSRA.US45.B1:ABORT_GAP_INTENSITY',
 
         'motor_ir3_b1' : ['TCP.6L3.B1:MEAS_MOTOR_LU', 'TCP.6L3.B1:MEAS_MOTOR_RU'],
-        'motor_ir7_b1' : ['TCP.C6L7.B1:MEAS_MOTOR_LU', 'TCP.C6L7.B1:MEAS_MOTOR_RU']
+        'motor_ir7_b1' : ['TCP.C6L7.B1:MEAS_MOTOR_LU', 'TCP.C6L7.B1:MEAS_MOTOR_RU'],
     }
 
     BEAM2_VARIABLES = {
@@ -104,12 +104,13 @@ class Fill:
         'abort_gap_int_b2' : 'LHC.BSRA.US45.B2:ABORT_GAP_INTENSITY',
 
         'motor_ir3_b2' : ['TCP.6R3.B2:MEAS_MOTOR_LU', 'TCP.6R3.B2:MEAS_MOTOR_RU'],
-        'motor_ir7_b2' : ['TCP.C6R7.B2:MEAS_MOTOR_LU', 'TCP.C6R7.B2:MEAS_MOTOR_RU']
+        'motor_ir7_b2' : ['TCP.C6R7.B2:MEAS_MOTOR_LU', 'TCP.C6R7.B2:MEAS_MOTOR_RU'],
     }
 
     COMB_VARIABLES = {
         'energy' : 'LHC.BOFSU:OFSU_ENERGY',
-        'ramp_mode' : 'HX:BMODE_RAMP'
+        'ramp_mode' : 'HX:BMODE_RAMP',
+        'motor_start' : 'TCP.C6L7.B1:MEAS_PROFILE_TIME',
     }
     
 
@@ -127,6 +128,8 @@ class Fill:
         self.data = {}
         self.meta = {}
         self.status = Fill.STATUS.OK
+        self.time_correction = 0
+
         if self.beam == 1:
             self.timber_var_map = {**self.BEAM1_VARIABLES, **self.COMB_VARIABLES}
         else:
@@ -203,7 +206,8 @@ class Fill:
             'nbr' : self.nbr,
             'data' : self.data,
             'meta' : self.meta,
-            'status' : self.status
+            'status' : self.status,
+            'time_correction' : self.time_correction
         }
 
     def unpack(self, dump):
@@ -211,6 +215,11 @@ class Fill:
         self.data = dump['data']
         self.meta = dump['meta']
         self.status = dump['status']
+        self.time_correction = dump['time_correction'] if 'time_correction' in dump else self.time_correction
+
+    def clear_cache(self):
+        lg.log('clearing cache {}'.format(self.nbr))
+        open(store_file_for_fill(self.nbr), 'wb')
 
     def cache(self):
         lg.log('caching {}'.format(self.nbr))
@@ -233,6 +242,8 @@ class Fill:
         return self.data['motor_ir3_b{}'.format(self.beam)]
     def motor_ir7(self):
         return self.data['motor_ir7_b{}'.format(self.beam)]
+    def motor_start(self):
+        return self.data['motor_start']
     def abort_gap(self):
         return self.data['abort_gap_int_b{}'.format(self.beam)]
     def energy(self):
@@ -251,18 +262,17 @@ class Fill:
         var = 'intensity_b{}'.format(self.beam)
         self.data[var].y = self.data[var].y/np.max(self.data[var].y)
 
-    def offset_time(self):
+    def offset_time(self, align_mode="meas_time"):
         # start, end = self.OML_period()
         # t = self.blm_ir3().x[start]
 
-        align = "ramp_mode"
-        if align == "ramp":
+        if align_mode == "ramp":
             t = self.blm_ir3().x[0]
-        if align == "ramp_mode":
+        elif align_mode == "ramp_mode":
             t = self.data['ramp_mode'].x[1]
-        elif align == "energy":
+        elif align_mode == "energy":
             t = self.energy().x[0]
-        else:
+        elif align_mode == "peak":
             # align w.r.t. beam 1 x peak
             beam = self.beam
             self.beam = 1
@@ -271,6 +281,17 @@ class Fill:
             # get similar results as before
             t = self.OML_peak()['t'] - 10 
             self.beam = beam
+        elif align_mode == "time_corr":
+            t = self.time_correction
+        elif align_mode == "meas_time":
+            ts = np.empty(self.motor_start().x.size)
+            for i, v in enumerate(zip(*self.motor_start())):
+                ts[i] = v[0] - v[1]*1e-9
+            # t = stats.mode(ts)[0]
+            t = np.median(ts)
+            # print(t, self.motor_start().x[0])
+        else:
+            raise Exception("align_mode does not exist")
 
         for v in self.data:
             self.data[v].x -= t
@@ -447,18 +468,54 @@ def plot_blm(fill):
     plt.title("Fill {} (beam {})".format(fill.nbr, fill.beam))
     plt.show()
 
+def plot_2_blm(f1, f2):
+    lg.log("plot two")
+    if f1.beam == 2 and f2.beam == 1:
+        f1, f2 = (f2, f1)
+
+    fig, blm_axis = plt.subplots()
+
+    oml = f1.blm_ir3()
+    start, end = f1.OML_period()
+
+    blm_axis.spines['right'].set_position(('axes', 1.15))
+    blm_axis.set_frame_on(True)
+    
+    blm_axis.plot(*oml, color='r', linestyle='-', zorder=2, label='1: TCP IR3')
+    blm_axis.plot(*f1.blm_ir7(), color='g', linestyle='--', zorder=4, label='1: TCP-C IR7')
+
+    blm_axis.plot(*f2.blm_ir3(), color='darkorange', linestyle='-', zorder=3, label='2: TCP IR3')
+    blm_axis.plot(*f2.blm_ir7(), color='olivedrab', linestyle='--', zorder=5, label='2: TCP-C IR7')
+
+
+    blm_axis.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
+    blm_axis.set_yscale('log')
+    blm_axis.set_ylabel("Losses")
+    blm_axis.legend(loc='lower right')
+    blm_axis.set_xlim(f1.blm_ir3().x[[start, end]] + np.array([-5, +40]))
+
+    f1_label = f1.nbr if f1.nbr > 0 else "AGGREGATE"
+    f2_label = f2.nbr if f2.nbr > 0 else "AGGREGATE"
+    if f1_label == f2_label:
+        plt.title("Fill {}, beam 1 and 2".format(f1_label))
+    else:
+        plt.title("Fills {}b{}, {}b{}".format(f1_label, f1.beam, f2_label, f2.beam))
+    plt.show()
+
 def plot_motor(fill):
-    raise Exception("need to fetch motor values -- not done right now")
     lg.log("plotting motors")
     fig, motor_ax = plt.subplots()
     e_ax = motor_ax.twinx()
 
-    motor_ax.plot(*fill.data['A_tcp_motor_ru'], color='r')
-    motor_ax.plot(*fill.data['A_tcp_motor_lu'], color='r')
+    motor_ax.plot(fill.motor_ir3().x, fill.motor_ir3().y[0], color='r')
+    motor_ax.plot(fill.motor_ir3().x, fill.motor_ir3().y[1], color='r')
+    # print(fill.motor_start().x[0:10])
+    # print(fill.motor_start().y[0:10])
+    # print(fill.motor_ir3().x[0:10])
     motor_ax.set_ylabel("Motor (mm σ)")
     motor_ax.set_xlabel("Time (s)")
 
-    e_ax.plot(*fill.data['energy'])
+    e_ax.plot(*fill.energy())
     e_ax.set_ylabel("Energy (MeV)")
 
     plt.title("Motor plot: fill {}".format(fill.nbr))
@@ -616,3 +673,31 @@ def intensity_and_OML_pruning(file_in, file_out):
     lg.log('\tmis-categorised {}'.format(wrongly_categorised))
     lg.log('\ttotal {}%'.format(removed))
 
+def classify_time_alignment(fill_list):
+    print("classifying")
+    master = Fill(fill_list[0], fetch=False)
+    master.fetch()
+    master.offset_time("peak")
+    master.time_correction = master._timeshift
+    master.cache()
+
+    for nbr in fill_list[1:]:
+        fill = Fill(nbr, fetch=False)
+        fill.fetch()
+
+        dt = np.zeros(len(fill.motor_ir3().y[1]))
+        for i, v in enumerate(fill.motor_ir3().y[1]):
+            i_min = np.argmin(np.fabs(master.motor_ir3().y[1] - v))
+            dt[i] = fill.motor_ir3().x[i] - master.motor_ir3().x[i_min]
+
+        # fill.time_correction = np.mean(dt)
+        fill.time_correction = stats.mode(dt)[0]
+        fill.cache()
+
+def recache_fills(fill_list):
+    for nbr in fill_list:
+        for b in (1, 2):
+            fill = Fill(nbr, beam=b, fetch=False)
+            if b == 1: fill.clear_cache()
+            fill.fetch(forced=(b == 1), cache=True)
+        
