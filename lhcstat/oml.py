@@ -315,39 +315,13 @@ class Fill:
 
     def OML_period(self): 
         """ The period is defined as
-                start: when OML first is noticed
-                end: when the losses (and the derivative) has gone below a certain threshold
+                start: t = 0
+                end: t = cross over point
             returns (start, end) indices
         """ 
         i_co = self.crossover_point()['i']
-
-        try:
-            with open(self.OML_period_file, 'rb') as f:
-                periods = pickle.loads(f.read())
-                return [periods[self.nbr][self.beam][0], i_co]
-        except:
-            pass
-        
-        data = self.blm_ir3().y
-        vpeak, ipeak = imax(data)
-        start = end = ipeak
-    
-        ddata = np.abs(np.gradient(data))
-        threshold = 1e-7
-
-        found_start = found_end = False
-        while not found_start and start > 0:
-            start -= 1
-            # if ddata[start] < threshold and data[start] < vpeak/5e1:
-            if ddata[start] < 1e-5:
-                found_start = True
-        
-        while not found_end and end < len(ddata) - 1:
-            end += 1
-            if ddata[end] < threshold and data[end] < vpeak/1e2:
-                found_end = True
-        
-        return [start, i_co]
+        i_start = self.blm_ir3().index_for_time(0)
+        return [i_start, i_co]
 
     def OML_peak(self):
         """ The timestamp and index for the maximum OML peak
@@ -356,11 +330,9 @@ class Fill:
         i_peak = imax(self.blm_ir3().y)[1]
         return {'i' : i_peak, 't' : self.blm_ir3().x[i_peak]}
 
-    def crossover_point_rev(self):
+    def crossover_point(self):
         """ Look for the point after OML spike when transversal losses starts 
             to dominate the momentum losses 
-
-            Does not need aligned data.
         """
         x = np.union1d(self.blm_ir3().x, self.blm_ir7().x)
         x = x[(x > self.blm_ir3().x.min())*(x < self.blm_ir3().x.max())]
@@ -372,23 +344,6 @@ class Fill:
         i = imax(blm_ir3y)[1]
         while blm_ir3y[i] > blm_ir7y[i]: i += 1
         return {'t' : x[i], 'i' : self.blm_ir3().index_for_time(x[i])}
-
-    def crossover_point(self):
-        """ Look for the point after OML spike when transversal losses starts 
-            to dominate the momentum losses 
-    
-            Note: this should be used with aligned data """
-        return self.crossover_point_rev()
-
-        self.beta_coll_merge()
-        oml = self.blm_ir3() # off momentum loss
-        tl = self.blm_ir7() # transversal losses
-        vpeak, ipeak = imax(oml.y)
-
-        i = ipeak
-        while oml.y[i] > tl.y[i]:
-            i += 1
-        return {'i' : i, 't' : oml.x[i]}
 
 ## class Fill
 ################
