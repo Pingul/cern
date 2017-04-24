@@ -7,8 +7,7 @@ import json
 import bisect
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-from scipy import stats
-from scipy import interpolate
+from scipy import stats, interpolate, optimize
 
 sys.path.append("../common")
 from logger import ModuleLogger, LogLevel
@@ -262,7 +261,7 @@ class Fill:
         var = 'intensity_b{}'.format(self.beam)
         self.data[var].y = self.data[var].y/np.max(self.data[var].y)
 
-    def offset_time(self, align_mode="meas_time"):
+    def offset_time(self, align_mode="time_corr"):
         # start, end = self.OML_period()
         # t = self.blm_ir3().x[start]
 
@@ -674,25 +673,29 @@ def intensity_and_OML_pruning(file_in, file_out):
     lg.log('\ttotal {}%'.format(removed))
 
 def classify_time_alignment(fill_list):
-    print("classifying")
-    master = Fill(fill_list[0], fetch=False)
-    master.fetch()
-    master.offset_time("peak")
-    master.time_correction = master._timeshift
-    master.cache()
+    """ Classifying time offset with respect to TrimEditor defined motor variable
+    """
 
-    for nbr in fill_list[1:]:
+    trimData = np.loadtxt("data/TCP.C6L7.B1--ramp.csv", delimiter=',', skiprows=2).transpose()
+    trim = Fill.Variable((trimData[4], trimData[5]))
+    
+    for nbr in fill_list:
         fill = Fill(nbr, fetch=False)
-        fill.fetch()
+        fill.fetch(forced=False)
+        # fill.offset_time("peak")
 
-        dt = np.zeros(len(fill.motor_ir3().y[1]))
-        for i, v in enumerate(fill.motor_ir3().y[1]):
-            i_min = np.argmin(np.fabs(master.motor_ir3().y[1] - v))
-            dt[i] = fill.motor_ir3().x[i] - master.motor_ir3().x[i_min]
+        fd = Fill.Variable((np.array(fill.motor_ir7().x), np.array(fill.motor_ir7().y[1])))
+        fd.x -= fd.x[0]
 
-        # fill.time_correction = np.mean(dt)
-        fill.time_correction = stats.mode(dt)[0]
+        # Fitting
+        ip_trimx = interpolate.interp1d(trim.y, trim.x)(fd.y)
+        func = lambda data, trim, c: np.sum((data + c - trim)**2)
+        res = optimize.least_squares(func, 0.0, args=(fd.x, ip_trimx), jac='3-point')
+        # print(res)
+
+        fill.time_correction = fill.motor_ir7().x[0] + res.x[0]
         fill.cache()
+
 
 def recache_fills(fill_list):
     for nbr in fill_list:
