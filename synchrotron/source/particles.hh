@@ -96,9 +96,6 @@ struct ParticleGenerator
 
     PCollPtr create(int n, LongitudinalDist lDist, TransverseDist tDist = Zero)
     {
-        std::cout << "Particle distribution" << std::endl
-                  << "\tLongitudinal: " << lDist << std::endl
-                  << "\tTransverse  : " << tDist << std::endl;
         auto p = PColl::create(n);
         switch (lDist) {
             case AroundSeparatrix:
@@ -137,6 +134,9 @@ struct ParticleGenerator
             default:
                 throw DistributionNotFound("transverse");
         }
+        std::cout << "Particle distribution: " << p->size() << " particles" << std::endl
+                  << "\tLongitudinal: " << lDist << std::endl
+                  << "\tTransverse  : " << tDist << std::endl;
         return p;
     }
     
