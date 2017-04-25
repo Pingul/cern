@@ -33,11 +33,10 @@ static constexpr const char* STARTDIST_FILE = OUTPUT_DIR"/startdist.dat";
 static constexpr const char* ENDDIST_FILE = OUTPUT_DIR"/enddist.dat";
 static constexpr const char* SIXTRACK_TEST_FILE = OUTPUT_DIR"/toymodel_track.dat";
 // static constexpr const char* LHC_RAMP_FILE = "resources/ramp.txt";
-static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_interpolated_60s.dat";
-//static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_ramp_40000.dat";
-//static constexpr const char* EXTERNAL_RAMP_FILE = "resources/40s_linear_ramp.dat";
-//static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
-static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp_ir3_f5433b1.txt";
+static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_ramp.dat";
+//static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_interpolated_60s.dat";
+static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
+//static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp_ir3_f5433b1.txt";
 
 } // namespace stron
 
