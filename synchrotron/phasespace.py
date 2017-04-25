@@ -128,6 +128,9 @@ class PhaseSpace:
         self.plot_trajectory(settings.LINE_PATH)
 
     def plot_collimators(self):
+        print("plot collimators: OFF")
+        return
+
         print("plot collimators")
         try:
             with open(settings.COLL_PATH, 'r') as f:

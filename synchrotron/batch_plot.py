@@ -5,8 +5,10 @@ from lossmap import *
 from settings import *
 from plot import plot_hamiltonian_dist_histogram
 
-import os
-from sys import argv
+import os, sys
+sys.path.append("../common/")
+from logger import ModuleLogger, LogLevel
+lg = ModuleLogger("batch")
 
 class Batch:
     def __init__(self, path, forced=settings.BATCH_FORCE_FETCH):
@@ -21,10 +23,10 @@ class Batch:
         if path:
             cache_path = "{}/{}".format(path, settings.CACHE_BATCH_FILE)
             if not forced and os.path.exists(cache_path):
-                print("trying to read from cache")
+                lg.log("trying to read from cache")
                 self.load_cache(cache_path)
             else:
-                print("cache file could not be found or forced to fetch")
+                lg.log("cache file could not be found or forced to fetch", log_level=LogLevel.notify)
                 self.aggregate()
                 self.cache(cache_path)
         else:
@@ -47,26 +49,26 @@ class Batch:
         self.lossmap = dump['lossmap']
 
     def cache(self, file_path):
-        print("caching batch at '{}'".format(file_path))
+        lg.log("caching batch at '{}'".format(file_path))
         with open(file_path, 'wb') as f:
             pickle.dump(self.pack(), f)
 
     def load_cache(self, file_path):
-        print("loading batch from '{}'".format(file_path))
+        lg.log("loading batch from '{}'".format(file_path))
         with open(file_path, 'rb') as f:
             self.unpack(pickle.loads(f.read()))
 
     def aggregate(self):
         n = 1
         required_files = ["stdout.txt", "startdist.dat", "coll.dat"]
-        print("aggregating batch from '{}'".format(self.path))
+        lg.log("aggregating batch from '{}'".format(self.path))
         while os.path.isdir("{}/{}{}".format(self.path, settings.BATCH_JOB_PRESTRING, n)):
             job_path = "{}/{}{}".format(self.path, settings.BATCH_JOB_PRESTRING, n)
-            print("trying '{}'...".format(job_path), end=" ")
+            lg.log("trying '{}'...".format(job_path), end=" ")
             self.nbr_jobs += 1
             for req in required_files:
                 if not os.path.exists("{}/{}".format(job_path, req)):
-                    print("not ok")
+                    lg.log("not ok", module_prestring=False, log_level=LogLevel.warning)
                     break;
             else:
                 # try:
@@ -78,23 +80,23 @@ class Batch:
                 self.hits += hits
     
                 self.nbr_valid_jobs += 1
-                print("ok")
+                lg.log("ok", module_prestring=False, log_level=LogLevel.success)
                 # except:
-                    # print("not ok")
+                    # lg.log("not ok")
             n += 1
         self.lossmap = lossmap_from_hits(self.hits)
             
 
 if __name__ == "__main__":
-    ACTION = argv[1]
-    BATCH_DIR = argv[2] if len(argv) > 2 else settings.BATCH_DIR
+    ACTION = sys.argv[1]
+    BATCH_DIR = sys.argv[2] if len(sys.argv) > 2 else settings.BATCH_DIR
     b = Batch(BATCH_DIR)
 
     if ACTION == "stats":
-        print("jobs: {}, {:.1f}% valid".format(b.nbr_jobs, 100*b.nbr_valid_jobs/b.nbr_jobs))
+        lg.log("jobs: {}, {:.1f}% valid".format(b.nbr_jobs, 100*b.nbr_valid_jobs/b.nbr_jobs))
         if b.ps:
             nbr_lost = sum(map(len, b.lossmap.values()))
-            print("{} particles, {:.1f}% lost".format(b.ps.nbr_p, 100*nbr_lost/b.ps.nbr_p))
+            lg.log("{} particles, {:.1f}% lost".format(b.ps.nbr_p, 100*nbr_lost/b.ps.nbr_p))
     elif ACTION == "lossmap":
         plot_lossmap([b.lossmap])
     elif ACTION == "separated-lossmap":
@@ -104,9 +106,9 @@ if __name__ == "__main__":
     elif ACTION == "fit":
         fit_to_LHC_aggregate(b.ps, b.lossmap)
     elif ACTION == "startdist":
-        print("categorizing particles")
+        lg.log("categorizing particles")
         pbin = b.ps.categorize_particles(b.lossmap)
-        print("plotting")
+        lg.log("plotting")
         b.ps.plot_particles(pbin)
     elif ACTION == "ham-dist":
         plot_hamiltonian_dist_histogram(b.ps)
