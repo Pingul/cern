@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist") {
         // We often work with these two together, so we make sure we have the same
         // particle distribution for both
-        ss.addParticles(partGen.create(10000, stron::ActionValues, stron::DoubleGaussian));
+        ss.addParticles(partGen.create(1000, stron::ActionValues, stron::Zero));
         if (args[1] == "lossmap")
             ss.runLossmap(progGen.create(50*11245, progType));
 
@@ -105,10 +105,10 @@ int main(int argc, char* argv[])
 
 
     } else if (args[1] == "x-test") {
-        int n = 1;
+        int n = 15;
         auto p = stron::ParticleCollection<double>::create(n);
         for (int i = 0; i < n; ++i) {
-            p->x[i] = (i+1)*1e-3;
+            p->x[i] = i;
             p->px[i] = 0;
             p->phase[i] = stron::cnst::pi;
             p->momentum[i] = 0;

@@ -30,7 +30,7 @@ struct ParticleCollection
     struct HCoord { T x, px; }; // Horizontal coordinate
     HCoord xBeta(int i, T alpha, T beta, T mu_b, T mu_g) {
         // p. 165 in Wiedemann             | relativistic beta and gamma
-        T sb = std::sqrt(beta/(mu_b*mu_g));
+        T sb = std::sqrt(beta*cnst::emittance/(mu_b*mu_g));
         HCoord xc{
             x[i]*sb,
             px[i]/sb - x[i]*alpha/sb
@@ -127,11 +127,10 @@ struct ParticleGenerator
             }
             case DoubleGaussian:
             {
-                std::normal_distribution<> gx(0, 5e-3);
-                std::normal_distribution<> gpx(0, 1e-3);
+                std::normal_distribution<> d(0, 1);
                 for (size_t i = 0; i < p->size(); ++i) {
-                    p->x[i] = gx(mGenerator);
-                    p->px[i] = gpx(mGenerator);
+                    p->x[i] = d(mGenerator);
+                    p->px[i] = d(mGenerator);
                 }
                 break;
             }
