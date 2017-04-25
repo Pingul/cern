@@ -12,6 +12,9 @@ from phasespace import PhaseSpace
 from lossmap import *
 from settings import *
 
+from logger import ModuleLogger, LogLevel
+lg = ModuleLogger("plot")
+
 
 def plot_energy_oscillations():
     nbr_turns = 500*11245
@@ -60,11 +63,12 @@ def plot_hamiltonian_evolution(ps): # input phase space containing ps.h
         series[key] = {'x' : np.empty( (size,) ), 'y' : np.empty( (size,) )}
         for i in range(ps.nbr_turns):
             for j, id in enumerate(pbin[key]):
+                # lg.log(j, id)
                 series[key]['x'][i*nbr_p + j] = i
                 series[key]['y'][i*nbr_p + j] = ps.h[i*ps.nbr_p + id]
-
-    ax.scatter(series['alive']['x'], series['alive']['y'], color='b', s=1, zorder=10)
-    ax.scatter(series['lost']['x'], series['lost']['y'], color='r', s=4)
+    
+    ax.scatter(series['alive']['x'][:-1], series['alive']['y'][:-1], color='b', s=1, zorder=10)
+    ax.scatter(series['lost']['x'][:-1], series['lost']['y'][:-1], color='r', s=4)
 
 
     # Should in theory do the same thing as the code above, but it's way slower
@@ -75,7 +79,7 @@ def plot_hamiltonian_evolution(ps): # input phase space containing ps.h
             # x[i*ps.nbr_p + j] = i
             # c[i*ps.nbr_p + j] = 1 if j in pbin['alive'] else 100
 
-    # print("drawing {} points...".format(len(x)))
+    # lg.log("drawing {} points...".format(len(x)))
     # ax.scatter(x, ps.h, c=c, s=4)
 
     ax.set_xlabel("Saved turn")
@@ -139,8 +143,9 @@ def plot_lost():
     plt.show()
 
 
+phasespace_dir = "/Users/swretbor/Workspace/work_afs/2dsynch/phasespace/phasespace"
 def phasespace_frame(num, ps):
-    filename = "phasespace/{}lines.dat".format(num)
+    filename = "{}/{}lines.dat".format(phasespace_dir, num)
     ps.plot_trajectory(filename, redraw=True)
 
 def phasespace_evolution():
@@ -149,13 +154,13 @@ def phasespace_evolution():
     ps = PhaseSpace(None)
     ps.create_plot()
     ps.format_axes()
-    ps.plot_trajectory("phasespace/0lines.dat")
+    ps.plot_trajectory("{}/0lines.dat".format(phasespace_dir))
 
     ani = animation.FuncAnimation(ps.fig, phasespace_frame, int(frames), fargs=(ps,), interval=100, blit=False)
-    mov_file = "phasespace/mov.mp4" 
-    print("saving movie to '{}'".format(mov_file))
+    mov_file = "{}/mov.mp4".format(phasespace_dir) 
+    lg.log("saving movie to '{}'".format(mov_file))
     ani.save(mov_file)
-    print("finished saving to '{}'".format(mov_file))
+    lg.log("finished saving to '{}'".format(mov_file))
 
 
 SAVE_FILE = ''
@@ -165,42 +170,42 @@ if (len(argv) > 2):
 if __name__ == "__main__":
     ACTION = argv[1]
     if ACTION == "animate":
-        print("animate trajectory")
+        lg.log("animate trajectory")
         ps = PhaseSpace(settings.PARTICLE_PATH)
         ps.animate(get_lossmap(settings.COLL_PATH), save_to=SAVE_FILE)
     if ACTION == "animate-full":
-        print("animating trajectory and background")
+        lg.log("animating trajectory and background")
         output = "calc/animate-full.mp4"
-        print("will save movie to '{}'".format(output))
+        lg.log("will save movie to '{}'".format(output))
         ps = PhaseSpace(settings.PARTICLE_PATH)
         ps.animate(get_lossmap(settings.COLL_PATH), output, animateBackground=True)
     elif ACTION == "lossmap":
-        print("plot lossmap")
+        lg.log("plot lossmap")
         lossmap = get_lossmap(settings.COLL_PATH)
         plot_lossmap([lossmap], ["Toy model"], SAVE_FILE)
     elif ACTION == "separated-lossmap":
-        print("plot one series for each action value of the lossmap")
+        lg.log("plot one series for each action value of the lossmap")
         ps = PhaseSpace(settings.STARTDIST_PATH)
         lossmap = get_lossmap(settings.COLL_PATH)
         lossmaps, labels = separate_lossmap(lossmap, ps)
         plot_lossmap(lossmaps, labels)
     elif ACTION == "energy":
-        print("plot energy oscillations")
+        lg.log("plot energy oscillations")
         plot_energy_oscillations()
     elif ACTION == "startdist":
-        print("plot start distribution")
+        lg.log("plot start distribution")
         losses_from_sec = float(argv[2]) if len(argv) > 2 else 0.0
         ps = PhaseSpace(settings.STARTDIST_PATH)
         lossmap = get_lossmap(settings.COLL_PATH)
         pbin = ps.categorize_particles(lossmap, losses_from_sec)
         ps.plot_particles(pbin)
     elif ACTION == "dist":
-        print("plot dist")
+        lg.log("plot dist")
         if not len(argv) > 2: raise Exception("need to give a file path to plot")
         ps = PhaseSpace(argv[2])
         ps.plot_particles()
     elif ACTION == "phasespace":
-        print("plot phase space")
+        lg.log("plot phase space")
         ps = PhaseSpace(pfile=None)
         ps.create_plot()
         ps.plot_background_lines()
@@ -210,10 +215,10 @@ if __name__ == "__main__":
         else:
             plt.show()
     elif ACTION == "phasespace-mov":
-        print("animating phasespace evolution")
+        lg.log("animating phasespace evolution")
         phasespace_evolution()
     elif ACTION == "trajectory":
-        print("plot particle trajectory")
+        lg.log("plot particle trajectory")
         ps = PhaseSpace(settings.PARTICLE_PATH)
         ps.create_plot()
         ps.format_axes()
@@ -221,22 +226,47 @@ if __name__ == "__main__":
         ps.plot_trajectory(randomizeColors=True)
         plt.show()
     elif ACTION == "ham-evolution":
-        print("plot hamiltonian")
+        lg.log("plot hamiltonian")
         ps = PhaseSpace(settings.PARTICLE_PATH)
         plot_hamiltonian_evolution(ps)
     elif ACTION == "ham-lostdist":
-        print("ploting hamiltonian lost distribution")
+        lg.log("ploting hamiltonian lost distribution")
         ps = PhaseSpace(settings.STARTDIST_PATH)
         lm = get_lossmap(settings.COLL_PATH)
         plot_hamiltonian_lost_dist(ps, lm, 16.5)
     elif ACTION == "lost":
-        print("lost plot")
+        lg.log("lost plot")
         plot_lost()
     elif ACTION == "ham-dist":
-        print("plot action distribution")
+        lg.log("plot action distribution")
         input_file = settings.STARTDIST_PATH
         if len(argv) == 3: input_file = argv[2]
         ps = PhaseSpace(input_file)
         plot_hamiltonian_dist_histogram(ps)
+    elif ACTION == "x":
+        lg.log("plotting x distribution")
+        input_file = settings.STARTDIST_PATH
+        if len(argv) == 3: input_file = argv[2]
+        ps = PhaseSpace(input_file)
+        fig, ax = plt.subplots()
+        lm = get_lossmap(settings.COLL_PATH)
+        pbin = ps.categorize_particles(lm)
+        
+        plot_all = True
+        if plot_all:
+            ax.scatter(ps.x, ps.px)
+        else:
+            if len(pbin['alive']) > 0: ax.scatter(ps.x[pbin['alive']], ps.px[pbin['alive']]);
+            if len(pbin['lost']) > 0: ax.scatter(ps.x[pbin['lost']], ps.px[pbin['lost']], color='r');
+
+        ax.set_xlabel("x")
+        ax.set_ylabel("x'")
+        ax.set_axisbelow(True)
+        ax.yaxis.grid(color='gray', linestyle='dashed')
+        ax.xaxis.grid(color='gray', linestyle='dashed')
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1E}".format(x)))
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1E}".format(x)))
+        plt.title("Motion for normalised coordinates at IR3 TCP")
+        plt.show()
     else:
-        print("unrecognised action")
+        lg.log("unrecognised action")

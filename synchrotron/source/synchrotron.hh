@@ -147,11 +147,12 @@ public:
             const int d = meta.turns/10;
             if (d > 0 && i % d == 0) {
                 int percent = 10*i/d;
-                ParticleStats stats = getStats();
+                SimStats stats = getStats();
                 std::cout << "\t" << std::setw(9) << i << " of " << meta.turns << " turns (" << percent << "%).";
+                if (percent < 10) std::cout << " ";
 
                 int pleft = (100*stats.pleft)/mParticles->size();
-                std::cout << " #=" << pleft << "%. φ=[" << std::setprecision(3) << stats.phmin << ", " << stats.phmax << "]" << std::endl;
+                std::cout << " #=" << pleft << "%. Eref=" << mAcc.E() << ", φ=[" << std::setprecision(3) << stats.phmin << ", " << stats.phmax << "]" << std::endl;
             }
         }
         double ms = timer.stop();
@@ -345,8 +346,8 @@ private:
         }
     };    
 
-    struct ParticleStats { T emax, emin, phmax, phmin; int pleft; };
-    ParticleStats getStats() const
+    struct SimStats { T emax, emin, phmax, phmin; int pleft; };
+    SimStats getStats() const
     {
         T emax, emin, phmax, phmin;
         emin = phmin = std::numeric_limits<T>::max();
@@ -362,7 +363,7 @@ private:
             phmin = mParticles->phase[i] < phmin ? mParticles->phase[i] : phmin;
             
         }
-        return ParticleStats{emax, emin, phmax, phmin, pleft};
+        return SimStats{emax, emin, phmax, phmin, pleft};
     }
 
     Acc mAcc;

@@ -5,7 +5,8 @@ import sys
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-from scipy import stats
+from scipy import stats, interpolate
+import math
 
 def moving_average(sequence, N):
     """ Moving average given the sequence. Returns an list equal in length
@@ -14,7 +15,34 @@ def moving_average(sequence, N):
     average = np.convolve(sequence, np.ones((N,))/N, mode='same')
     return average
 
+def merge_variable_interpolated(fills, var, resolution=0.1):
+    xmin = -sys.maxsize
+    xmax = -xmin
+    for fill in fills:
+        xmin = max(fill.data[var].x.min(), xmin)
+        xmax = min(fill.data[var].x.max(), xmax)
+
+    newx = np.arange(math.ceil(xmin), math.floor(xmax), resolution)
+
+    avg = np.zeros(newx.size)
+    maxy = np.zeros(newx.size)
+    miny = np.full(maxy.shape, sys.maxsize, dtype=float)
+
+    for fill in fills:
+        ip = interpolate.interp1d(*fill.data[var], assume_sorted=True)(newx)
+        avg += ip
+        maxy = np.maximum(maxy, ip)
+        miny = np.minimum(miny, ip)
+    avg /= len(fills)
+    return {
+            "average" : Fill.Variable((newx, avg)),
+            "max" : Fill.Variable((newx, maxy)),
+            "min" : Fill.Variable((newx, miny))
+            }
+
+
 def merge_variable(fills, var):
+    return merge_variable_interpolated(fills, var)
     xmin = sys.maxsize
     xmax = -xmin
     for fill in fills:
@@ -90,17 +118,17 @@ def plot_aggregate_fill_overlayed(beam, fill_list):
     fig, ax = plt.subplots()
     for nbr in fill_list:
         fill = Fill(nbr, beam=beam)
-        # ax.plot(*fill.blm_ir3(), color=np.random.rand(3), alpha=0.3)
+        ax.plot(*fill.blm_ir3(), color=np.random.rand(3), alpha=0.3)
         # ax.plot(*fill.energy(), color=np.random.rand(3), alpha=0.3)
-        ax.plot(fill.motor_ir7().x, fill.motor_ir7().y[1], color=np.random.rand(3), alpha=0.3)
+        # ax.plot(fill.motor_ir7().x, fill.motor_ir7().y[1], color=np.random.rand(3), alpha=0.3)
 
-    # aggr = aggregate_fill(beam, fill_list)
-    # ax.plot(*aggr.blm_ir3(), color='black', label='Aggregate', zorder=5)
+    aggr = aggregate_fill(beam, fill_list)
+    ax.plot(*aggr.blm_ir3(), color='black', label='Aggregate', zorder=5)
+    ax.set_xlim(aggr.blm_ir3().x[aggr.OML_period()] + np.array([-5, +120]))
+    ax.set_yscale("log")
 
     ax.set_xlabel("t (s)")
     ax.set_ylabel("TCP IR3 BLM signal")
-    # ax.set_xlim(aggr.blm_ir3().x[aggr.OML_period()] + np.array([-5, +120]))
-    # ax.set_yscale("log")
     plt.title("Overlay plot (beam {})".format(beam))
     plt.show()
 
