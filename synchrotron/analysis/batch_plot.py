@@ -1,12 +1,11 @@
 import pickle
+import os, sys
+
 from phasespace import PhaseSpace
 from lhccomp import fit_to_LHC_aggregate, compare_to_LHC_aggregate
 from lossmap import *
 from settings import *
 from plot import plot_hamiltonian_dist_histogram
-
-import os, sys
-sys.path.append("../common/")
 from logger import ModuleLogger, LogLevel
 lg = ModuleLogger("batch")
 

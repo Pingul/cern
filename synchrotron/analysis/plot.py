@@ -15,7 +15,6 @@ from settings import *
 from logger import ModuleLogger, LogLevel
 lg = ModuleLogger("plot")
 
-
 def plot_energy_oscillations():
     nbr_turns = 500*11245
     ramp = read_ramp(settings.RAMP_PATH, nbr_turns)

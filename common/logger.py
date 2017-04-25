@@ -17,8 +17,7 @@ class ModuleLogger:
         self.module_name = module_name
 
     def log(self, *args, log_level=LogLevel.info, end='\n', module_prestring=True):
-        
-        message = " ".join([*args])
+        message = " ".join(map(str, [*args]))
         if module_prestring:
             message = "{}: {}".format(self.module_name, message)
             if log_level == LogLevel.warning:

@@ -7,7 +7,7 @@ from scipy import stats
 from settings import *
 
 import sys
-sys.path.append("../common")
+sys.path.append("../../common")
 from logger import ModuleLogger, LogLevel
 
 lg = ModuleLogger("lossmap")

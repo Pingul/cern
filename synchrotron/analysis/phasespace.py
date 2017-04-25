@@ -7,9 +7,12 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Rectangle
 
 import numpy as np
-from settings import *
 
+from settings import *
 from math import pi
+from logger import ModuleLogger, LogLevel
+lg = ModuleLogger("phasespace")
+
 
 class PhaseSpace:
     """ Only works for data output by the 2d synchrotron
@@ -62,7 +65,7 @@ class PhaseSpace:
         self.h = np.array([])
 
         if pfile:
-            if not mute: print("reading in particles from '{}'".format(pfile))
+            if not mute: lg.log("reading in particles from '{}'".format(pfile))
             try: # new way -- includes horizontal motion
                 ids, self.x, self.px, self.denergy, self.phase, self.h = np.loadtxt(
                         pfile,
@@ -91,12 +94,12 @@ class PhaseSpace:
         self.fig, self.ax = plt.subplots()
 
     def plot_trajectory(self, filePath=None, randomizeColors=False, redraw=False):
-        print("plot trajectory '{}'".format(filePath))
+        lg.log("plot trajectory '{}'".format(filePath))
         phasespace = self
         if filePath is not None:
             phasespace = PhaseSpace(filePath)
         else:
-            print("using local data")
+            lg.log("using local data")
 
         nbr_series = phasespace.nbr_p
         series = [{"denergy" : [], "phase" : [], "h" : 0.0} for l in range(nbr_series)]
@@ -111,7 +114,7 @@ class PhaseSpace:
         cMap = plt.get_cmap('plasma_r')
         cNorm = colors.Normalize(vmin=0, vmax=4e6)
         scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=cMap)
-        print("plotting series")
+        lg.log("plotting series")
         color_list = plt.cm.Set3(np.linspace(0, 1, len(series)))
         for i, trail in enumerate(series):
             colorVal = scalarMap.to_rgba(trail['h'])
@@ -128,10 +131,10 @@ class PhaseSpace:
         self.plot_trajectory(settings.LINE_PATH)
 
     def plot_collimators(self):
-        print("plot collimators: OFF")
+        lg.log("plot collimators: OFF")
         return
 
-        print("plot collimators")
+        lg.log("plot collimators")
         try:
             with open(settings.COLL_PATH, 'r') as f:
                 f.readline()
@@ -139,7 +142,7 @@ class PhaseSpace:
                 top_coll, bot_coll = map(float, second_line.rstrip().split(','))
                 self.collimator = {'top' : top_coll, 'bot' : bot_coll}
         except:
-            print("could not read '{}', will not plot".format(settings.COLL_PATH))
+            lg.log("could not read '{}', will not plot".format(settings.COLL_PATH))
         else:
             # self.coll_hits = get_lossmap(COLL_FILE)
             self.ax.axhspan(settings.PLOT_FRAME['y'][0], self.collimator['bot'], facecolor='red', alpha=0.1)
@@ -180,10 +183,10 @@ class PhaseSpace:
         self.format_axes()
         
         if pbin:
-            print("\talive:", len(pbin['alive']))
-            print("\tlost:", len(pbin['lost']))
-            print("\tdiscarded:", len(pbin['discarded']))
-            print("\ttotal:", sum(map(len, pbin.values())))
+            lg.log("\talive:", len(pbin['alive']))
+            lg.log("\tlost:", len(pbin['lost']))
+            lg.log("\tdiscarded:", len(pbin['discarded']))
+            lg.log("\ttotal:", sum(map(len, pbin.values())))
             live_z = 10
             lost_z = 9 if len(pbin['lost']) > len(pbin['alive']) else 11
             if len(pbin['alive']) > 0: self.ax.scatter(self.phase[pbin['alive']], self.denergy[pbin['alive']], color='b', s=2, zorder=live_z, label='Alive')
@@ -213,7 +216,7 @@ class PhaseSpace:
                 filename = "phasespace/{}lines.dat".format(num)
                 self.plot_trajectory(filename, redraw=True)
             except:
-                print("could not redraw frame")
+                lg.log("could not redraw frame")
 
     def animate(self, lossmap, save_to="", animateBackground=False):
         self.coll_hits = lossmap
@@ -234,9 +237,9 @@ class PhaseSpace:
         ani = animation.FuncAnimation(self.fig, self.update, self.nbr_turns, fargs=(animateBackground,), interval=50, blit=False)
 
         if save_to:
-            print("saving simulation to '{}'".format(save_to))
+            lg.log("saving simulation to '{}'".format(save_to))
             self.fig.suptitle(save_to)
             ani.save(save_to, fps=20, dpi=500)
-            print("finished saving to '{}'".format(save_to))
+            lg.log("finished saving to '{}'".format(save_to))
         else:
             plt.show()
