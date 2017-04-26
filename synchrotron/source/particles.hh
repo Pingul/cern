@@ -8,6 +8,7 @@
 
 #include "hamiltonian.hh"
 #include "accelerator.hh"
+#include "sampled_distribution.hh"
 
 //namespace stron {
 namespace stron {
@@ -52,13 +53,14 @@ private:
     std::vector<int> mActive; // using int to allow for concurrent writes
 };
 
-static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "ActionValues", "LinearDecay", "ExponentialDecay"};
+static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "ActionValues", "LinearDecay", "ExponentialDecay", "LogLinear"};
 enum LongitudinalDist
 {
     AroundSeparatrix,
     ActionValues,
     LinearDecay,
     ExponentialDecay,
+    LogLinear,
 };
 std::ostream& operator<<(std::ostream& os, LongitudinalDist e)
 {
@@ -84,6 +86,7 @@ struct DistributionNotFound : public std::runtime_error
         : std::runtime_error("particles.hh: " + type) {}
 };
 
+
 template <typename Acc>
 struct ParticleGenerator
 {
@@ -99,16 +102,19 @@ struct ParticleGenerator
         auto p = PColl::create(n);
         switch (lDist) {
             case AroundSeparatrix:
-                GenAroundSeparatrix(*p);
+                genAroundSeparatrix(*p);
                 break;
             case ActionValues:
-                GenActionValues(*p);
+                genActionValues(*p);
                 break;
             case LinearDecay:
-                GenLinearDecay(*p);
+                genLinearDecay(*p);
                 break;
             case ExponentialDecay:
-                GenExponentialDecay(*p);
+                genExponentialDecay(*p);
+                break;
+            case LogLinear:
+                genLogDist(*p);
                 break;
             default:
                 throw DistributionNotFound("longitudinal");
@@ -141,7 +147,7 @@ struct ParticleGenerator
     }
     
 private:
-    void GenAroundSeparatrix(PColl& particles)
+    void genAroundSeparatrix(PColl& particles)
     {
         std::uniform_real_distribution<> e_dist(-0.5e9, 0.5e9);
         std::uniform_real_distribution<> ph_dist(0, 2*cnst::pi);
@@ -159,7 +165,7 @@ private:
         }
     }
 
-    void GenActionValues(PColl& particles)
+    void genActionValues(PColl& particles)
     {
         // n here is a request for number of particles -- the resulting might be lower
         const T sep = separatrix(mAcc);
@@ -197,14 +203,12 @@ private:
         }
     }
 
-    void GenLinearDecay(PColl& particles)
+    void genLinearDecay(PColl& particles)
     {
         const T sep = separatrix(mAcc);
         // Distribution as (relative to separatrix)
-        //  -15k        -10k         +5k
-        //    | constant  | linear dec.|
-        std::vector<T> Hs{sep - 15e3, sep - 10e3, sep + 5e3, sep + 1e7};
-        std::vector<T> prob{100.0, 100.0, 0.1, 0.1};
+        std::vector<T> Hs{sep - 8e3, sep, sep + 1.8e7};
+        std::vector<T> prob{1000.0, 1.0, 0.01};
         std::piecewise_linear_distribution<> H_dist(Hs.begin(), Hs.end(), prob.begin());
     
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
@@ -220,7 +224,7 @@ private:
         }
     }
 
-    void GenExponentialDecay(PColl& particles)
+    void genExponentialDecay(PColl& particles)
     {
         std::exponential_distribution<> H_dist(0.0003);                
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);    
@@ -228,11 +232,34 @@ private:
         const T H_low = separatrix(mAcc) - 15000;                      
         for (int i = 0, n = particles.size(); i < n; ++i) {                                  
             const T phase = uni_dist(mGenerator);                       
-            const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -    1.0;
+            const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -1.0;
             const T action = H_low + H_dist(mGenerator);                
             const T energy = levelCurve(mAcc, phase, action, sign);    
             if (std::isnan(energy)) { --i; continue; }                 
             particles.momentum[i] = energy;                          
+            particles.phase[i] = phase;                              
+        }
+    }
+
+
+    void genLogDist(PColl& particles)
+    {
+        auto f = [](T x) {
+            const T k = -0.905787102751;
+            const T m = 14.913170454;
+            return x*(k*std::log(x) + (m - k));
+        };
+        Sampled_distribution<T> logDist(f, 1.0, 1.4e7);
+        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
+
+        const T sep = separatrix(mAcc);
+        for (int i = 0, n = particles.size(); i < n; ++i) {
+            const T phase = uni_dist(mGenerator);
+            const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -1.0;
+            const T action = sep + logDist(mGenerator);
+            const T energy = levelCurve(mAcc, phase, action, sign);
+            if (std::isnan(energy)) { --i; continue; }
+            particles.momentum[i] = energy;
             particles.phase[i] = phase;                              
         }
     }
