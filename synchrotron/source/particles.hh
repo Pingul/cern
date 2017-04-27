@@ -53,11 +53,12 @@ private:
     std::vector<int> mActive; // using int to allow for concurrent writes
 };
 
-static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "ActionValues", "LinearDecay", "ExponentialDecay", "LogLinear"};
+static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "AVFull", "AVInside", "LinearDecay", "ExponentialDecay", "LogLinear"};
 enum LongitudinalDist
 {
     AroundSeparatrix,
-    ActionValues,
+    AVFull,
+    AVInside,
     LinearDecay,
     ExponentialDecay,
     LogLinear,
@@ -104,8 +105,11 @@ struct ParticleGenerator
             case AroundSeparatrix:
                 genAroundSeparatrix(*p);
                 break;
-            case ActionValues:
+            case AVFull:
                 genActionValues(*p);
+                break;
+            case AVInside:
+                genActionValuesInsideBucket(*p);
                 break;
             case LinearDecay:
                 genLinearDecay(*p);
@@ -147,46 +151,6 @@ struct ParticleGenerator
     }
     
 private:
- 
-    void genActionValues(PColl& particles)
-    {
-        // n here is a request for number of particles -- the resulting might be lower
-        const T sep = separatrix(mAcc);
-        std::vector<T> d_actions;
-        
-        int outside = 80;
-        double maxdE = 1.2e9;
-        double de = maxdE/double(outside);
-        for (int i = 1; i <= outside; ++i) {
-            d_actions.push_back(hamiltonian(mAcc, de*double(i), cnst::pi));
-        }
-        
-        int inside = 20;
-        for (int i = 1; i <= inside; ++i) {
-            d_actions.push_back(T(-8000 + 500*i));
-        }
-
-        const int n_per_level = particles.size()/(2*d_actions.size());
-        const int N = 2*n_per_level*d_actions.size();
-        particles.resize(N);
-
-        int count = 0;
-        for (T action : d_actions) {
-            action += sep;
-            std::uniform_real_distribution<> dist(0.0, 2*cnst::pi);
-            for (T sign : std::vector<T>({-1.0, 1.0})) {
-                for (int i = 0; i < n_per_level; ++i) {
-                    const T phase = dist(mGenerator);
-                    const T energy = levelCurve(mAcc, phase, action, sign);
-                    if (std::isnan(energy)) { --i; continue; }
-                    particles.momentum[count] = energy;
-                    particles.phase[count++] = phase;
-                }
-            }
-        }
-    }
-
-
     using Generator = std::mt19937;
 
     template <typename AVGen>
@@ -204,7 +168,62 @@ private:
             particles.phase[i] = phase;
         }
     }   
-    
+
+    void generateActionValueDistribution(PColl& particles, std::vector<T>& actions, int n_per_level)
+    {
+        std::uniform_real_distribution<> dist(0.0, 2*cnst::pi);
+        int count = 0;
+        for (T av : actions) {
+            for (T sign : std::vector<T>({-1.0, 1.0})) {
+                for (int i = 0; i < n_per_level; ++i) {
+                    const T phase = dist(mGenerator);
+                    const T energy = levelCurve(mAcc, phase, av, sign);
+                    if (std::isnan(energy)) { --i; continue; }
+                    particles.momentum.at(count) = energy;
+                    particles.phase.at(count++) = phase;
+                }
+            }
+        }
+    }
+
+    void genActionValues(PColl& particles)
+    {
+        // n here is a request for number of particles -- the resulting might be lower
+        std::vector<T> d_actions;
+        
+        const T sep = separatrix(mAcc);
+        int outside = 80;
+        double maxdE = 1.2e9;
+        double de = maxdE/double(outside);
+        for (int i = 1; i <= outside; ++i) {
+            d_actions.push_back(sep + hamiltonian(mAcc, de*double(i), cnst::pi));
+        }
+        
+        int inside = 20;
+        for (int i = 1; i <= inside; ++i) {
+            d_actions.push_back(sep + T(-8000 + 500*i));
+        }
+
+        const int n_per_level = particles.size()/(2*d_actions.size());
+        const int N = 2*n_per_level*d_actions.size();
+        particles.resize(N);
+        generateActionValueDistribution(particles, d_actions, n_per_level);
+    }
+
+    void genActionValuesInsideBucket(PColl& particles)
+    {
+        std::vector<T> actions;
+        const T sep = separatrix(mAcc);
+        int n = 20;
+        for (int i = 0; i < n; ++i) {
+            actions.emplace_back(sep + 500*i - 8000);
+        }
+        const int n_per_level = particles.size()/(2*actions.size());
+        const int N = 2*n_per_level*actions.size();
+        particles.resize(N);
+        generateActionValueDistribution(particles, actions, n_per_level);
+    }
+
     void genAroundSeparatrix(PColl& particles)
     {
         const T sep = separatrix(mAcc);
