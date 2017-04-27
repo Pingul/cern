@@ -17,7 +17,7 @@ public:
     {
         if (mLow >= mHigh) throw InvalidBounds();
 
-        mSampledCDF.resize(mRes);
+        mSampledCDF.resize(mRes + 1);
         const T cdfLow = cdfFunc(low);
         const T cdfHigh = cdfFunc(high);
         T last_p = 0;
