@@ -15,7 +15,6 @@ from settings import *
 from logger import ModuleLogger, LogLevel
 lg = ModuleLogger("plot")
 
-
 def plot_energy_oscillations():
     nbr_turns = 500*11245
     ramp = read_ramp(settings.RAMP_PATH, nbr_turns)
@@ -252,12 +251,12 @@ if __name__ == "__main__":
         lm = get_lossmap(settings.COLL_PATH)
         pbin = ps.categorize_particles(lm)
         
-        plot_all = True
-        if plot_all:
-            ax.scatter(ps.x, ps.px)
-        else:
+        plot_first = True
+        if plot_first:
             if len(pbin['alive']) > 0: ax.scatter(ps.x[pbin['alive']], ps.px[pbin['alive']]);
             if len(pbin['lost']) > 0: ax.scatter(ps.x[pbin['lost']], ps.px[pbin['lost']], color='r');
+        else:
+            ax.scatter(ps.x, ps.px)
 
         ax.set_xlabel("x")
         ax.set_ylabel("x'")
@@ -266,7 +265,7 @@ if __name__ == "__main__":
         ax.xaxis.grid(color='gray', linestyle='dashed')
         ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1E}".format(x)))
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1E}".format(x)))
-        plt.title("Motion for normalised coordinates at IR3 TCP")
+        plt.title("Motion for geometric coordinates at IR3 TCP")
         plt.show()
     else:
         lg.log("unrecognised action")

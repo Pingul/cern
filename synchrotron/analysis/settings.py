@@ -1,5 +1,5 @@
-import sys
-sys.path.append("../common/")
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../common/"))
 from settings_base import SettingsBase
 
 class Settings(SettingsBase):
@@ -25,7 +25,7 @@ class Settings(SettingsBase):
 
     @classmethod
     def settings_file(clss):
-        return "settings.json"
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 
 settings = Settings.load()
 

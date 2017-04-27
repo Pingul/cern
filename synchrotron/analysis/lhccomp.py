@@ -8,16 +8,15 @@ from sklearn import linear_model
 from bisect import bisect_left
 
 import sys, os
-sys.path.append("../common")
-sys.path.append("../lhcstat")
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../lhcstat/"))
 
+from settings import *
 import oml
 import analyse_fill as af
 import lossmap as lm
 
 from logger import ModuleLogger, LogLevel
 from phasespace import PhaseSpace
-from settings import *
 
 lg = ModuleLogger("lhccomp")
 
@@ -97,16 +96,30 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
 
     ## FIT
     lg.log("fit")
+
     xt = np.transpose(x)
     y = interpolate.interp1d(*aggr_fill.blm_ir3())(asecs)
-    coef = nnls(xt, y)[0]
+
+    method = "linear"
+    lg.log(method)
+    if method == "log":
+        xt[xt == 0] = 1e-5
+        xt = np.log10(xt)
+        # y = np.log10(y)
+        coef = np.linalg.lstsq(xt, y)[0]
+        x_fit = np.sum(coef*xt, axis=1)
+    elif method == "linear":
+        coef = nnls(xt, y)[0]
+        x_fit = np.sum(coef*xt, axis=1)
+    else:
+        raise Exception("not valid")
+
     coef_file = "lhc_fit_coefficients.txt"
     with open(coef_file, "w") as f:
         f.write("Coefficients:")
         for i, c in enumerate(coef):
             f.write("{:>5} = {:<20.10f} (H = {})\n".format("a{}".format(i), c, action_values[i]))
     lg.log("saved coefficients to '{}'".format(coef_file))
-    x_fit = np.sum(coef*xt, axis=1)
 
 
     if not integration:
@@ -169,7 +182,7 @@ def halign(secs, losses, aggr_fill):
 
     vfill_peak, ifill_peak = oml.imax(aggr_fill.blm_ir3().y)
     delta = secs[iloss_peak] - aggr_fill.blm_ir3().x[ifill_peak]
-    lg.log("peaks\n\t2d-synch : {:.2f}\n\taggregate: {:.2f}\n\tdelta    : {:.2f}"
+    lg.log("peaks\n\ttoymodel : {:.2f}\n\taggregate: {:.2f}\n\tdelta    : {:.2f}"
             .format(secs[iloss_peak], aggr_fill.blm_ir3().x[ifill_peak], delta))
     return secs - delta
 
@@ -177,4 +190,4 @@ def halign(secs, losses, aggr_fill):
 if __name__ == "__main__":
     ps = PhaseSpace(settings.STARTDIST_PATH)
     lossmap = lm.get_lossmap(settings.COLL_PATH)
-    compare_to_LHC_aggregate(ps, lossmap)
+    fit_to_LHC_aggregate(ps, lossmap)

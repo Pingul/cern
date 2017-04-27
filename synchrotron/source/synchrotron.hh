@@ -185,7 +185,7 @@ private:
     {
         using Collimat = typename Acc::Collimat;
         CollimatorHits(const Collimat& c, const Particles& p) 
-            : collimat(c), mParticles(p), mTurns(p.size(), -1), mX(p.size()) {}
+            : collimat(c), mPart(p), mTurns(p.size(), -1), mX(p.size()) {}
 
         bool isHit(int pId) { return mTurns.at(pId) == -1; }
         void registerHit(int pId, int turn, T xpos) { mTurns.at(pId) = turn; mX.at(pId) = xpos; }
@@ -197,15 +197,15 @@ private:
             if (!file.is_open())
                 throw FileNotFound(filePath);
 
-            file << mParticles.size() << std::endl;
+            file << mPart.size() << std::endl;
             //file << mAcc.coll_top << ", " << mAcc.coll_bot << std::endl;
             file << 0.0 << ", " << 0.0 << std::endl;
-            for (size_t i = 0; i < mParticles.size(); ++i) {
+            for (size_t i = 0; i < mPart.size(); ++i) {
                 if (mTurns[i] == -1) continue;
                 file << i << ", " 
                     << mTurns[i] << "," << std::setprecision(16) 
-                    << mParticles.phase[i] << "," 
-                    << mParticles.momentum[i] << ","
+                    << mPart.phase[i] << "," 
+                    << mPart.momentum[i] << ","
                     << mX[i] << std::endl;
             }
         }
@@ -230,7 +230,7 @@ private:
 
         const Collimat& collimat;
     private:
-        const Particles& mParticles;
+        const Particles& mPart;
         std::vector<int> mTurns;
         std::vector<T> mX;
     }; // CollimatorHits
@@ -244,24 +244,21 @@ private:
         bool particleCollided(size_t index) const
         {
             bool collided = false;
+
+            const T& dp = mPart.momentum[index];
+            auto p = mAcc.calcParticleProp(dp, 0.0);
+            
             for (auto& ch : mCHits) {
                 auto& coll = ch.collimat;
-                switch (coll.type) {
-                    case Collimat::Type::TCP_IR3: {
-                        const T& dp = mPart.momentum[index];
-                        auto p = mAcc.calcParticleProp(dp, 0.0);
-                        const T xd = dp/mAcc.E()*coll.dispersion;
-                        const T xb = mPart.xBeta(index, coll.alpha, coll.beta, p.b, p.g).x;
-                        const T x = xb + xd;
-                        const T xcut = (std::abs(coll.left) + std::abs(coll.right))/2.0*1e-3;
-                        bool cond = x < -xcut || x > xcut;
-                        if (cond) ch.registerHit(index, mTurn, x);
-                        collided |= cond;
-                        break;
-                    } case Collimat::Type::TCPc_IR7: {
-                        break;
-                    }
-                }
+                if (coll.type != Collimat::TCP_IR3) continue;
+
+                const T xd = dp/mAcc.E()*coll.dispersion;
+                const T xb = mPart.xBeta(index, coll.alpha, coll.beta, p.b, p.g).x;
+                const T x = xb + xd;
+                const T xcut = (std::abs(coll.left) + std::abs(coll.right))/2.0*1e-3;
+                bool cond = x < -xcut || x > xcut;
+                if (cond) ch.registerHit(index, mTurn, x);
+                collided |= cond;
             }
             return collided;
         }
