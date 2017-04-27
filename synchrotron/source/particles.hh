@@ -53,7 +53,7 @@ private:
     std::vector<int> mActive; // using int to allow for concurrent writes
 };
 
-static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "AVFull", "AVInside", "LinearDecay", "ExponentialDecay", "LogLinear"};
+static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "AVFull", "AVInside", "LinearDecay", "ExponentialDecay", "LogDecay", "LogLinear"};
 enum LongitudinalDist
 {
     AroundSeparatrix,
@@ -61,6 +61,7 @@ enum LongitudinalDist
     AVInside,
     LinearDecay,
     ExponentialDecay,
+    LogDecay,
     LogLinear,
 };
 std::ostream& operator<<(std::ostream& os, LongitudinalDist e)
@@ -103,22 +104,25 @@ struct ParticleGenerator
         auto p = PColl::create(n);
         switch (lDist) {
             case AroundSeparatrix:
-                genAroundSeparatrix(*p);
+                aroundSep(*p);
                 break;
             case AVFull:
-                genActionValues(*p);
+                AVFullRange(*p);
                 break;
             case AVInside:
-                genActionValuesInsideBucket(*p);
+                AVInsideBucket(*p);
                 break;
             case LinearDecay:
-                genLinearDecay(*p);
+                linDecay(*p);
                 break;
             case ExponentialDecay:
-                genExponentialDecay(*p);
+                expDecay(*p);
+                break;
+            case LogDecay:
+                logDist(*p);
                 break;
             case LogLinear:
-                genLogDist(*p);
+                logLinDist(*p);
                 break;
             default:
                 throw DistributionNotFound("longitudinal");
@@ -154,7 +158,7 @@ private:
     using Generator = std::mt19937;
 
     template <typename AVGen>
-    void generateActionValueDistribution(PColl& particles, AVGen nextAV)
+    void generateAVDist(PColl& particles, AVGen nextAV)
     {
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
     
@@ -169,7 +173,7 @@ private:
         }
     }   
 
-    void generateActionValueDistribution(PColl& particles, std::vector<T>& actions, int n_per_level)
+    void generateAVDist(PColl& particles, std::vector<T>& actions, int n_per_level)
     {
         std::uniform_real_distribution<> dist(0.0, 2*cnst::pi);
         int count = 0;
@@ -186,7 +190,7 @@ private:
         }
     }
 
-    void genActionValues(PColl& particles)
+    void AVFullRange(PColl& particles)
     {
         // n here is a request for number of particles -- the resulting might be lower
         std::vector<T> d_actions;
@@ -207,10 +211,10 @@ private:
         const int n_per_level = particles.size()/(2*d_actions.size());
         const int N = 2*n_per_level*d_actions.size();
         particles.resize(N);
-        generateActionValueDistribution(particles, d_actions, n_per_level);
+        generateAVDist(particles, d_actions, n_per_level);
     }
 
-    void genActionValuesInsideBucket(PColl& particles)
+    void AVInsideBucket(PColl& particles)
     {
         std::vector<T> actions;
         const T sep = separatrix(mAcc);
@@ -221,19 +225,19 @@ private:
         const int n_per_level = particles.size()/(2*actions.size());
         const int N = 2*n_per_level*actions.size();
         particles.resize(N);
-        generateActionValueDistribution(particles, actions, n_per_level);
+        generateAVDist(particles, actions, n_per_level);
     }
 
-    void genAroundSeparatrix(PColl& particles)
+    void aroundSep(PColl& particles)
     {
         const T sep = separatrix(mAcc);
         std::uniform_real_distribution<> hdist(sep - 1e6, sep + 1e6);
         auto avGen = [&](Generator& g) { return hdist(g); };
-        generateActionValueDistribution(particles, avGen);
+        generateAVDist(particles, avGen);
     }
 
 
-    void genLinearDecay(PColl& particles)
+    void linDecay(PColl& particles)
     {
         const T sep = separatrix(mAcc);
         // Distribution as (relative to separatrix)
@@ -242,21 +246,21 @@ private:
         std::piecewise_linear_distribution<> H_dist(Hs.begin(), Hs.end(), prob.begin());
 
         auto avGen = [&](Generator& g) { return H_dist(g); };
-        generateActionValueDistribution(particles, avGen);
+        generateAVDist(particles, avGen);
     }
 
-    void genExponentialDecay(PColl& particles)
+    void expDecay(PColl& particles)
     {
         std::exponential_distribution<> H_dist(0.0003);                
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);    
                                                                        
         const T H_low = separatrix(mAcc) - 15000;                      
         auto avGen = [&](Generator& g) { return H_low + H_dist(mGenerator); };
-        generateActionValueDistribution(particles, avGen);
+        generateAVDist(particles, avGen);
     }
 
     
-    void genLogDist(PColl& particles)
+    void logDist(PColl& particles)
     {
         auto cdf = [](T x) {
             const T k = -0.905787102751;
@@ -264,11 +268,23 @@ private:
             return x*(k*std::log(x) + (m - k));
         };
         Sampled_distribution<T> logDist(cdf, 1.0, 1.4e7);
-        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
-
         const T sep = separatrix(mAcc);
         auto avGen = [&](Generator& g) { return sep + logDist(g); };
-        generateActionValueDistribution(particles, avGen);
+        generateAVDist(particles, avGen);
+    }
+
+    void logLinDist(PColl& particles)
+    {
+        auto cdf = [](double x) {
+            const double k = -0.905787102751, m = 14.913170454;
+            if (x >= -8000 && x < 1) return m*x;
+            else if (x >= 1 && x <= 1.4e7) return x*(k*std::log(x) + m - k);
+            else throw std::runtime_error("logLinDist: out of range");
+        };
+        Sampled_distribution<T> dist(cdf, -8000, 1.4e7, /*resolution*/20000);
+        const T sep = separatrix(mAcc);
+        auto avGen = [&](Generator& g) { return sep + dist(g); };
+        generateAVDist(particles, avGen);
     }
     
     
