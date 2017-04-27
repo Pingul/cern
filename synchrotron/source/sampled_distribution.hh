@@ -6,18 +6,7 @@
 #include <random>
 #include <stdexcept>
 
-/*
- * Given a CDF (un-normalised/normalised), generate values according to that distribution
- *
- * The class samples the given CDF to calculate the inverse.
- *
- * Use as:
- *  auto f = [](double x){ return x^/2; } // linear distribution; integral of f(x) = x.
- *  std::mt19937 gen;
- *  Sampled_distribution<> dist(f, 0.0, 1.0);
- *  double v = dist(gen);
- */
-template <typename T = double>
+template <typename T = double, bool Interpolate = true>
 class Sampled_distribution
 {
 public:
@@ -32,10 +21,9 @@ public:
         const T cdfLow = cdfFunc(low);
         const T cdfHigh = cdfFunc(high);
         for (int i = 0; i < mSampledCDF.size(); ++i) {
-            const T x = (i + 1)/double(mRes)*(mHigh - mLow) + mLow;
-            const T prob = (cdfFunc(x) - cdfLow)/(cdfHigh - cdfLow); // normalising
+            const T x = i/mRes*(mHigh - mLow) + mLow;
+            const T prob = (cdfFunc(x) - cdfLow)/(cdfHigh - cdfLow); // normalising 
             mSampledCDF[i] = Sample{prob, x};
-            std::cout << i << " " << mSampledCDF[i].prob << " " << mSampledCDF[i].value << std::endl;
         }
     }
 
@@ -43,16 +31,21 @@ public:
     T operator()(Generator& g) 
     {
         T cdf = mDist(g);
-        auto search = std::upper_bound(mSampledCDF.begin(), mSampledCDF.end(), cdf);
-        return search->value;
+        auto s = std::upper_bound(mSampledCDF.begin(), mSampledCDF.end(), cdf);
+        auto bs = s - 1;
+        if (Interpolate && bs >= mSampledCDF.begin()) { 
+            const T r = (cdf - bs->prob)/(s->prob - bs->prob);
+            return r*bs->value + (1 - r)*s->value;
+        }
+        return s->value;
     }
 
 private:
     struct InvalidBounds : public std::runtime_error { InvalidBounds() : std::runtime_error("") {} };
 
     const T mLow, mHigh;
-    const unsigned mRes;
-    
+    const double mRes;
+
     struct Sample { 
         T prob, value; 
         friend bool operator<(T p, const Sample& s) { return p < s.prob; }
