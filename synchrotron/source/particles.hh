@@ -147,24 +147,7 @@ struct ParticleGenerator
     }
     
 private:
-    void genAroundSeparatrix(PColl& particles)
-    {
-        std::uniform_real_distribution<> e_dist(-0.5e9, 0.5e9);
-        std::uniform_real_distribution<> ph_dist(0, 2*cnst::pi);
-        size_t count = 0;
-        const T sep = separatrix<T>(mAcc);
-        while (count < particles.size()) {
-            const T deltaE = e_dist(mGenerator);
-            const T phase = ph_dist(mGenerator);
-            const T H = hamiltonian(mAcc, deltaE, phase);
-            if ((sep - 1e6) < H && H < (sep + 1e6)) {
-                particles.momentum[count] = deltaE;
-                particles.phase[count] = phase;
-                count++;
-            }
-        }
-    }
-
+ 
     void genActionValues(PColl& particles)
     {
         // n here is a request for number of particles -- the resulting might be lower
@@ -203,6 +186,34 @@ private:
         }
     }
 
+
+    using Generator = std::mt19937;
+
+    template <typename AVGen>
+    void generateActionValueDistribution(PColl& particles, AVGen nextAV)
+    {
+        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
+    
+        for (int i = 0, n = particles.size(); i < n; ++i) {
+            const T phase = uni_dist(mGenerator);
+            const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -1.0;
+            const T action = nextAV(mGenerator);
+            const T energy = levelCurve(mAcc, phase, action, sign);
+            if (std::isnan(energy)) { --i; continue; }
+            particles.momentum[i] = energy;
+            particles.phase[i] = phase;
+        }
+    }   
+    
+    void genAroundSeparatrix(PColl& particles)
+    {
+        const T sep = separatrix(mAcc);
+        std::uniform_real_distribution<> hdist(sep - 1e6, sep + 1e6);
+        auto avGen = [&](Generator& g) { return hdist(g); };
+        generateActionValueDistribution(particles, avGen);
+    }
+
+
     void genLinearDecay(PColl& particles)
     {
         const T sep = separatrix(mAcc);
@@ -210,18 +221,9 @@ private:
         std::vector<T> Hs{sep - 8e3, sep, sep + 1.8e7};
         std::vector<T> prob{1000.0, 1.0, 0.01};
         std::piecewise_linear_distribution<> H_dist(Hs.begin(), Hs.end(), prob.begin());
-    
-        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
-    
-        for (int i = 0, n = particles.size(); i < n; ++i) {
-            const T phase = uni_dist(mGenerator);
-            const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -1.0;
-            const T action = H_dist(mGenerator);
-            const T energy = levelCurve(mAcc, phase, action, sign);
-            if (std::isnan(energy)) { --i; continue; }
-            particles.momentum[i] = energy;
-            particles.phase[i] = phase;
-        }
+
+        auto avGen = [&](Generator& g) { return H_dist(g); };
+        generateActionValueDistribution(particles, avGen);
     }
 
     void genExponentialDecay(PColl& particles)
@@ -230,44 +232,30 @@ private:
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);    
                                                                        
         const T H_low = separatrix(mAcc) - 15000;                      
-        for (int i = 0, n = particles.size(); i < n; ++i) {                                  
-            const T phase = uni_dist(mGenerator);                       
-            const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -1.0;
-            const T action = H_low + H_dist(mGenerator);                
-            const T energy = levelCurve(mAcc, phase, action, sign);    
-            if (std::isnan(energy)) { --i; continue; }                 
-            particles.momentum[i] = energy;                          
-            particles.phase[i] = phase;                              
-        }
+        auto avGen = [&](Generator& g) { return H_low + H_dist(mGenerator); };
+        generateActionValueDistribution(particles, avGen);
     }
 
-
+    
     void genLogDist(PColl& particles)
     {
-        auto f = [](T x) {
+        auto cdf = [](T x) {
             const T k = -0.905787102751;
             const T m = 14.913170454;
             return x*(k*std::log(x) + (m - k));
         };
-        Sampled_distribution<T> logDist(f, 1.0, 1.4e7);
+        Sampled_distribution<T> logDist(cdf, 1.0, 1.4e7);
         std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
 
         const T sep = separatrix(mAcc);
-        for (int i = 0, n = particles.size(); i < n; ++i) {
-            const T phase = uni_dist(mGenerator);
-            const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -1.0;
-            const T action = sep + logDist(mGenerator);
-            const T energy = levelCurve(mAcc, phase, action, sign);
-            if (std::isnan(energy)) { --i; continue; }
-            particles.momentum[i] = energy;
-            particles.phase[i] = phase;                              
-        }
+        auto avGen = [&](Generator& g) { return sep + logDist(g); };
+        generateActionValueDistribution(particles, avGen);
     }
-
-private:
+    
+    
     const Acc& mAcc;
     std::random_device mRDev;
-    std::mt19937 mGenerator;
+    Generator mGenerator;
 };
 
 

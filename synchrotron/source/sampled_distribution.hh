@@ -20,10 +20,13 @@ public:
         mSampledCDF.resize(mRes);
         const T cdfLow = cdfFunc(low);
         const T cdfHigh = cdfFunc(high);
-        for (int i = 0; i < mSampledCDF.size(); ++i) {
+        T last_p = 0;
+        for (unsigned i = 0; i < mSampledCDF.size(); ++i) {
             const T x = i/mRes*(mHigh - mLow) + mLow;
-            const T prob = (cdfFunc(x) - cdfLow)/(cdfHigh - cdfLow); // normalising 
-            mSampledCDF[i] = Sample{prob, x};
+            const T p = (cdfFunc(x) - cdfLow)/(cdfHigh - cdfLow); // normalising 
+            if (! (p >= last_p)) throw CDFNotMonotonic();
+            mSampledCDF[i] = Sample{p, x};
+            last_p = p;
         }
     }
 
@@ -42,6 +45,7 @@ public:
 
 private:
     struct InvalidBounds : public std::runtime_error { InvalidBounds() : std::runtime_error("") {} };
+    struct CDFNotMonotonic : public std::runtime_error { CDFNotMonotonic() : std::runtime_error("") {} };
 
     const T mLow, mHigh;
     const double mRes;
