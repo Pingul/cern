@@ -53,12 +53,14 @@ private:
     std::vector<int> mActive; // using int to allow for concurrent writes
 };
 
-static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "AVFull", "AVInside", "LinearDecay", "ExponentialDecay", "LogDecay", "LogLinear"};
+static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "AVFull", "AVInside", "AVUniformH", "AVUniformE", "LinearDecay", "ExponentialDecay", "LogDecay", "LogLinear"};
 enum LongitudinalDist
 {
     AroundSeparatrix,
     AVFull,
     AVInside,
+    AVUniformH,
+    AVUniformE,
     LinearDecay,
     ExponentialDecay,
     LogDecay,
@@ -103,27 +105,15 @@ struct ParticleGenerator
     {
         auto p = PColl::create(n);
         switch (lDist) {
-            case AroundSeparatrix:
-                aroundSep(*p);
-                break;
-            case AVFull:
-                AVFullRange(*p);
-                break;
-            case AVInside:
-                AVInsideBucket(*p);
-                break;
-            case LinearDecay:
-                linDecay(*p);
-                break;
-            case ExponentialDecay:
-                expDecay(*p);
-                break;
-            case LogDecay:
-                logDist(*p);
-                break;
-            case LogLinear:
-                logLinDist(*p);
-                break;
+            case AroundSeparatrix: aroundSep(*p); break;
+            case AVFull: AVFullRange(*p); break;
+            case AVInside: AVInsideBucket(*p); break;
+            case AVUniformH: AVHUniform(*p); break;
+            case AVUniformE: AVEUniform(*p); break;
+            case LinearDecay: linDecay(*p); break;
+            case ExponentialDecay: expDecay(*p); break;
+            case LogDecay: logDist(*p); break;
+            case LogLinear: logLinDist(*p); break;
             default:
                 throw DistributionNotFound("longitudinal");
         }
@@ -138,7 +128,7 @@ struct ParticleGenerator
             }
             case DoubleGaussian:
             {
-                std::normal_distribution<> d(0, 1);
+                std::normal_distribution<> d(0, 3);
                 for (size_t i = 0; i < p->size(); ++i) {
                     p->x[i] = d(mGenerator);
                     p->px[i] = d(mGenerator);
@@ -228,6 +218,36 @@ private:
         generateAVDist(particles, actions, n_per_level);
     }
 
+    void AVHUniform(PColl& particles)
+    {
+        const T sep = separatrix(mAcc);
+        std::vector<T> actions;
+        const T maxH = 1.75e7;
+        const T minH = -8000;
+        for (double h = minH; h < maxH; h += (maxH - minH)/200) {
+            actions.emplace_back(sep + h);
+        }
+        const int n_per_level = particles.size()/(2*actions.size());
+        const int N = 2*n_per_level*actions.size();
+        particles.resize(N);
+        generateAVDist(particles, actions, n_per_level);
+    }
+
+    void AVEUniform(PColl& particles)
+    {
+        // Uniform energy at phi = pi
+        std::vector<T> actions;
+        const T maxE = 1.5e9;
+        const T minE = 0.37e9;
+        for (double e = minE; e < maxE; e += (maxE - minE)/200) {
+            actions.emplace_back(hamiltonian(mAcc, e, cnst::pi));
+        }
+        const int n_per_level = particles.size()/(2*actions.size());
+        const int N = 2*n_per_level*actions.size();
+        particles.resize(N);
+        generateAVDist(particles, actions, n_per_level);
+    }
+
     void aroundSep(PColl& particles)
     {
         const T sep = separatrix(mAcc);
@@ -281,6 +301,7 @@ private:
             else if (x >= 1 && x <= 1.4e7) return x*(k*std::log(x) + m - k);
             else throw std::runtime_error("logLinDist: out of range");
         };
+        // This might be incorrect
         Sampled_distribution<T> dist(cdf, -8000, 1.4e7, /*resolution*/20000);
         const T sep = separatrix(mAcc);
         auto avGen = [&](Generator& g) { return sep + dist(g); };
