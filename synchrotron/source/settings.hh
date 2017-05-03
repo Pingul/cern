@@ -30,6 +30,7 @@ static constexpr const char* META_FILE = OUTPUT_DIR"/meta.json";
 static constexpr const char* PATH_FILE = OUTPUT_DIR"/particles.dat";
 static constexpr const char* LINE_FILE = OUTPUT_DIR"/lines.dat";
 static constexpr const char* COLL_FILE = OUTPUT_DIR"/coll.dat";
+
 static constexpr const char* STARTDIST_FILE = OUTPUT_DIR"/startdist.dat";
 static constexpr const char* ENDDIST_FILE = OUTPUT_DIR"/enddist.dat";
 static constexpr const char* SIXTRACK_TEST_FILE = OUTPUT_DIR"/toymodel_track.dat";
@@ -39,6 +40,9 @@ static constexpr const char* LHC_RAMP_FILE = RESOURCE_DIR"/LHC_interpolated_60s.
 //static constexpr const char* EXTERNAL_RAMP_FILE = "resources/40s_linear_ramp.dat";
 //static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp.txt";
 static constexpr const char* COLL_MOTOR_FILE = RESOURCE_DIR"/motor_tcp_ir3_f5433b1.txt";
+
+static constexpr const char* TCP_IR3_MOTOR_FILE  = RESOURCE_DIR"/motor_tcp_ir3_f5433b1.txt";
+static constexpr const char* TCPC_IR7_MOTOR_FILE = RESOURCE_DIR"/motor_tcp_ir7_f5433b1.txt";
 
 } // namespace stron
 
