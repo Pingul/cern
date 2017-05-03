@@ -1,17 +1,33 @@
 {
-    "BATCH_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/action_values/v1",
+    "BATCH_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/action_values/v6",
     "BATCH_JOB_PRESTRING": "job",
     "BLM_INT": 11245,
     "CACHE_BATCH": true,
     "CACHE_BATCH_FILE": "batch_cache.dat",
-    "COLL_FILE": "coll.dat",
+    "COLL_FILE": "TCP_IR3.dat",
+    "_COLL_FILE": "coll.dat",
     "DATA_DIR": "/Users/swretbor/Workspace/collimation/proj/synchrotron/calc",
     "ENDDIST_FILE": "enddist.dat",
-    "META_FILE" : "meta.json",
     "F_RF": 400788731.3727857,
     "H_SEPARATRIX": 1909859.317103239,
     "LINE_FILE": "lines.dat",
+    "META_FILE": "meta.json",
     "PARTICLE_FILE": "particles.dat",
+    "PLOT_FRAME": {
+        "x": [
+            -6.3,
+            12.6
+        ],
+        "y": [
+            -2000000000.0,
+            2000000000.0
+        ]
+    },
+    "PRUNE_TIMESCALE": true,
+    "RAMP_FILE": "LHC_ramp.dat",
+    "RESOURCE_DIR": "/Users/swretbor/Workspace/collimation/proj/synchrotron/resources",
+    "STARTDIST_FILE": "startdist.dat",
+    "TRAILING_INTEGRATION": true,
     "_PLOT_FRAME": {
         "x": [
             -0.314,
@@ -21,21 +37,5 @@
             -400000000.0,
             400000000.0
         ]
-    },
-
-    "PLOT_FRAME" : {
-        "x": [
-            -6.30,
-            12.60
-        ],
-        "y": [
-        -2000000000.0,
-        2000000000.0
-        ]
-    },
-    "PRUNE_TIMESCALE": false,
-    "RAMP_FILE": "LHC_ramp.dat",
-    "RESOURCE_DIR": "/Users/swretbor/Workspace/collimation/proj/synchrotron/resources",
-    "STARTDIST_FILE": "startdist.dat",
-    "TRAILING_INTEGRATION": true
+    }
 }
