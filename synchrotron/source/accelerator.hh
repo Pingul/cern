@@ -8,6 +8,11 @@
 
 namespace stron {
 
+
+namespace {
+    const char* COLLIMATOR_TYPE_NAMES[] = {"TCP_IR3", "TCPc_IR7"};
+}
+
 template <typename T>
 struct Collimator
 {
@@ -36,6 +41,9 @@ struct Collimator
     T beta; // [m]
     T alpha; // [1]
 
+    std::string string_rep() const { return COLLIMATOR_TYPE_NAMES[type]; }
+    std::string filePath() const { return std::string(OUTPUT_DIR) + "/" + string_rep() + ".dat"; }
+    friend std::ostream& operator<<(std::ostream& os, const Collimator& c) { os << c.string_rep(); return os; }
 };
 
 template <typename T>
@@ -74,6 +82,7 @@ public:
         acc.recalc();
 
         // Raw data from Timber measured in mm and MADX, beam 1
+        // NEEDS TO BE IN THIS ORDER
         acc.collimators.emplace_back(Collimat::Type::TCP_IR3,   -7.385, 8.285, 2.147613, 131.519214, 1.725949);
         acc.collimators.emplace_back(Collimat::Type::TCPc_IR7,  -6.485, 5.425, 0.320492, 149.862610, 2.041428);
 
