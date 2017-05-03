@@ -42,7 +42,7 @@ struct Collimator
     T alpha; // [1]
 
     std::string string_rep() const { return COLLIMATOR_TYPE_NAMES[type]; }
-    std::string filePath() const { return std::string(OUTPUT_DIR) + "/" + string_rep() + ".dat"; }
+    std::string filePath() const { return std::string(OUTPUT_DIR) + "/" + string_rep() + ".ch"; }
     friend std::ostream& operator<<(std::ostream& os, const Collimator& c) { os << c.string_rep(); return os; }
 };
 
