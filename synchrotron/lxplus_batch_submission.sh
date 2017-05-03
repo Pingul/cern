@@ -3,19 +3,13 @@
 toymodel="/afs/cern.ch/user/s/swretbor/test/cern/synchrotron"
 resources="$toymodel/resources"
 
-declare -a input_files=(
-        "LHC_ramp.dat"
-        "motor_tcp_ir3_f5433b1.txt"
-        "motor_tcp_ir7_f5433b1.txt")
 # copy them over locally to the batch so we don't overload AFS
-for file in "${input_files[@]}"
-do
-    cp "$resources/$file" .
-done
+cp "$resources/LHC_ramp.dat" .
+cp "$resources/motor_tcp_ir3_f5433b1.txt" .
+cp "$resources/motor_tcp_ir7_f5433b1.txt" .
 cp "$toymodel/2dsynch" .
 
 toymodelBin="$PWD/2dsynch"
-copy_back="stdout.txt,startdist.dat,enddist.dat,TCP*.dat"
 
 jobs=250
 
@@ -30,14 +24,18 @@ for ((j = 1; j <= jobs; j++)) ; do
     cat > 2dsynch_$j.job << EOF
 #!/bin/bash
 
-for file in "${input_files[@]}"
-do
-    cp -p $PWD/$file .
-end
+#inputs
+cp "../LHC_ramp.dat" .
+cp "../motor_tcp_ir3_f5433b1.txt" .
+cp "../motor_tcp_ir7_f5433b1.txt" .
 
 $toymodelBin lossmap > stdout.txt
 
-cp -p {$copy_back} $PWD
+#copy back
+cp -p stdout.txt $PWD
+cp -p startdist.dat $PWD
+cp -p enddist.dat $PWD
+cp -p *.ch $PWD # collfiles
 exit
 EOF
     spamString="-o $PWD/${LSFoutFile} -e $PWD/${LSFerrFile}"
