@@ -59,6 +59,7 @@ public:
     void addParticles(ParticlesPtr particles)
     {
         mParticles = particles;
+        mCollHits.clear();
         for (const auto& c : mAcc.collimators)
             mCollHits.emplace_back(CollimatorHits(c, *mParticles));
         writeDistribution(STARTDIST_FILE);
@@ -91,14 +92,14 @@ public:
         }
     }
 
-    void writeCollHits(std::string filePath) const
+    void writeCollHits() const
     {
         std::cout << "** Collimator stats **" << std::endl;
         for (const auto& ch : mCollHits) {
-            if (ch.collimat.type == Collimat::Type::TCP_IR3) {
+            //if (ch.collimat.type == Collimat::Type::TCP_IR3) {
                 ch.printStats();
-                ch.write(filePath);
-            }
+                ch.write(ch.collimat.filePath());
+            //}
         }
         std::cout << "**" << std::endl;
     }
@@ -165,17 +166,8 @@ public:
         std::cout << dur.ms << "ms" << std::endl;
 
         writeDistribution(ENDDIST_FILE);
-        writeCollHits(COLL_FILE);
+        writeCollHits();
         meta.write(META_FILE);
-    }
-
-    void runLossmap(ProgramPtr program)
-    {
-        simulateTurns(program, stron::PATH_FILE, 11245); 
-        std::cout << "** Collimator stats **" << std::endl;
-        for (const auto& ch : mCollHits) 
-            ch.printStats();
-        std::cout << "**" << std::endl;
     }
 
     Acc& getAcc() { return mAcc; }
@@ -192,7 +184,7 @@ private:
 
         void write(const std::string& filePath) const
         {        
-            std::cout << "Saving collimator (" << collimat.type << ") hits to '"  << filePath << "'" << std::endl;
+            std::cout << "Saving collimator " << collimat << " hits to '"  << filePath << "'" << std::endl;
             std::ofstream file(filePath.c_str());
             if (!file.is_open())
                 throw FileNotFound(filePath);
@@ -222,7 +214,7 @@ private:
                 n++;
             }
 
-            std::cout << "For collimator " << collimat.type << ":" << std::endl;
+            std::cout << "For collimator " << collimat.string_rep() << ":" << std::endl;
             std::cout << "\tHits : " << n << std::endl;
             std::cout << "\tLast : " << last << " (" << std::setprecision(4) << (last/cnst::s_to_turn) << " s)" << std::endl;
             std::cout << "\tMax x: " << maxX << std::endl;
@@ -243,24 +235,24 @@ private:
 
         bool particleCollided(size_t index) const
         {
-            bool collided = false;
-
             const T& dp = mPart.momentum[index];
             auto p = mAcc.calcParticleProp(dp, 0.0);
             
             for (auto& ch : mCHits) {
                 auto& coll = ch.collimat;
-                if (coll.type != Collimat::TCP_IR3) continue;
+                //if (coll.type != Collimat::TCP_IR3) continue;
 
                 const T xd = dp/mAcc.E()*coll.dispersion;
                 const T xb = mPart.xBeta(index, coll.alpha, coll.beta, p.b, p.g).x;
                 const T x = xb + xd;
                 const T xcut = (std::abs(coll.left) + std::abs(coll.right))/2.0*1e-3;
                 bool cond = x < -xcut || x > xcut;
-                if (cond) ch.registerHit(index, mTurn, x);
-                collided |= cond;
+                if (cond) {
+                    ch.registerHit(index, mTurn, x);
+                    return true;
+                }
             }
-            return collided;
+            return false;
         }
 
         bool outsideBucket(size_t index) const 
