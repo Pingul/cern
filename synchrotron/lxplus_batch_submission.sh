@@ -3,22 +3,21 @@
 toymodel="/afs/cern.ch/user/s/swretbor/test/cern/synchrotron"
 resources="$toymodel/resources"
 
-declare -a precopy_for_batch=(
-    "$resources/LHC_ramp.dat"
-    "$resources/motor_tcp.txt"
-    "$toymodel/2dsynch")
+declare -a input_files=(
+        "LHC_ramp.dat"
+        "motor_tcp_ir3_f5433b1.txt"
+        "motor_tcp_ir7_f5433b1.txt")
 # copy them over locally to the batch so we don't overload AFS
-for file in "${precopy_for_batch[@]}"
+for file in "${input_files[@]}"
 do
-    cp "$file" .
+    cp "$resources/$file" .
 done
+cp "$toymodel/2dsynch" .
 
 toymodelBin="$PWD/2dsynch"
-# No spaces inbetween file names
-input_files="$PWD/LHC_ramp.dat,$PWD/motor_tcp.txt"
-copy_back="stdout.txt,startdist.dat,enddist.dat,coll.dat"
+copy_back="stdout.txt,startdist.dat,enddist.dat,TCP*.dat"
 
-jobs=500
+jobs=250
 
 LSFerrFile="errfile.txt"
 LSFoutFile="outfile.txt"
@@ -31,7 +30,10 @@ for ((j = 1; j <= jobs; j++)) ; do
     cat > 2dsynch_$j.job << EOF
 #!/bin/bash
 
-cp -p {$input_files} .
+for file in "${input_files[@]}"
+do
+    cp -p $PWD/$file .
+end
 
 $toymodelBin lossmap > stdout.txt
 
