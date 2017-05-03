@@ -16,6 +16,8 @@ jobs=250
 LSFerrFile="errfile.txt"
 LSFoutFile="outfile.txt"
 
+md=$PWD
+
 for ((j = 1; j <= jobs; j++)) ; do
     rm -rf job$j
     mkdir job$j
@@ -25,9 +27,9 @@ for ((j = 1; j <= jobs; j++)) ; do
 #!/bin/bash
 
 #inputs
-cp "../LHC_ramp.dat" .
-cp "../motor_tcp_ir3_f5433b1.txt" .
-cp "../motor_tcp_ir7_f5433b1.txt" .
+cp "$md/LHC_ramp.dat" .
+cp "$md/motor_tcp_ir3_f5433b1.txt" .
+cp "$md/motor_tcp_ir7_f5433b1.txt" .
 
 $toymodelBin lossmap > stdout.txt
 
