@@ -58,9 +58,9 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist") {
         // We often work with these two together, so we make sure we have the same
         // particle distribution for both
-        ss.addParticles(partGen.create(100000, stron::LogLinear, stron::DoubleGaussian));
+        ss.addParticles(partGen.create(2000, stron::AVUniformE, stron::Zero));
         if (args[1] == "lossmap")
-            ss.runLossmap(progGen.create(50*11245, progType));
+            ss.simulateTurns(progGen.create(20*11245, progType), stron::PATH_FILE, 11245);
 
     } else if (args[1].find("animate") == 0) {
         ss.addParticles(partGen.create(1000, stron::AroundSeparatrix, stron::DoubleGaussian));
