@@ -59,7 +59,7 @@ class Batch:
 
     def aggregate(self):
         n = 1
-        required_files = ["stdout.txt", "startdist.dat", "coll.dat"]
+        required_files = ["stdout.txt", settings.STARTDIST_FILE, settings.COLL_FILE, "TCPc_IR7.ch"]
         lg.log("aggregating batch from '{}'".format(self.path))
         while os.path.isdir("{}/{}{}".format(self.path, settings.BATCH_JOB_PRESTRING, n)):
             job_path = "{}/{}{}".format(self.path, settings.BATCH_JOB_PRESTRING, n)
@@ -72,10 +72,10 @@ class Batch:
             else:
                 # try:
                 pid_offset = self.ps.nbr_p if self.ps else 0
-                job_ps = PhaseSpace("{}/startdist.dat".format(job_path), mute=True)
+                job_ps = PhaseSpace("{}/{}".format(job_path, settings.STARTDIST_FILE), mute=True)
                 self.ps = PhaseSpace.merge_two(self.ps, job_ps)
                 
-                hits = hits_from_collfile("{}/coll.dat".format(job_path), pid_offset=pid_offset, mute=True)
+                hits = hits_from_collfile("{}/{}".format(job_path, settings.COLL_FILE), pid_offset=pid_offset, mute=True)
                 self.hits += hits
     
                 self.nbr_valid_jobs += 1
