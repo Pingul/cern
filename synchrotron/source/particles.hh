@@ -53,14 +53,25 @@ private:
     std::vector<int> mActive; // using int to allow for concurrent writes
 };
 
-static const char* LONGITUDINAL_DIST_NAMES[] = {"AroundSeparatrix", "AVFull", "AVInside", "AVUniformH", "AVUniformE", "LinearDecay", "ExponentialDecay", "LogDecay", "LogLinear"};
+static const char* LONGITUDINAL_DIST_NAMES[] = {
+    "AroundSeparatrix", 
+    "AVFull", 
+    "AV inside, uniform H", 
+    "AV inside, uniform E",
+    "AV outside, uniform H",
+    "AV outside, unfform E",
+    "LinearDecay", 
+    "ExponentialDecay", 
+    "LogDecay", 
+    "LogLinear"};
 enum LongitudinalDist
 {
     AroundSeparatrix,
     AVFull,
-    AVInside,
-    AVUniformH,
-    AVUniformE,
+    AVInside_H,
+    AVInside_E,
+    AVOutside_H,
+    AVOutside_E,
     LinearDecay,
     ExponentialDecay,
     LogDecay,
@@ -107,9 +118,10 @@ struct ParticleGenerator
         switch (lDist) {
             case AroundSeparatrix: aroundSep(*p); break;
             case AVFull: AVFullRange(*p); break;
-            case AVInside: AVInsideBucket(*p); break;
-            case AVUniformH: AVHUniform(*p); break;
-            case AVUniformE: AVEUniform(*p); break;
+            case AVInside_H: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/true); break;
+            case AVInside_E: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/false); break;
+            case AVOutside_H: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/true); break;
+            case AVOutside_E: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/false); break;
             case LinearDecay: linDecay(*p); break;
             case ExponentialDecay: expDecay(*p); break;
             case LogDecay: logDist(*p); break;
@@ -204,43 +216,23 @@ private:
         generateAVDist(particles, d_actions, n_per_level);
     }
 
-    void AVInsideBucket(PColl& particles)
+    void AVInRange(PColl& particles, T minH, T maxH, T n, bool uniform_in_H)
     {
-        std::vector<T> actions;
-        const T sep = separatrix(mAcc);
-        int n = 20;
-        for (int i = 0; i < n; ++i) {
-            actions.emplace_back(sep + 500*i - 8000);
-        }
-        const int n_per_level = particles.size()/(2*actions.size());
-        const int N = 2*n_per_level*actions.size();
-        particles.resize(N);
-        generateAVDist(particles, actions, n_per_level);
-    }
+        if (minH > maxH)
+            throw std::runtime_error("AVInRange: minH > maxH");
 
-    void AVHUniform(PColl& particles)
-    {
         const T sep = separatrix(mAcc);
         std::vector<T> actions;
-        const T maxH = 1.75e7;
-        const T minH = -8000;
-        for (double h = minH; h < maxH; h += (maxH - minH)/200) {
-            actions.emplace_back(sep + h);
-        }
-        const int n_per_level = particles.size()/(2*actions.size());
-        const int N = 2*n_per_level*actions.size();
-        particles.resize(N);
-        generateAVDist(particles, actions, n_per_level);
-    }
-
-    void AVEUniform(PColl& particles)
-    {
-        // Uniform energy at phi = pi
-        std::vector<T> actions;
-        const T maxE = 1.5e9;
-        const T minE = 0.37e9;
-        for (double e = minE; e < maxE; e += (maxE - minE)/200) {
-            actions.emplace_back(hamiltonian(mAcc, e, cnst::pi));
+        if (uniform_in_H) {
+            for (T h = minH; h < maxH; h += (maxH - minH)/n) {
+                actions.emplace_back(sep + h);
+            }
+        } else {
+            const T maxE = levelCurve(mAcc, cnst::pi, sep + maxH);
+            const T minE = levelCurve(mAcc, cnst::pi, sep + minH);
+            for (T e = minE; e < maxE; e += (maxE - minE)/n) {
+                actions.emplace_back(hamiltonian(mAcc, e, cnst::pi));
+            }
         }
         const int n_per_level = particles.size()/(2*actions.size());
         const int N = 2*n_per_level*actions.size();
