@@ -16,7 +16,7 @@ public:
 
     using Func = T (*)(T);
 
-    Integral(Func f, T threshold = 1e-5, int maxIterations = 15)
+    Integral(Func f, T threshold = 1e-5, int maxIterations = 20)
         : mF(f), mThresh(threshold), mMaxIter(maxIterations)
     {}
 
@@ -29,39 +29,25 @@ public:
 
         const T r = b - a;
 
-        int n = 128; // power of 2
-        std::vector<T> x(n);
-        std::vector<T> y(n);
-        for (int i = 0; i < n; ++i) {
-            x[i] = a + r*T(i)/n;
-            y[i] = mF(x[i]);
-        }
-
+        int n = 1;
         int iter = 0;
-        T v, lv = 0;
+
+        T sum = mF((a + b)/2);
+        T fl = 0.5*(mF(a) + mF(b));
+        T lv, v = r/n*(fl + sum);
         do {
             lv = v;
-            v = 0;
-            for (int i = 1; i < n; ++i)
-                v += (y[i] + y[i - 1])/2*(x[i] - x[i - 1]);
+            n *= 2;
+
+            for (int i = 1; i < n; i += 2)
+                sum += mF(a + i*r/n);
+            v = r/n*(fl + sum);
+
             if (std::abs(v - lv) < mThresh)
                 break;
-
-            // double size and fill in gaps
-            int old_n = n;
-            n *= 2;
-            x.resize(n);
-            y.resize(n);
-
-            for (int i = old_n - 1; i > 0; --i) {
-                x[i*2] = x[i]; 
-                y[i*2] = y[i];
-            }
-            for (int i = 1; i < n; i += 2) {
-                x[i] = a + r*T(i)/n;
-                y[i] = mF(x[i]);
-            }
         } while (iter++ == 0 || iter < mMaxIter);
+        //std::cout << "Iterations: " << iter << std::endl;
+        //std::cout << "Threshold: " << std::abs(v - lv) << std::endl;
 
         if (iter >= mMaxIter) 
             throw MaxIterationsReached();
@@ -82,19 +68,30 @@ public:
 
     using CDFFunc = T (*)(T);
     using PDFFunc = T (*)(T);
+    using Func = T (*)(T);
 
-    Sampled_distribution(CDFFunc cdfFunc, T low, T high, unsigned resolution = 200) 
-        : mLow(low), mHigh(high), mRes(resolution), mDist(0.0, 1.0)
+    // PDF requires numerical integration -- better performance and result if possible to provide analytic CDF instead
+    enum DistType { PDF, CDF };
+
+    Sampled_distribution(Func f, T low, T high, DistType dtype = CDF, unsigned resolution = 200) 
+        : mL(low), mH(high), mR(resolution), mDist(0.0, 1.0)
     {
-        if (mLow >= mHigh) throw InvalidBounds();
+        if (mL >= mH) throw InvalidBounds();
 
-        mSampledCDF.resize(mRes + 1);
-        const T cdfLow = cdfFunc(low);
-        const T cdfHigh = cdfFunc(high);
+        mSampledCDF.resize(mR + 1);
+        const T fl = dtype == CDF ? f(mL) : 0;
+        const T fh = dtype == CDF ? f(mL) : Integral<T>(f)(mL, mH);
         T last_p = 0;
         for (unsigned i = 0; i < mSampledCDF.size(); ++i) {
-            const T x = i/mRes*(mHigh - mLow) + mLow;
-            const T p = (cdfFunc(x) - cdfLow)/(cdfHigh - cdfLow); // normalising 
+            const T x = i/mR*(mH - mL) + mL;
+
+            T cdf;
+            if (dtype == CDF)
+                cdf = f(x);
+            else
+                cdf = Integral<T>(f)(mL, x); 
+            const T p = (cdf - fl)/(fh - fl); // normalising 
+
             if (! (p >= last_p)) throw CDFNotMonotonic();
             mSampledCDF[i] = Sample{p, x};
             last_p = p;
@@ -115,8 +112,8 @@ public:
     }
 
 private:
-    const T mLow, mHigh;
-    const double mRes;
+    const T mL, mH;
+    const double mR;
 
     struct Sample { 
         T prob, value; 
