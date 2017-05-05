@@ -8,6 +8,8 @@
 
 #include <iostream>
 
+// Integrate using Trapezoidal rule
+// https://en.wikipedia.org/wiki/Trapezoidal_rule
 template <typename T = double>
 class Integral
 {
@@ -16,7 +18,7 @@ public:
 
     using Func = T (*)(T);
 
-    Integral(Func f, T threshold = 1e-5, int maxIterations = 20)
+    Integral(Func f, T threshold = 1e-5, int maxIterations = 25)
         : mF(f), mThresh(threshold), mMaxIter(maxIterations)
     {}
 
