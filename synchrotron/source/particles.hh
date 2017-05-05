@@ -58,24 +58,19 @@ static const char* LONGITUDINAL_DIST_NAMES[] = {
     "AVFull", 
     "AV inside, uniform H", 
     "AV inside, uniform E",
+    "Cont. inside, exponential",
     "AV outside, uniform H",
     "AV outside, unfform E",
-    "LinearDecay", 
-    "ExponentialDecay", 
-    "LogDecay", 
-    "LogLinear"};
+};
 enum LongitudinalDist
 {
     AroundSeparatrix,
     AVFull,
     AVInside_H,
     AVInside_E,
+    CInside_exp,
     AVOutside_H,
     AVOutside_E,
-    LinearDecay,
-    ExponentialDecay,
-    LogDecay,
-    LogLinear,
 };
 std::ostream& operator<<(std::ostream& os, LongitudinalDist e)
 {
@@ -120,12 +115,22 @@ struct ParticleGenerator
             case AVFull: AVFullRange(*p); break;
             case AVInside_H: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/true); break;
             case AVInside_E: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/false); break;
+            case CInside_exp: {
+                auto pdf = [](T x){ 
+                    const T m = 1;
+                    if (x < 0 || x > m) throw std::runtime_error("CInside_E pdf - invalid value");
+                    const T a = -6.07;
+                    const T b = 0.75;
+                    return std::exp(a*std::pow(x/m, b));
+                };
+                Sampled_distribution<T> dist(pdf, 0, 1, Sampled_distribution<T>::PDF);
+
+                const T sep = separatrix(mAcc);
+                auto pnext = [&](Generator& g) { return 1.75e7*dist(g) + sep - 7000; };
+                generateAVDist(*p, pnext);
+            } break;
             case AVOutside_H: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/true); break;
             case AVOutside_E: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/false); break;
-            case LinearDecay: linDecay(*p); break;
-            case ExponentialDecay: expDecay(*p); break;
-            case LogDecay: logDist(*p); break;
-            case LogLinear: logLinDist(*p); break;
             default:
                 throw DistributionNotFound("longitudinal");
         }
@@ -247,59 +252,6 @@ private:
         auto avGen = [&](Generator& g) { return hdist(g); };
         generateAVDist(particles, avGen);
     }
-
-
-    void linDecay(PColl& particles)
-    {
-        const T sep = separatrix(mAcc);
-        // Distribution as (relative to separatrix)
-        std::vector<T> Hs{sep - 8e3, sep, sep + 1.8e7};
-        std::vector<T> prob{1000.0, 1.0, 0.01};
-        std::piecewise_linear_distribution<> H_dist(Hs.begin(), Hs.end(), prob.begin());
-
-        auto avGen = [&](Generator& g) { return H_dist(g); };
-        generateAVDist(particles, avGen);
-    }
-
-    void expDecay(PColl& particles)
-    {
-        std::exponential_distribution<> H_dist(0.0003);                
-        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);    
-                                                                       
-        const T H_low = separatrix(mAcc) - 15000;                      
-        auto avGen = [&](Generator& g) { return H_low + H_dist(mGenerator); };
-        generateAVDist(particles, avGen);
-    }
-
-    
-    void logDist(PColl& particles)
-    {
-        auto cdf = [](T x) {
-            const T k = -0.905787102751;
-            const T m = 14.913170454;
-            return x*(k*std::log(x) + (m - k));
-        };
-        Sampled_distribution<T> logDist(cdf, 1.0, 1.4e7);
-        const T sep = separatrix(mAcc);
-        auto avGen = [&](Generator& g) { return sep + logDist(g); };
-        generateAVDist(particles, avGen);
-    }
-
-    void logLinDist(PColl& particles)
-    {
-        auto cdf = [](double x) {
-            const double k = -0.905787102751, m = 14.913170454;
-            if (x >= -8000 && x < 1) return m*x;
-            else if (x >= 1 && x <= 1.4e7) return x*(k*std::log(x) + m - k);
-            else throw std::runtime_error("logLinDist: out of range");
-        };
-        // This might be incorrect
-        Sampled_distribution<T> dist(cdf, -8000, 1.4e7, /*resolution*/20000);
-        const T sep = separatrix(mAcc);
-        auto avGen = [&](Generator& g) { return sep + dist(g); };
-        generateAVDist(particles, avGen);
-    }
-    
     
     const Acc& mAcc;
     std::random_device mRDev;

@@ -2,8 +2,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from scipy import interpolate
-from scipy.optimize import nnls 
+from scipy import interpolate 
+from scipy.optimize import nnls, least_squares
 from sklearn import linear_model
 from bisect import bisect_left
 
@@ -19,6 +19,8 @@ from logger import ModuleLogger, LogLevel
 from phasespace import PhaseSpace
 
 lg = ModuleLogger("lhccomp")
+
+FIT_COEF_FILE = "fit_coef.txt"
 
 def trailing_integration(sequence, N):
     """ For each entry, integrate the N first entries.
@@ -55,17 +57,17 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     """
 
     beam = 1
-    prune = settings.PRUNE_TIMESCALE
-    integration = settings.TRAILING_INTEGRATION # integrate the separated lossmaps before optimisation
+    aggr_fill = af.aggregate_fill(beam, from_cache=True)
 
     min_turn = min(tm_lossmap.keys()) - settings.BLM_INT
-    if prune:
-        lg.log("pruning time scale")
-        max_turn = int(16.5*11245.0)
-        raise Exception("This has not been updates since all the changes -- probably invalid")
-    else:
-        lg.log("using full time scale")
-        max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
+    max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
+    # if prune:
+        # lg.log("pruning time scale", log_level=LogLevel.notify)
+        # max_turn = int(aggr_fill.crossover_point()['t']*11245.0)
+        # tm_lossmap = {k : tm_lossmap[k] for k in tm_lossmap if k < max_turn}
+    # else:
+        # lg.log("using full time scale")
+        # max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
 
     lg.log("extract losses")
     turns = np.arange(min_turn, max_turn)
@@ -77,26 +79,38 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     lg.log("emulate 2dsynch BLM")
     BLM_2dsynch = trailing_integration(losses, settings.BLM_INT)
 
-    lg.log("align BLM")
-    aggr_fill = af.aggregate_fill(beam, from_cache=True)
-    asecs = halign(secs, BLM_2dsynch, aggr_fill)
-    BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
-
     ## SEPARATE LOSSMAP
     lg.log("separate lossmap")
     lossmaps, action_values = lm.separate_lossmap(tm_lossmap, ps)
     action_values = np.array(action_values) - round(settings.H_SEPARATRIX)
+
+    # lg.log("temporary pruning action values", log_level=LogLevel.warning)
+    # to_delete = np.where(action_values > 0)
+    # lossmaps = np.delete(lossmaps, to_delete)
+    # action_values = np.delete(action_values, to_delete)
+    
     x = np.zeros(len(lossmaps)*len(turns), dtype=float).reshape(len(lossmaps), len(turns))
     for i, lossmap in enumerate(lossmaps):
         for turn in lossmap:
             x[i][turn - min_turn] = len(lossmap[turn])
 
-        if integration:
+        if settings.TRAILING_INTEGRATION:
             x[i] = trailing_integration(x[i], settings.BLM_INT)
 
+    lg.log("align BLM")
+    asecs = halign(secs, BLM_2dsynch, aggr_fill)
+    BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
+
+    if settings.PRUNE_TIMESCALE:
+        lg.log("pruning time scale", log_level=LogLevel.notify)
+        mask = asecs < 20
+        mask *= asecs > 14.5
+        # mask *= asecs < 14.5
+        asecs = asecs[mask]
+        x = x[:, mask]
+        
     ## FIT
     lg.log("fit")
-
     xt = np.transpose(x)
     y = interpolate.interp1d(*aggr_fill.blm_ir3())(asecs)
 
@@ -114,15 +128,14 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     else:
         raise Exception("not valid")
 
-    coef_file = "lhc_fit_coefficients.txt"
-    with open(coef_file, "w") as f:
-        f.write("Coefficients:")
+    with open(FIT_COEF_FILE, "w") as f:
+        f.write("# {:>3} {:<20} {}\n".format("n", "Coefficients", "∆H"))
         for i, c in enumerate(coef):
-            f.write("{:>5} = {:<20.10f} (H = {})\n".format("a{}".format(i), c, action_values[i]))
-    lg.log("saved coefficients to '{}'".format(coef_file))
+            f.write(" {:>3} {:<20.10f} {}\n".format(i, c, action_values[i]))
+    lg.log("saved coefficients to '{}'".format(FIT_COEF_FILE))
 
 
-    if not integration:
+    if not settings.TRAILING_INTEGRATION:
         x_fit = trailing_integration(x_fit, settings.BLM_INT)
         x_fit = x_fit.reshape(len(x_fit), 1)
         correction = nnls(x_fit, y)[0]
@@ -132,7 +145,7 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     lg.log("plot")
 
     # Plotting lossmap fit
-    option_string = "(integ.)" if integration else ""
+    option_string = "(integ.)" if settings.TRAILING_INTEGRATION else ""
     fig, loss_ax = plt.subplots()
 
     loss_ax.plot(*aggr_fill.blm_ir3(), color='r', label='Aggr. fill (beam {})'.format(beam))
@@ -148,21 +161,7 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     plt.title("Aggregate vs 2d-synchrotron {}".format(option_string))
 
     # Plotting coefficients
-    fig, ax = plt.subplots()
-    ax.bar(range(len(coef)), coef)
-    ax.set_xticks(range(len(coef)))
-    ax.set_xticklabels(action_values, rotation='vertical')
-    ax.set_ylabel("Value")
-    ax.set_xlabel("∆H")
-    index = bisect_left(action_values, 0)
-    ax.axvspan(index, index + 0.05, facecolor='r', zorder=0, alpha=0.2)
-    ax.text(index, max(coef)/2.0, "Separatrix", fontsize=10, 
-            ha='center', va='center', rotation='vertical', color='r')
-    
-    plt.title("Optimized action value coefficients {}".format(option_string))
-    plt.tight_layout()
-
-    plt.show()
+    plot_coefficients(action_values, coef/coef.max(), plot_type="bar")
 
 def valign(aggregate_fill, aligned_secs, BLM_2dsynch):
     """ Returns a vertically shifted BLM_2dsynch array that is fitted 
@@ -176,6 +175,7 @@ def valign(aggregate_fill, aligned_secs, BLM_2dsynch):
 def halign(secs, losses, aggr_fill):
     """ Aligns losses to aggr_fill by returning a new 'secs' array """
 
+
     shift = 2*11245
     vloss_peak, iloss_peak = oml.imax(losses[shift:])
     iloss_peak += shift
@@ -184,10 +184,134 @@ def halign(secs, losses, aggr_fill):
     delta = secs[iloss_peak] - aggr_fill.blm_ir3().x[ifill_peak]
     lg.log("peaks\n\ttoymodel : {:.2f}\n\taggregate: {:.2f}\n\tdelta    : {:.2f}"
             .format(secs[iloss_peak], aggr_fill.blm_ir3().x[ifill_peak], delta))
+
+    # lg.log("halign disabled", log_level=LogLevel.notify)
+    # return secs
+
+    # seems to work okay when there is no horizontal displacement
+    lg.log("manual halign", log_level=LogLevel.warning)
+    return secs - 0.43
+
     return secs - delta
 
+def dist_curve(H, coef, ctype = "linear"):
+    p_init = [0, 0]
+    if ctype == "linear":
+        model = lambda x, k, m: k*x + m
+    elif ctype == "exp_pow":
+        # model = lambda x, k, m: np.exp(k*np.sqrt(x/m))
+        model = lambda x, k, m: np.exp(k*np.power(x, m))
+        p_init = [-1.0, 1]
+    elif ctype == "exp":
+        model = lambda x, k, m: np.exp(k*x + m)
+    elif ctype == "log":
+        model = lambda x, k, m: k*np.log(x) + m
+    elif ctype == "1/x":
+        model = lambda x, k, m: k/(x + m)
+    else:
+        raise Exception("not valid model type")
+
+    func = lambda k, h, c: (model(h, *k) - c)**2
+    res = least_squares(func, p_init, loss='cauchy', f_scale=0.05, args=(H, coef), jac='2-point')
+    #                                                         ^^^^ seems to determine effect of outliers (lower, less influence)
+    lg.log("Fit: ", *res.x)
+    print(model(H, *res.x))
+    return lambda x : model(x, *res.x)
+
+def plot_coefficients(H, coef, plot_type="bar", curve=None):
+    if plot_type == "curve_fit":
+        fig, ax = plt.subplots()
+        # ax.plot(H, list(map(curve, H)), color="darkorange", label='fit')
+        i = 0
+        ax.scatter(H[i:], coef[i:], label='used')
+        ax.scatter(H[:i], coef[:i], color='gray', label='unused')
+        ax.set_axisbelow(True)
+        ax.yaxis.grid(color='gray', linestyle='dashed')
+        ax.xaxis.grid(color='gray', linestyle='dashed')
+        ax.legend(loc='upper right')
+
+        ax.set_ylabel("Value")
+        ax.set_xlabel("∆H")
+
+        plt.title("Optimized action value coefficients")
+        plt.tight_layout()
+
+    elif plot_type == "bar":
+        fig, ax = plt.subplots()
+        ax.bar(range(len(coef)), coef)
+        ax.set_xticks(range(len(coef)))
+        ax.set_xticklabels(H, rotation='vertical')
+        index = bisect_left(H, 0)
+        ax.axvspan(index, index + 0.05, facecolor='r', zorder=0, alpha=0.2)
+        ax.text(index, max(coef)/2.0, "Separatrix", fontsize=10, 
+                ha='center', va='center', rotation='vertical', color='r')
+
+        ax.set_ylabel("Value")
+        ax.set_xlabel("∆H")
+
+        plt.title("Optimized action value coefficients")
+        plt.tight_layout()
+    elif plot_type == "scale_plot":
+        fig = plt.figure()
+        ax = fig.add_subplot(221)
+        ax.scatter(H, coef)
+        ax.yaxis.grid(color='gray', linestyle='dashed')
+        ax.xaxis.grid(color='gray', linestyle='dashed')
+        ax.set_ylabel("Value")
+        ax.set_xlabel("∆H")
+
+        ax2 = fig.add_subplot(222)
+        ax2.scatter(H, coef)
+        ax2.set_xscale("log")
+        ax2.yaxis.grid(color='gray', linestyle='dashed')
+        ax2.xaxis.grid(color='gray', linestyle='dashed')
+        ax2.set_ylabel("Value")
+        ax2.set_xlabel("∆H [log]")
+
+        ax3 = fig.add_subplot(223)
+        ax3.scatter(H, coef)
+        ax3.set_yscale("log")
+        ax3.yaxis.grid(color='gray', linestyle='dashed')
+        ax3.xaxis.grid(color='gray', linestyle='dashed')
+        ax3.set_ylabel("Value [log]")
+        ax3.set_xlabel("∆H")
+
+        ax4 = fig.add_subplot(224)
+        ax4.scatter(H, coef)
+        ax4.set_yscale("log")
+        ax4.set_xscale("log")
+        ax4.yaxis.grid(color='gray', linestyle='dashed')
+        ax4.xaxis.grid(color='gray', linestyle='dashed')
+        ax4.set_ylabel("Value [log]")
+        ax4.set_xlabel("∆H [log]")
+        fig.suptitle("Coefficient scale plot")
+
+        if (curve):
+            ax.plot(H, list(map(curve, H)), color="darkorange")
+            ax2.plot(H, list(map(curve, H)), color="darkorange")
+            ax3.plot(H, list(map(curve, H)), color="darkorange")
+            ax4.plot(H, list(map(curve, H)), color="darkorange")
+    else:
+        raise Exception("plot_type not valid")
+
+    plt.show()
 
 if __name__ == "__main__":
-    ps = PhaseSpace(settings.STARTDIST_PATH)
-    lossmap = lm.get_lossmap(settings.COLL_PATH)
-    fit_to_LHC_aggregate(ps, lossmap)
+    action = sys.argv[1]
+    if action == "fit":
+        ps = PhaseSpace(settings.STARTDIST_PATH)
+        lossmap = lm.get_lossmap(settings.COLL_PATH)
+        fit_to_LHC_aggregate(ps, lossmap)
+    if action == "compare":
+        ps = PhaseSpace(settings.STARTDIST_PATH)
+        lossmap = lm.get_lossmap(settings.COLL_PATH)
+        compare_to_LHC_aggregate(ps, lossmap)
+    elif action == "fit_curve":
+        coef, H = np.loadtxt(FIT_COEF_FILE, skiprows=1, usecols=(1, 2), unpack=True)
+        coef /= coef.max()
+        H /= H.max()
+        f = dist_curve(H, coef, "exp_pow")
+        # f = dist_curve(H[30:], coef[30:], "log") # 30 is completely arbitrary here
+        plot_coefficients(H, coef, plot_type="scale_plot", curve=f)
+    else:
+        lg.log("unrecognised action", log_level=LogLevel.warning)

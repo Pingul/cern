@@ -5,6 +5,7 @@ from matplotlib.ticker import FuncFormatter
 import numpy as np
 import pandas as pd
 import itertools
+import glob
 
 from sys import argv
 
@@ -90,7 +91,7 @@ def plot_hamiltonian_dist_histogram(ps):
     h_val = np.array(ps.h - settings.H_SEPARATRIX, dtype=int)
     hmax = h_val.max()
     hmin = h_val.min()
-    nbr_bins = 40
+    nbr_bins = 100
     bins = np.arange(hmin, hmax, (hmax-hmin)/nbr_bins)
     ax.hist(h_val, bins=bins, edgecolor='white')
     ax.set_title("Action value H starting distribution")
@@ -182,6 +183,16 @@ if __name__ == "__main__":
         lg.log("plot lossmap")
         lossmap = get_lossmap(settings.COLL_PATH)
         plot_lossmap([lossmap], ["Toy model"], SAVE_FILE)
+    elif ACTION == "lossmap2":
+        lg.log("plot lossmap2")
+        ps = PhaseSpace(settings.STARTDIST_PATH)
+        lms = []
+        labels = []
+        for filepath in glob.glob(settings.DATA_DIR + "/*.ch"):
+            lms.append(get_lossmap(filepath))
+            labels.append(filepath.split('/')[-1].split('.')[0])
+        plot_lossmap(lms, labels)
+
     elif ACTION == "separated-lossmap":
         lg.log("plot one series for each action value of the lossmap")
         ps = PhaseSpace(settings.STARTDIST_PATH)
@@ -261,8 +272,8 @@ if __name__ == "__main__":
         ax.set_xlabel("x")
         ax.set_ylabel("x'")
         ax.set_axisbelow(True)
-        ax.yaxis.grid(color='gray', linestyle='dashed')
-        ax.xaxis.grid(color='gray', linestyle='dashed')
+        ax.yaxis.grid(color='gray')
+        ax.xaxis.grid(color='gray')
         ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1E}".format(x)))
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1E}".format(x)))
         plt.title("Motion for geometric coordinates at IR3 TCP")

@@ -94,6 +94,8 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
     # LOSSES
     if len(lossmaps) == 1:
         color_list = 'r'
+    elif (len(lossmaps) == 2):
+        color_list = ['r', 'g']
     else:
         color_list = plt.cm.Set3(np.linspace(0, 1, len(lossmaps)))
 
@@ -102,10 +104,11 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
         losses = np.array([len(lm[turn]) if turn in lm else 0 for turn in turns])
         avg_loss = trailing_integration(losses, int(1.3*11245))
 
-        # loss_ax.plot(turns, avg_loss, color=color_list[i], label=("{} (integ.)".format(labels[i]) if len(labels) > i else ""), zorder=2, linestyle='--', alpha=0.9)
+        loss_ax.plot(turns, avg_loss, color=color_list[i], label=("{} (integ.)".format(labels[i]) if len(labels) > i else ""), zorder=4)
+        loss_ax.plot(turns, losses, color=color_list[i], label=("{} (coll. hit)".format(labels[i] if len(labels) > i else "")), zorder=3, alpha=0.5)
 
-        loss_ax.plot(turns, losses, color='red', label=("{} (coll. hit)".format(labels[i] if len(labels) > i else "")), zorder=3)
-        loss_ax.plot(turns, avg_loss, color="blue", label=("{} (BLM)".format(labels[i]) if len(labels) > i else ""), zorder=2, linestyle='--', alpha=0.9)
+        # loss_ax.plot(turns, losses, color='red', label=("{} (coll. hit)".format(labels[i] if len(labels) > i else "")), zorder=3)
+        # loss_ax.plot(turns, avg_loss, color="blue", label=("{} (BLM)".format(labels[i]) if len(labels) > i else ""), zorder=2, linestyle='--', alpha=0.9)
     loss_ax.set_ylabel("Losses (∆particles)")
 
     # loss_ax.set_ylabel("Losses (∆particles/turn)")
