@@ -57,20 +57,17 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     """
 
     beam = 1
-    prune = settings.PRUNE_TIMESCALE
-    integration = settings.TRAILING_INTEGRATION # integrate the separated lossmaps before optimisation
-
     aggr_fill = af.aggregate_fill(beam, from_cache=True)
 
     min_turn = min(tm_lossmap.keys()) - settings.BLM_INT
-    if prune:
-        lg.log("pruning time scale", log_level=LogLevel.notify)
-        max_turn = int(aggr_fill.crossover_point()['t']*11245.0)
-        tm_lossmap = {k : tm_lossmap[k] for k in tm_lossmap if k < max_turn}
-        # raise Exception("This has not been updates since all the changes -- probably invalid")
-    else:
-        lg.log("using full time scale")
-        max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
+    max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
+    # if prune:
+        # lg.log("pruning time scale", log_level=LogLevel.notify)
+        # max_turn = int(aggr_fill.crossover_point()['t']*11245.0)
+        # tm_lossmap = {k : tm_lossmap[k] for k in tm_lossmap if k < max_turn}
+    # else:
+        # lg.log("using full time scale")
+        # max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
 
     lg.log("extract losses")
     turns = np.arange(min_turn, max_turn)
@@ -81,10 +78,6 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
 
     lg.log("emulate 2dsynch BLM")
     BLM_2dsynch = trailing_integration(losses, settings.BLM_INT)
-
-    lg.log("align BLM")
-    asecs = halign(secs, BLM_2dsynch, aggr_fill)
-    BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
 
     ## SEPARATE LOSSMAP
     lg.log("separate lossmap")
@@ -101,12 +94,23 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
         for turn in lossmap:
             x[i][turn - min_turn] = len(lossmap[turn])
 
-        if integration:
+        if settings.TRAILING_INTEGRATION:
             x[i] = trailing_integration(x[i], settings.BLM_INT)
 
+    lg.log("align BLM")
+    asecs = halign(secs, BLM_2dsynch, aggr_fill)
+    BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
+
+    if settings.PRUNE_TIMESCALE:
+        lg.log("pruning time scale", log_level=LogLevel.notify)
+        mask = asecs < 20
+        mask *= asecs > 14.5
+        # mask *= asecs < 14.5
+        asecs = asecs[mask]
+        x = x[:, mask]
+        
     ## FIT
     lg.log("fit")
-
     xt = np.transpose(x)
     y = interpolate.interp1d(*aggr_fill.blm_ir3())(asecs)
 
@@ -131,7 +135,7 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     lg.log("saved coefficients to '{}'".format(FIT_COEF_FILE))
 
 
-    if not integration:
+    if not settings.TRAILING_INTEGRATION:
         x_fit = trailing_integration(x_fit, settings.BLM_INT)
         x_fit = x_fit.reshape(len(x_fit), 1)
         correction = nnls(x_fit, y)[0]
@@ -141,7 +145,7 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     lg.log("plot")
 
     # Plotting lossmap fit
-    option_string = "(integ.)" if integration else ""
+    option_string = "(integ.)" if settings.TRAILING_INTEGRATION else ""
     fig, loss_ax = plt.subplots()
 
     loss_ax.plot(*aggr_fill.blm_ir3(), color='r', label='Aggr. fill (beam {})'.format(beam))
@@ -298,6 +302,10 @@ if __name__ == "__main__":
         ps = PhaseSpace(settings.STARTDIST_PATH)
         lossmap = lm.get_lossmap(settings.COLL_PATH)
         fit_to_LHC_aggregate(ps, lossmap)
+    if action == "compare":
+        ps = PhaseSpace(settings.STARTDIST_PATH)
+        lossmap = lm.get_lossmap(settings.COLL_PATH)
+        compare_to_LHC_aggregate(ps, lossmap)
     elif action == "fit_curve":
         coef, H = np.loadtxt(FIT_COEF_FILE, skiprows=1, usecols=(1, 2), unpack=True)
         coef /= coef.max()
