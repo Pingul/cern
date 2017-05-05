@@ -9,20 +9,21 @@ cp "$resources/motor_tcp_ir3_f5433b1.txt" .
 cp "$resources/motor_tcp_ir7_f5433b1.txt" .
 cp "$toymodel/2dsynch" .
 
-toymodelBin="$PWD/2dsynch"
+md=$PWD
+toymodelBin="$md/2dsynch"
 
-jobs=250
+jobs=100
 
 LSFerrFile="errfile.txt"
 LSFoutFile="outfile.txt"
 
-md=$PWD
 
 for ((j = 1; j <= jobs; j++)) ; do
     rm -rf job$j
     mkdir job$j
     cd job$j
     echo job$j
+    jd=$PWD
     cat > 2dsynch_$j.job << EOF
 #!/bin/bash
 
@@ -34,10 +35,10 @@ cp "$md/motor_tcp_ir7_f5433b1.txt" .
 $toymodelBin lossmap > stdout.txt
 
 #copy back
-cp -p stdout.txt $PWD
-cp -p startdist.dat $PWD
-cp -p enddist.dat $PWD
-cp -p *.ch $PWD # collfiles
+cp -p stdout.txt $jd
+cp -p startdist.dat $jd
+cp -p enddist.dat $jd
+cp -p *.ch $jd # collfiles
 exit
 EOF
     spamString="-o $PWD/${LSFoutFile} -e $PWD/${LSFerrFile}"
