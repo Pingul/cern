@@ -29,6 +29,101 @@ def trailing_integration(sequence, N):
     sums = np.convolve(sequence, np.ones((N,)))
     return sums[:len(sequence)]
 
+
+class LHCComparison:
+
+    def __init__(self, fill, ps, lossmap):
+        self.fill = fill
+        self.ps = ps
+        self.lossmap = lossmap
+
+        self.min_t = min(self.lossmap.keys()) - settings.BLM_INT
+        self.max_t = max(self.lossmap.keys()) + settings.BLM_INT
+
+        self.secs = np.arange(self.min_t, self.max_t)/11245.0
+        self.losses = np.zeros(self.secs.size)
+        for turn in self.lossmap:
+            self.losses[turn - self.min_t] = len(self.lossmap[turn])
+
+        self.opt_mask = np.ones(self.secs.shape, dtype=bool)
+
+    def set_window(self, t_start=None, t_end=None):
+        lg.log("pruning time scale to {}-{}".format(t_start, t_end), log_level=LogLevel.notify)
+        if not t_start is None:
+            self.opt_mask *= self.secs > t_start
+        if not t_end is None:
+            self.opt_mask *= self.secs < t_end
+
+    def halign(self):
+        lg.log("manual halign", log_level=LogLevel.warning)
+        self.secs -= 0.45 # this seems to be a good choice with no betatron amplitude
+
+    def BLM(self, normalised=True):
+        blm = trailing_integration(self.losses, settings.BLM_INT)
+        if (normalised):
+            fmax = self.fill.blm_ir3().y.max()
+            blm /= blm.max()/fmax
+        return blm[self.opt_mask]
+
+    def t(self):
+        """ Timescale """
+        return self.secs[self.opt_mask]
+
+    def fit_action_values(self):
+        lms, avs = lm.separate_lossmap(self.lossmap, self.ps)
+        avs = np.array(avs) - round(settings.H_SEPARATRIX)
+
+        lg.log("separate lossmaps")
+        blms = np.zeros((len(lms), self.secs.size), dtype=float)
+        for i, l in enumerate(lms):
+            for turn in l:
+                blms[i][turn - self.min_t] = len(l[turn])
+
+            if settings.TRAILING_INTEGRATION:
+                blms[i] = trailing_integration(blms[i], settings.BLM_INT)
+        blms = blms[:, self.opt_mask]
+
+        lg.log("fit")
+        blms = np.transpose(blms)
+        y = interpolate.interp1d(*self.fill.blm_ir3())(self.t())
+
+        self.action_values = avs
+        self.coef = nnls(blms, y)[0]
+        self.blm_fit = np.sum(self.coef*blms, axis=1)
+
+    def fit_results(self):
+        return { 
+                 "blm_fit" : self.blm_fit,
+                 "c" : self.coef,
+                 "action_values" : self.action_values
+                }
+
+
+def plot_comp(fill, blm=None, fit=None, block=True):
+    fig, loss_ax = plt.subplots()
+    loss_ax.plot(*fill.blm_ir3(), label="Aggr. fill (beam {})".format(fill.beam), color='r')
+    loss_ax.set_yscale("log")
+    loss_ax.set_xlim([-5, 40])
+    loss_ax.set_ylim([0.5e-5, 1])
+    loss_ax.set_ylabel("Losses (∆particles/1.3s)")
+    loss_ax.set_xlabel("t (s)")
+    loss_ax.axvspan(0.0, fill.crossover_point()['t'], facecolor='b', zorder=0, alpha=0.1)
+
+    if not blm is None:
+        loss_ax.plot(*blm, label="Toy model BLM")
+    if not fit is None:
+        loss_ax.plot(*fit, label="Fit", linestyle='--', zorder=6, color="forestgreen")
+
+    loss_ax.legend(loc="upper right")
+
+    plt.title("Compare 2d-synchrotron with aggregate fill")
+    if block:
+        plt.show()
+    else:
+        plt.draw()
+
+
+
 def compare_to_LHC_aggregate(ps, lossmap):
     beam = 1
 
@@ -102,9 +197,11 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
 
     if settings.PRUNE_TIMESCALE:
-        lg.log("pruning time scale", log_level=LogLevel.notify)
-        mask = asecs < 20
-        mask *= asecs > 14.5
+        a, b = (14.5, 20)
+        lg.log("pruning time scale", log_level=LogLevel.warning)
+        lg.log("optimising between {}-{}".format(a, b), log_level=LogLevel.notify)
+        mask = asecs < b
+        mask *= asecs > a
         # mask *= asecs < 14.5
         asecs = asecs[mask]
         x = x[:, mask]
@@ -163,12 +260,12 @@ def fit_to_LHC_aggregate(ps, tm_lossmap):
     # Plotting coefficients
     plot_coefficients(action_values, coef/coef.max(), plot_type="bar")
 
-def valign(aggregate_fill, aligned_secs, BLM_2dsynch):
+def valign(aggregate_fill, asecs, BLM_2dsynch):
     """ Returns a vertically shifted BLM_2dsynch array that is fitted 
-        w.r.t the aggregate fill. We assume that they are horizontally aligned
+        w.r.t the aggregate fill. We assume that they have been horizontally aligned
     """
     BLM_2dsynch = BLM_2dsynch.reshape(len(BLM_2dsynch), 1) # so we can use nnls
-    y = interpolate.interp1d(*aggregate_fill.blm_ir3())(aligned_secs)
+    y = interpolate.interp1d(*aggregate_fill.blm_ir3())(asecs)
     coef = nnls(BLM_2dsynch, y)[0]
     return coef*BLM_2dsynch
 
@@ -219,9 +316,10 @@ def dist_curve(H, coef, ctype = "linear"):
     return lambda x : model(x, *res.x)
 
 def plot_coefficients(H, coef, plot_type="bar", curve=None):
-    if plot_type == "curve_fit":
+    if plot_type == "scatter":
         fig, ax = plt.subplots()
-        # ax.plot(H, list(map(curve, H)), color="darkorange", label='fit')
+        if curve:
+            ax.plot(H, list(map(curve, H)), color="darkorange", label='fit')
         i = 0
         ax.scatter(H[i:], coef[i:], label='used')
         ax.scatter(H[:i], coef[:i], color='gray', label='unused')
@@ -298,20 +396,59 @@ def plot_coefficients(H, coef, plot_type="bar", curve=None):
 
 if __name__ == "__main__":
     action = sys.argv[1]
+    
+    fill = af.aggregate_fill(1, from_cache=True)
+    ps = PhaseSpace(settings.STARTDIST_PATH)
+    lossmap = lm.get_lossmap(settings.COLL_PATH)
+    comp = LHCComparison(fill, ps, lossmap)
+
     if action == "fit":
-        ps = PhaseSpace(settings.STARTDIST_PATH)
-        lossmap = lm.get_lossmap(settings.COLL_PATH)
-        fit_to_LHC_aggregate(ps, lossmap)
-    if action == "compare":
-        ps = PhaseSpace(settings.STARTDIST_PATH)
-        lossmap = lm.get_lossmap(settings.COLL_PATH)
-        compare_to_LHC_aggregate(ps, lossmap)
+        blm_s = (comp.t(), comp.BLM())
+        # comp.set_window(5, 11)
+        comp.halign()
+        comp.fit_action_values()
+
+        r = comp.fit_results()
+        coef = r['c']
+        avs = r['action_values']
+        with open(FIT_COEF_FILE, "w") as f:
+            f.write("# {:>3} {:<20} {}\n".format("n", "Coefficients", "∆H"))
+            for i, c in enumerate(coef):
+                f.write(" {:>3} {:<20.10f} {}\n".format(i, c, avs[i]))
+        lg.log("saved coefficients to '{}'".format(FIT_COEF_FILE))
+
+        blm_fit = (comp.t(), r['blm_fit'])
+        plot_comp(fill, blm_s, blm_fit, block=False)
+        plot_coefficients(avs, coef)
+    elif action == "compare":
+        plot_comp(fill, (comp.t(), comp.BLM()))
     elif action == "fit_curve":
         coef, H = np.loadtxt(FIT_COEF_FILE, skiprows=1, usecols=(1, 2), unpack=True)
         coef /= coef.max()
-        H /= H.max()
-        f = dist_curve(H, coef, "exp_pow")
-        # f = dist_curve(H[30:], coef[30:], "log") # 30 is completely arbitrary here
-        plot_coefficients(H, coef, plot_type="scale_plot", curve=f)
+
+        # outside
+        # f = dist_curve(H, coef, "exp_pow")
+        # H /= H.max()
+        # plot_coefficients(H, coef, plot_type="scale_plot", curve=f)
+
+        # inside
+        mask = coef > 0
+        H = H[mask]
+        coef = coef[mask]
+        f = dist_curve(H, coef, "linear")
+        plot_coefficients(H, coef, plot_type="scatter", curve=f)
+    elif action == "test":
+        fill = af.aggregate_fill(1, from_cache=True)
+        ps = PhaseSpace(settings.STARTDIST_PATH)
+        lossmap = lm.get_lossmap(settings.COLL_PATH)
+
+        comp = LHCComparison(fill, ps, lossmap)
+        blm_s = (comp.t(), comp.BLM())
+        comp.set_window(10, 20)
+        comp.fit_action_values()
+        r = comp.fit_results()
+        blm_fit = (comp.t(), r['blm_fit'])
+        plot_comp(fill, blm_s, blm_fit, block=False)
+        plot_coefficients(r['action_values'], r['c'])
     else:
         lg.log("unrecognised action", log_level=LogLevel.warning)
