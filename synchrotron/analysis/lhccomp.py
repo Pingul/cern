@@ -1,5 +1,6 @@
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 import numpy as np
 
 from scipy import interpolate 
@@ -31,6 +32,7 @@ def trailing_integration(sequence, N):
 
 
 class LHCComparison:
+    """ Compare a fill with data from the toy model """
 
     def __init__(self, fill, ps, lossmap):
         self.fill = fill
@@ -70,8 +72,11 @@ class LHCComparison:
         return self.secs[self.opt_mask]
 
     def fit_action_values(self):
-        lms, avs = lm.separate_lossmap(self.lossmap, self.ps)
-        avs = np.array(avs) - round(settings.H_SEPARATRIX)
+        lms, avs = lm.separate_lossmap(self.lossmap, self.ps, True)
+        avs = np.array(avs)
+        for i in range(avs.size):
+            if avs[i] < 0: avs[i] += round(settings.H_SEPARATRIX)
+            else: avs[i] -= round(settings.H_SEPARATRIX)
 
         lg.log("separate lossmaps")
         blms = np.zeros((len(lms), self.secs.size), dtype=float)
@@ -292,13 +297,14 @@ def halign(secs, losses, aggr_fill):
     return secs - delta
 
 def dist_curve(H, coef, ctype = "linear"):
-    p_init = [0, 0]
+    p_init = [0, 0, 0]
     if ctype == "linear":
         model = lambda x, k, m: k*x + m
     elif ctype == "exp_pow":
         # model = lambda x, k, m: np.exp(k*np.sqrt(x/m))
-        model = lambda x, k, m: np.exp(k*np.power(x, m))
-        p_init = [-1.0, 1]
+        # model = lambda x, k, m: np.exp(k*np.power(x/m, 0.5))
+        model = lambda x, k, m, c: np.exp(k*np.power(x, m) + c)
+        p_init = [-1.0, 1.0, 0]
     elif ctype == "exp":
         model = lambda x, k, m: np.exp(k*x + m)
     elif ctype == "log":
@@ -309,13 +315,20 @@ def dist_curve(H, coef, ctype = "linear"):
         raise Exception("not valid model type")
 
     func = lambda k, h, c: (model(h, *k) - c)**2
-    res = least_squares(func, p_init, loss='cauchy', f_scale=0.05, args=(H, coef), jac='2-point')
-    #                                                         ^^^^ seems to determine effect of outliers (lower, less influence)
-    lg.log("Fit: ", *res.x)
-    print(model(H, *res.x))
+    res = least_squares(func, p_init, loss='soft_l1', f_scale=0.0001, args=(H, coef), jac='2-point')
+    # res = least_squares(func, p_init, loss='linear', f_scale=0.05, args=(H, coef), jac='3-point')
+    #                                                        ^^^^ seems to determine effect of outliers (lower, less influence)
+    # lg.log(res)
+    lg.log(res.message)
+    lg.log(res.optimality)
+    lg.log("Fit: ", *zip(("k", "m", "c"), res.x))
     return lambda x : model(x, *res.x)
 
-def plot_coefficients(H, coef, plot_type="bar", curve=None):
+def plot_coefficients(H, coef, plot_type="bar", curve=None, info=None, block=True):
+    title = "Optimised action value coefficients"
+    if not info is None:
+        title += ": {}".format(info)
+
     if plot_type == "scatter":
         fig, ax = plt.subplots()
         if curve:
@@ -331,25 +344,25 @@ def plot_coefficients(H, coef, plot_type="bar", curve=None):
         ax.set_ylabel("Value")
         ax.set_xlabel("∆H")
 
-        plt.title("Optimized action value coefficients")
+        plt.title(title)
         plt.tight_layout()
 
     elif plot_type == "bar":
         fig, ax = plt.subplots()
         ax.bar(range(len(coef)), coef)
         ax.set_xticks(range(len(coef)))
-        ax.set_xticklabels(H, rotation='vertical')
-        index = bisect_left(H, 0)
-        ax.axvspan(index, index + 0.05, facecolor='r', zorder=0, alpha=0.2)
+        ax.set_xticklabels(["{:.3g}".format(h) for h in H], rotation='vertical')
+        index = bisect_left(H, 0) - 0.5
+        ax.axvspan(index - 0.025, index + 0.025, facecolor='r', zorder=0, alpha=0.2)
         ax.text(index, max(coef)/2.0, "Separatrix", fontsize=10, 
                 ha='center', va='center', rotation='vertical', color='r')
 
         ax.set_ylabel("Value")
         ax.set_xlabel("∆H")
 
-        plt.title("Optimized action value coefficients")
+        plt.title(title)
         plt.tight_layout()
-    elif plot_type == "scale_plot":
+    elif plot_type == "scale":
         fig = plt.figure()
         ax = fig.add_subplot(221)
         ax.scatter(H, coef)
@@ -382,7 +395,7 @@ def plot_coefficients(H, coef, plot_type="bar", curve=None):
         ax4.xaxis.grid(color='gray', linestyle='dashed')
         ax4.set_ylabel("Value [log]")
         ax4.set_xlabel("∆H [log]")
-        fig.suptitle("Coefficient scale plot")
+        fig.suptitle("Coefficient scale plot {}".format(info if not info is None else ""))
 
         if (curve):
             ax.plot(H, list(map(curve, H)), color="darkorange")
@@ -392,7 +405,10 @@ def plot_coefficients(H, coef, plot_type="bar", curve=None):
     else:
         raise Exception("plot_type not valid")
 
-    plt.show()
+    if block:
+        plt.show()
+    else:
+        plt.draw()
 
 if __name__ == "__main__":
     action = sys.argv[1]
@@ -414,7 +430,7 @@ if __name__ == "__main__":
         with open(FIT_COEF_FILE, "w") as f:
             f.write("# {:>3} {:<20} {}\n".format("n", "Coefficients", "∆H"))
             for i, c in enumerate(coef):
-                f.write(" {:>3} {:<20.10f} {}\n".format(i, c, avs[i]))
+                f.write(" {:>3} {:<20.16f} {}\n".format(i, c, avs[i]))
         lg.log("saved coefficients to '{}'".format(FIT_COEF_FILE))
 
         blm_fit = (comp.t(), r['blm_fit'])
@@ -424,19 +440,45 @@ if __name__ == "__main__":
         plot_comp(fill, (comp.t(), comp.BLM()))
     elif action == "fit_curve":
         coef, H = np.loadtxt(FIT_COEF_FILE, skiprows=1, usecols=(1, 2), unpack=True)
-        coef /= coef.max()
+        if np.any(H < 0):
+            # assuming outside
+            lg.log("below", log_level=LogLevel.notify)
+            below = np.where(H < 0)
+            hb = -H[below]
+            cb = coef[below]
+            
+            cb /= cb.max()
+            hb /= hb.max()
 
-        # outside
-        # f = dist_curve(H, coef, "exp_pow")
-        # H /= H.max()
-        # plot_coefficients(H, coef, plot_type="scale_plot", curve=f)
+            print(cb.size)
+            m = np.invert(cb < 1e-9)
+            m *= np.invert((hb < 0.3)*(cb < 5e-3))
+            # m = np.invert((hb < 0.05)*(cb < 1e-5))
+            # m *= np.invert((hb > 0.2)*(hb < 0.4)*(cb < 2e-3))
+            m *= np.invert((hb < 0.2)*(cb < 1e-1))
+            m *= np.invert((hb < 0.3)*(cb < 2e-2))
+            m *= np.invert((hb < 0.1)*(cb < 0.25))
+            hb = hb[m]
+            cb = cb[m]
+            print(cb.size)
 
-        # inside
-        mask = coef > 0
-        H = H[mask]
-        coef = coef[mask]
-        f = dist_curve(H, coef, "linear")
-        plot_coefficients(H, coef, plot_type="scatter", curve=f)
+            f = dist_curve(hb, cb, "exp_pow")
+            plot_coefficients(hb, cb, plot_type="scale", curve=f)
+        else:
+            coef /= coef.max()
+    
+            # outside
+            # f = dist_curve(H, coef, "exp_pow")
+            # H /= H.max()
+            # plot_coefficients(H, coef, plot_type="scale", curve=f)
+    
+            # inside
+            mask = coef > 0
+            H = H[mask]
+            coef = coef[mask]
+            f = dist_curve(H, coef, "linear")
+            plot_coefficients(H, coef, plot_type="scatter", curve=f)
+
     elif action == "test":
         fill = af.aggregate_fill(1, from_cache=True)
         ps = PhaseSpace(settings.STARTDIST_PATH)
