@@ -61,6 +61,7 @@ static const char* LONGITUDINAL_DIST_NAMES[] = {
     "Cont. outside, exponential",
     "Cont. outside, non-uniform exponential dist. above/below bucket",
     "Cont. inside, linear",
+    "Cont. combined: non-uniform exponential outside, linear inside",
     "AV outside, uniform H",
     "AV outside, unfform E",
 };
@@ -73,6 +74,7 @@ enum LongitudinalDist
     COutside_exp,
     COutside_ab,
     CInside_lin,
+    CCombined,
     AVOutside_H,
     AVOutside_E,
 };
@@ -140,10 +142,6 @@ struct ParticleGenerator
                     return std::exp(a*std::pow(x, b) + c);
                 };
 
-                //auto a_pdf = [&](T x) { return pdf(x, -8.06, 0.75, 0.28); };
-                //auto b_pdf = [&](T x) { return pdf(x, -5.47, 0.36, 1.18); };
-                //const T a_ratio = 0.53;
-
                 auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
                 auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
                 const T a_ratio = 0.49;
@@ -166,10 +164,57 @@ struct ParticleGenerator
             case CInside_lin: {
                 const T sep = separatrix(mAcc);
                 std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
-                std::vector<T> d{-7000 + sep, 0 + sep};
+                std::vector<T> d{-7000 + sep, sep};
                 std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
                 auto pnext = [&](Generator& g) { return dist(g); };
                 generateAVDist(*p, pnext);
+            } break;
+            case CCombined: {
+                const T max = 3.20e7;
+                auto pdf = [](T x, T a, T b, T c) {
+                    if (x < 0 || x > 1) throw std::runtime_error("COutside_ab - range");
+                    return std::exp(a*std::pow(x, b) + c);
+                };
+
+                const T a_ratio = 0.49;
+                auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
+                auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
+                
+                Sampled_distribution<T> oa_dist(a_pdf, 0, 1, Sampled_distribution<T>::PDF);
+                Sampled_distribution<T> ob_dist(b_pdf, 0, 1, Sampled_distribution<T>::PDF);
+
+                const T i_ratio = 0.55;
+                std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
+                std::vector<T> d{-7000, 0};
+                std::piecewise_linear_distribution<> i_dist(d.begin(), d.end(), q.begin());
+
+                int pin = 0;
+                int pout = 0;
+                const T sep = separatrix(mAcc);
+                std::uniform_real_distribution<> dist(0.0, 1.0);
+                for (int i = 0; i < p->size(); ++i) {
+                    const T phase = dist(mGenerator)*2.0*cnst::pi;
+                    T action;
+                    T sign;
+                    if (dist(mGenerator) > i_ratio) {
+                        // generate particle inside separatrix
+                        ++pin;
+                        sign = dist(mGenerator) > 0.5 ? 1 : -1;
+                        action = i_dist(mGenerator);
+                    } else {
+                        // outside
+                        ++pout;
+                        sign = dist(mGenerator) > a_ratio ? 1 : -1;
+                        action = max*(sign > 0 ? oa_dist(mGenerator) : ob_dist(mGenerator));
+                    }   
+                    action += sep;
+                    const T energy = levelCurve(mAcc, phase, action, sign);
+                    if (std::isnan(energy)) { --i; continue; }
+                    p->momentum[i] = energy;
+                    p->phase[i] = phase;
+                }
+                std::cout << "inside: " << pin << ", " << T(pin)/(pin+pout) << std::endl;
+                std::cout << "outside: " << pout << ", " << T(pout)/(pin+pout) << std::endl;
             } break;
             case AVOutside_H: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/true); break;
             //case AVOutside_E: AVInRange(*p, 0, 1.75e7, 15, [>uniform_in_H<]false); break;
