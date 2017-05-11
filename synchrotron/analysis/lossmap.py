@@ -55,16 +55,21 @@ def get_lossmap(collfile):
     hits = hits_from_collfile(collfile)
     return lossmap_from_hits(hits)
 
-def separate_lossmap(lossmap, phasespace):
+def separate_lossmap(lossmap, phasespace, separate_above_bucket=False):
     """ Separate the lossmap on the action values. The function will bin particles into 'bins' size 
         lossmaps.
 
         returns ([lossmaps], [action values])
     """
+    if separate_above_bucket:
+        lg.log("'separate_above_bucket' : action values with ∆E < 0 will have a - sign in front", log_level=LogLevel.notify)
     div_lossmaps = {}
     for turn in lossmap:
         for pid in lossmap[turn]:
-            h = int(phasespace.h[pid]) 
+            h = int(phasespace.h[pid])
+            if separate_above_bucket and phasespace.denergy[pid] < 0:
+                h = -h
+
             if not h in div_lossmaps: 
                 div_lossmaps[h] = {}
             lossm = div_lossmaps[h]
