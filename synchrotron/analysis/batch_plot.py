@@ -2,7 +2,8 @@ import pickle
 import os, sys
 
 from phasespace import PhaseSpace
-from lhccomp import fit_to_LHC_aggregate, compare_to_LHC_aggregate
+# from lhccomp import fit_to_LHC_aggregate, compare_to_LHC_aggregate
+from lhccomp import LHCComparison, plot_comp
 from lossmap import *
 from settings import *
 from plot import plot_hamiltonian_dist_histogram
@@ -101,9 +102,11 @@ if __name__ == "__main__":
     elif ACTION == "separated-lossmap":
         plot_lossmap(*separate_lossmap(b.lossmap, b.ps))
     elif ACTION == "compare":
-        compare_to_LHC_aggregate(b.ps, b.lossmap)
+        fill = af.aggregate_fill(1, from_cache=1)
+        comp = LHCComparison(fill, b.ps, b.lossmap)
+        plot_comp(fill, (comp.t(), comp.BLM()))
     elif ACTION == "fit":
-        fit_to_LHC_aggregate(b.ps, b.lossmap)
+        raise Exception("Not implemented")
     elif ACTION == "startdist":
         lg.log("categorizing particles")
         pbin = b.ps.categorize_particles(b.lossmap)
