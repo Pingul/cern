@@ -58,7 +58,9 @@ static const char* LONGITUDINAL_DIST_NAMES[] = {
     "AVFull", 
     "AV inside, uniform H", 
     "AV inside, uniform E",
-    "Cont. inside, exponential",
+    "Cont. outside, exponential",
+    "Cont. outside, non-uniform exponential dist. above/below bucket",
+    "Cont. inside, linear",
     "AV outside, uniform H",
     "AV outside, unfform E",
 };
@@ -68,7 +70,9 @@ enum LongitudinalDist
     AVFull,
     AVInside_H,
     AVInside_E,
-    CInside_exp,
+    COutside_exp,
+    COutside_ab,
+    CInside_lin,
     AVOutside_H,
     AVOutside_E,
 };
@@ -115,10 +119,10 @@ struct ParticleGenerator
             case AVFull: AVFullRange(*p); break;
             case AVInside_H: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/true); break;
             case AVInside_E: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/false); break;
-            case CInside_exp: {
+            case COutside_exp: {
                 auto pdf = [](T x){ 
                     const T m = 1;
-                    if (x < 0 || x > m) throw std::runtime_error("CInside_E pdf - invalid value");
+                    if (x < 0 || x > m) throw std::runtime_error("CInside_E - range");
                     const T a = -6.07;
                     const T b = 0.75;
                     return std::exp(a*std::pow(x/m, b));
@@ -129,8 +133,47 @@ struct ParticleGenerator
                 auto pnext = [&](Generator& g) { return 1.75e7*dist(g) + sep - 7000; };
                 generateAVDist(*p, pnext);
             } break;
+            case COutside_ab: {
+                const T max = 3.20e7;
+                auto pdf = [](T x, T a, T b, T c) {
+                    if (x < 0 || x > 1) throw std::runtime_error("COutside_ab - range");
+                    return std::exp(a*std::pow(x, b) + c);
+                };
+
+                //auto a_pdf = [&](T x) { return pdf(x, -8.06, 0.75, 0.28); };
+                //auto b_pdf = [&](T x) { return pdf(x, -5.47, 0.36, 1.18); };
+                //const T a_ratio = 0.53;
+
+                auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
+                auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
+                const T a_ratio = 0.49;
+                
+                Sampled_distribution<T> a_dist(a_pdf, 0, 1, Sampled_distribution<T>::PDF);
+                Sampled_distribution<T> b_dist(b_pdf, 0, 1, Sampled_distribution<T>::PDF);
+
+                const T sep = separatrix(mAcc);
+                std::uniform_real_distribution<> dist(0.0, 1.0);
+                for (int i = 0; i < p->size(); ++i) {
+                    const T phase = dist(mGenerator)*2.0*cnst::pi;
+                    const T sign = dist(mGenerator) > a_ratio ? 1 : -1;
+                    const T action = max*(sign > 0 ? a_dist(mGenerator) : b_dist(mGenerator)) + sep;
+                    const T energy = levelCurve(mAcc, phase, action, sign);
+                    if (std::isnan(energy)) { --i; continue; }
+                    p->momentum[i] = energy;
+                    p->phase[i] = phase;
+                }
+            } break;
+            case CInside_lin: {
+                const T sep = separatrix(mAcc);
+                std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
+                std::vector<T> d{-7000 + sep, 0 + sep};
+                std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
+                auto pnext = [&](Generator& g) { return dist(g); };
+                generateAVDist(*p, pnext);
+            } break;
             case AVOutside_H: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/true); break;
-            case AVOutside_E: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/false); break;
+            //case AVOutside_E: AVInRange(*p, 0, 1.75e7, 15, [>uniform_in_H<]false); break;
+            case AVOutside_E: AVInRange(*p, 0, 3.20e7, 35, /*uniform_in_H*/false); break;
             default:
                 throw DistributionNotFound("longitudinal");
         }
@@ -145,7 +188,7 @@ struct ParticleGenerator
             }
             case DoubleGaussian:
             {
-                std::normal_distribution<> d(0, 3);
+                std::normal_distribution<> d(0, 1);
                 for (size_t i = 0; i < p->size(); ++i) {
                     p->x[i] = d(mGenerator);
                     p->px[i] = d(mGenerator);
@@ -178,7 +221,24 @@ private:
             particles.momentum[i] = energy;
             particles.phase[i] = phase;
         }
-    }   
+    }
+
+    template <typename AVGen>
+    void generateAVDist(PColl& particles, AVGen nextAV, int n, int sign) 
+    {
+        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
+
+        int s = particles.size();
+        particles.resize(s + n);
+        for (int i = s; i < s + n; ++i) {
+            const T phase = uni_dist(mGenerator);
+            const T action = nextAV(mGenerator);
+            const T energy = levelCurve(mAcc, phase, action, sign);
+            if (std::isnan(energy)) { --i; continue; }
+            particles.momentum[i] = energy;
+            particles.phase[i] = phase;
+        }
+    }
 
     void generateAVDist(PColl& particles, std::vector<T>& actions, int n_per_level)
     {
@@ -228,16 +288,14 @@ private:
 
         const T sep = separatrix(mAcc);
         std::vector<T> actions;
-        if (uniform_in_H) {
-            for (T h = minH; h < maxH; h += (maxH - minH)/n) {
-                actions.emplace_back(sep + h);
-            }
-        } else {
-            const T maxE = levelCurve(mAcc, cnst::pi, sep + maxH);
-            const T minE = levelCurve(mAcc, cnst::pi, sep + minH);
-            for (T e = minE; e < maxE; e += (maxE - minE)/n) {
-                actions.emplace_back(hamiltonian(mAcc, e, cnst::pi));
-            }
+        T max = uniform_in_H ? maxH : levelCurve(mAcc, cnst::pi, sep + maxH);
+        T min = uniform_in_H ? minH : levelCurve(mAcc, cnst::pi, sep + minH);
+        for (int i = 0; i < n; ++i) {
+            const T v = min + (max - min)/(n - 1)*i;
+            if (uniform_in_H)
+                actions.emplace_back(sep + v);
+            else 
+                actions.emplace_back(hamiltonian(mAcc, v, cnst::pi));
         }
         const int n_per_level = particles.size()/(2*actions.size());
         const int N = 2*n_per_level*actions.size();
