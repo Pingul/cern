@@ -72,7 +72,7 @@ class LHCComparison:
         return self.secs[self.opt_mask]
 
     def fit_action_values(self):
-        lms, avs = lm.separate_lossmap(self.lossmap, self.ps, True)
+        lms, avs = lm.separate_lossmap(self.lossmap, self.ps, separate_above_bucket=False)
         avs = np.array(avs)
         for i in range(avs.size):
             if avs[i] < 0: avs[i] += round(settings.H_SEPARATRIX)
@@ -129,172 +129,172 @@ def plot_comp(fill, blm=None, fit=None, block=True):
 
 
 
-def compare_to_LHC_aggregate(ps, lossmap):
-    beam = 1
+# def compare_to_LHC_aggregate(ps, lossmap):
+    # beam = 1
 
-    turns = np.array(range(max(lossmap.keys())))
-    losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
-    BLM_2dsynch = trailing_integration(losses, settings.BLM_INT)
+    # turns = np.array(range(max(lossmap.keys())))
+    # losses = np.array([len(lossmap[turn]) if turn in lossmap else 0 for turn in turns])
+    # BLM_2dsynch = trailing_integration(losses, settings.BLM_INT)
 
-    aggr_fill = af.aggregate_fill(beam, from_cache=True)
-    secs = np.array([turn/11245.0 for turn in turns])
-    asecs = halign(secs, BLM_2dsynch, aggr_fill)
-    BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
+    # aggr_fill = af.aggregate_fill(beam, from_cache=True)
+    # secs = np.array([turn/11245.0 for turn in turns])
+    # asecs = halign(secs, BLM_2dsynch, aggr_fill)
+    # BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
 
-    fig, loss_ax = plt.subplots()
-    loss_ax.plot(*aggr_fill.blm_ir3(), label="Aggr. fill (beam {})".format(beam), color='r')
-    loss_ax.plot(asecs, BLM_2dsynch, label="2d-synch BLM")
-    loss_ax.set_yscale("log")
-    loss_ax.set_xlim([-5, 40])
-    loss_ax.set_ylim([0.5e-5, 1])
-    loss_ax.legend(loc="upper right")
-    plt.title("Compare 2d-synchrotron with aggregate fill")
-    plt.show()
+    # fig, loss_ax = plt.subplots()
+    # loss_ax.plot(*aggr_fill.blm_ir3(), label="Aggr. fill (beam {})".format(beam), color='r')
+    # loss_ax.plot(asecs, BLM_2dsynch, label="2d-synch BLM")
+    # loss_ax.set_yscale("log")
+    # loss_ax.set_xlim([-5, 40])
+    # loss_ax.set_ylim([0.5e-5, 1])
+    # loss_ax.legend(loc="upper right")
+    # plt.title("Compare 2d-synchrotron with aggregate fill")
+    # plt.show()
 
-def fit_to_LHC_aggregate(ps, tm_lossmap):
-    """ ps : PhaseSpace of starting distribution
-        tm_lossmap : lossmap of coll.dat
-    """
+# def fit_to_LHC_aggregate(ps, tm_lossmap):
+    # """ ps : PhaseSpace of starting distribution
+        # tm_lossmap : lossmap of coll.dat
+    # """
 
-    beam = 1
-    aggr_fill = af.aggregate_fill(beam, from_cache=True)
+    # beam = 1
+    # aggr_fill = af.aggregate_fill(beam, from_cache=True)
 
-    min_turn = min(tm_lossmap.keys()) - settings.BLM_INT
-    max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
-    # if prune:
-        # lg.log("pruning time scale", log_level=LogLevel.notify)
-        # max_turn = int(aggr_fill.crossover_point()['t']*11245.0)
-        # tm_lossmap = {k : tm_lossmap[k] for k in tm_lossmap if k < max_turn}
-    # else:
-        # lg.log("using full time scale")
-        # max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
+    # min_turn = min(tm_lossmap.keys()) - settings.BLM_INT
+    # max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
+    # # if prune:
+        # # lg.log("pruning time scale", log_level=LogLevel.notify)
+        # # max_turn = int(aggr_fill.crossover_point()['t']*11245.0)
+        # # tm_lossmap = {k : tm_lossmap[k] for k in tm_lossmap if k < max_turn}
+    # # else:
+        # # lg.log("using full time scale")
+        # # max_turn = max(tm_lossmap.keys()) + settings.BLM_INT
 
-    lg.log("extract losses")
-    turns = np.arange(min_turn, max_turn)
-    secs = turns/11245.0
-    losses = np.zeros(len(turns))
-    for turn in tm_lossmap:
-        losses[turn - min_turn] = len(tm_lossmap[turn])
+    # lg.log("extract losses")
+    # turns = np.arange(min_turn, max_turn)
+    # secs = turns/11245.0
+    # losses = np.zeros(len(turns))
+    # for turn in tm_lossmap:
+        # losses[turn - min_turn] = len(tm_lossmap[turn])
 
-    lg.log("emulate 2dsynch BLM")
-    BLM_2dsynch = trailing_integration(losses, settings.BLM_INT)
+    # lg.log("emulate 2dsynch BLM")
+    # BLM_2dsynch = trailing_integration(losses, settings.BLM_INT)
 
-    ## SEPARATE LOSSMAP
-    lg.log("separate lossmap")
-    lossmaps, action_values = lm.separate_lossmap(tm_lossmap, ps)
-    action_values = np.array(action_values) - round(settings.H_SEPARATRIX)
+    # ## SEPARATE LOSSMAP
+    # lg.log("separate lossmap")
+    # lossmaps, action_values = lm.separate_lossmap(tm_lossmap, ps)
+    # action_values = np.array(action_values) - round(settings.H_SEPARATRIX)
 
-    # lg.log("temporary pruning action values", log_level=LogLevel.warning)
-    # to_delete = np.where(action_values > 0)
-    # lossmaps = np.delete(lossmaps, to_delete)
-    # action_values = np.delete(action_values, to_delete)
+    # # lg.log("temporary pruning action values", log_level=LogLevel.warning)
+    # # to_delete = np.where(action_values > 0)
+    # # lossmaps = np.delete(lossmaps, to_delete)
+    # # action_values = np.delete(action_values, to_delete)
     
-    x = np.zeros(len(lossmaps)*len(turns), dtype=float).reshape(len(lossmaps), len(turns))
-    for i, lossmap in enumerate(lossmaps):
-        for turn in lossmap:
-            x[i][turn - min_turn] = len(lossmap[turn])
+    # x = np.zeros(len(lossmaps)*len(turns), dtype=float).reshape(len(lossmaps), len(turns))
+    # for i, lossmap in enumerate(lossmaps):
+        # for turn in lossmap:
+            # x[i][turn - min_turn] = len(lossmap[turn])
 
-        if settings.TRAILING_INTEGRATION:
-            x[i] = trailing_integration(x[i], settings.BLM_INT)
+        # if settings.TRAILING_INTEGRATION:
+            # x[i] = trailing_integration(x[i], settings.BLM_INT)
 
-    lg.log("align BLM")
-    asecs = halign(secs, BLM_2dsynch, aggr_fill)
-    BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
+    # lg.log("align BLM")
+    # asecs = halign(secs, BLM_2dsynch, aggr_fill)
+    # BLM_2dsynch = valign(aggr_fill, asecs, BLM_2dsynch)
 
-    if settings.PRUNE_TIMESCALE:
-        a, b = (14.5, 20)
-        lg.log("pruning time scale", log_level=LogLevel.warning)
-        lg.log("optimising between {}-{}".format(a, b), log_level=LogLevel.notify)
-        mask = asecs < b
-        mask *= asecs > a
-        # mask *= asecs < 14.5
-        asecs = asecs[mask]
-        x = x[:, mask]
+    # if settings.PRUNE_TIMESCALE:
+        # a, b = (14.5, 20)
+        # lg.log("pruning time scale", log_level=LogLevel.warning)
+        # lg.log("optimising between {}-{}".format(a, b), log_level=LogLevel.notify)
+        # mask = asecs < b
+        # mask *= asecs > a
+        # # mask *= asecs < 14.5
+        # asecs = asecs[mask]
+        # x = x[:, mask]
         
-    ## FIT
-    lg.log("fit")
-    xt = np.transpose(x)
-    y = interpolate.interp1d(*aggr_fill.blm_ir3())(asecs)
+    # ## FIT
+    # lg.log("fit")
+    # xt = np.transpose(x)
+    # y = interpolate.interp1d(*aggr_fill.blm_ir3())(asecs)
 
-    method = "linear"
-    lg.log(method)
-    if method == "log":
-        xt[xt == 0] = 1e-5
-        xt = np.log10(xt)
-        # y = np.log10(y)
-        coef = np.linalg.lstsq(xt, y)[0]
-        x_fit = np.sum(coef*xt, axis=1)
-    elif method == "linear":
-        coef = nnls(xt, y)[0]
-        x_fit = np.sum(coef*xt, axis=1)
-    else:
-        raise Exception("not valid")
+    # method = "linear"
+    # lg.log(method)
+    # if method == "log":
+        # xt[xt == 0] = 1e-5
+        # xt = np.log10(xt)
+        # # y = np.log10(y)
+        # coef = np.linalg.lstsq(xt, y)[0]
+        # x_fit = np.sum(coef*xt, axis=1)
+    # elif method == "linear":
+        # coef = nnls(xt, y)[0]
+        # x_fit = np.sum(coef*xt, axis=1)
+    # else:
+        # raise Exception("not valid")
 
-    with open(FIT_COEF_FILE, "w") as f:
-        f.write("# {:>3} {:<20} {}\n".format("n", "Coefficients", "∆H"))
-        for i, c in enumerate(coef):
-            f.write(" {:>3} {:<20.10f} {}\n".format(i, c, action_values[i]))
-    lg.log("saved coefficients to '{}'".format(FIT_COEF_FILE))
-
-
-    if not settings.TRAILING_INTEGRATION:
-        x_fit = trailing_integration(x_fit, settings.BLM_INT)
-        x_fit = x_fit.reshape(len(x_fit), 1)
-        correction = nnls(x_fit, y)[0]
-        x_fit *= correction
-
-    lg.log("fitting completed")
-    lg.log("plot")
-
-    # Plotting lossmap fit
-    option_string = "(integ.)" if settings.TRAILING_INTEGRATION else ""
-    fig, loss_ax = plt.subplots()
-
-    loss_ax.plot(*aggr_fill.blm_ir3(), color='r', label='Aggr. fill (beam {})'.format(beam))
-    loss_ax.plot(secs, BLM_2dsynch, zorder=5, label='2d-synch BLM')
-    loss_ax.plot(asecs, x_fit, label="least square fit", linestyle='--', zorder=6, color="forestgreen")
-    loss_ax.axvspan(0.0, aggr_fill.crossover_point()['t'], facecolor='b', zorder=0, alpha=0.1)
-    loss_ax.set_ylabel("Losses (∆particles/1.3s)")
-    loss_ax.set_xlabel("t (s)")
-    loss_ax.set_yscale('log')
-    loss_ax.set_xlim([-5, 40])
-    loss_ax.set_ylim([0.5e-5, 1])
-    loss_ax.legend(loc="upper right")
-    plt.title("Aggregate vs 2d-synchrotron {}".format(option_string))
-
-    # Plotting coefficients
-    plot_coefficients(action_values, coef/coef.max(), plot_type="bar")
-
-def valign(aggregate_fill, asecs, BLM_2dsynch):
-    """ Returns a vertically shifted BLM_2dsynch array that is fitted 
-        w.r.t the aggregate fill. We assume that they have been horizontally aligned
-    """
-    BLM_2dsynch = BLM_2dsynch.reshape(len(BLM_2dsynch), 1) # so we can use nnls
-    y = interpolate.interp1d(*aggregate_fill.blm_ir3())(asecs)
-    coef = nnls(BLM_2dsynch, y)[0]
-    return coef*BLM_2dsynch
-
-def halign(secs, losses, aggr_fill):
-    """ Aligns losses to aggr_fill by returning a new 'secs' array """
+    # with open(FIT_COEF_FILE, "w") as f:
+        # f.write("# {:>3} {:<20} {}\n".format("n", "Coefficients", "∆H"))
+        # for i, c in enumerate(coef):
+            # f.write(" {:>3} {:<20.10f} {}\n".format(i, c, action_values[i]))
+    # lg.log("saved coefficients to '{}'".format(FIT_COEF_FILE))
 
 
-    shift = 2*11245
-    vloss_peak, iloss_peak = oml.imax(losses[shift:])
-    iloss_peak += shift
+    # if not settings.TRAILING_INTEGRATION:
+        # x_fit = trailing_integration(x_fit, settings.BLM_INT)
+        # x_fit = x_fit.reshape(len(x_fit), 1)
+        # correction = nnls(x_fit, y)[0]
+        # x_fit *= correction
 
-    vfill_peak, ifill_peak = oml.imax(aggr_fill.blm_ir3().y)
-    delta = secs[iloss_peak] - aggr_fill.blm_ir3().x[ifill_peak]
-    lg.log("peaks\n\ttoymodel : {:.2f}\n\taggregate: {:.2f}\n\tdelta    : {:.2f}"
-            .format(secs[iloss_peak], aggr_fill.blm_ir3().x[ifill_peak], delta))
+    # lg.log("fitting completed")
+    # lg.log("plot")
 
-    # lg.log("halign disabled", log_level=LogLevel.notify)
-    # return secs
+    # # Plotting lossmap fit
+    # option_string = "(integ.)" if settings.TRAILING_INTEGRATION else ""
+    # fig, loss_ax = plt.subplots()
 
-    # seems to work okay when there is no horizontal displacement
-    lg.log("manual halign", log_level=LogLevel.warning)
-    return secs - 0.43
+    # loss_ax.plot(*aggr_fill.blm_ir3(), color='r', label='Aggr. fill (beam {})'.format(beam))
+    # loss_ax.plot(secs, BLM_2dsynch, zorder=5, label='2d-synch BLM')
+    # loss_ax.plot(asecs, x_fit, label="least square fit", linestyle='--', zorder=6, color="forestgreen")
+    # loss_ax.axvspan(0.0, aggr_fill.crossover_point()['t'], facecolor='b', zorder=0, alpha=0.1)
+    # loss_ax.set_ylabel("Losses (∆particles/1.3s)")
+    # loss_ax.set_xlabel("t (s)")
+    # loss_ax.set_yscale('log')
+    # loss_ax.set_xlim([-5, 40])
+    # loss_ax.set_ylim([0.5e-5, 1])
+    # loss_ax.legend(loc="upper right")
+    # plt.title("Aggregate vs 2d-synchrotron {}".format(option_string))
 
-    return secs - delta
+    # # Plotting coefficients
+    # plot_coefficients(action_values, coef/coef.max(), plot_type="bar")
+
+# def valign(aggregate_fill, asecs, BLM_2dsynch):
+    # """ Returns a vertically shifted BLM_2dsynch array that is fitted 
+        # w.r.t the aggregate fill. We assume that they have been horizontally aligned
+    # """
+    # BLM_2dsynch = BLM_2dsynch.reshape(len(BLM_2dsynch), 1) # so we can use nnls
+    # y = interpolate.interp1d(*aggregate_fill.blm_ir3())(asecs)
+    # coef = nnls(BLM_2dsynch, y)[0]
+    # return coef*BLM_2dsynch
+
+# def halign(secs, losses, aggr_fill):
+    # """ Aligns losses to aggr_fill by returning a new 'secs' array """
+
+
+    # shift = 2*11245
+    # vloss_peak, iloss_peak = oml.imax(losses[shift:])
+    # iloss_peak += shift
+
+    # vfill_peak, ifill_peak = oml.imax(aggr_fill.blm_ir3().y)
+    # delta = secs[iloss_peak] - aggr_fill.blm_ir3().x[ifill_peak]
+    # lg.log("peaks\n\ttoymodel : {:.2f}\n\taggregate: {:.2f}\n\tdelta    : {:.2f}"
+            # .format(secs[iloss_peak], aggr_fill.blm_ir3().x[ifill_peak], delta))
+
+    # # lg.log("halign disabled", log_level=LogLevel.notify)
+    # # return secs
+
+    # # seems to work okay when there is no horizontal displacement
+    # lg.log("manual halign", log_level=LogLevel.warning)
+    # return secs - 0.43
+
+    # return secs - delta
 
 def dist_curve(H, coef, ctype = "linear"):
     p_init = [0, 0, 0]
@@ -420,8 +420,8 @@ if __name__ == "__main__":
 
     if action == "fit":
         blm_s = (comp.t(), comp.BLM())
-        # comp.set_window(5, 11)
-        comp.halign()
+        comp.set_window(14, 20)
+        # comp.halign()
         comp.fit_action_values()
 
         r = comp.fit_results()
@@ -437,6 +437,7 @@ if __name__ == "__main__":
         plot_comp(fill, blm_s, blm_fit, block=False)
         plot_coefficients(avs, coef)
     elif action == "compare":
+        # comp.halign()
         plot_comp(fill, (comp.t(), comp.BLM()))
     elif action == "fit_curve":
         coef, H = np.loadtxt(FIT_COEF_FILE, skiprows=1, usecols=(1, 2), unpack=True)
