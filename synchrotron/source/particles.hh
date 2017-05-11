@@ -183,7 +183,7 @@ struct ParticleGenerator
                 Sampled_distribution<T> oa_dist(a_pdf, 0, 1, Sampled_distribution<T>::PDF);
                 Sampled_distribution<T> ob_dist(b_pdf, 0, 1, Sampled_distribution<T>::PDF);
 
-                const T i_ratio = 0.55;
+                const T i_ratio = 0.35;
                 std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
                 std::vector<T> d{-7000, 0};
                 std::piecewise_linear_distribution<> i_dist(d.begin(), d.end(), q.begin());
