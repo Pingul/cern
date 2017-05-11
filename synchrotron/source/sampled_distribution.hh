@@ -5,6 +5,7 @@
 #include <vector>
 #include <random>
 #include <stdexcept>
+#include <functional>
 
 #include <iostream>
 
@@ -16,7 +17,7 @@ class Integral
 public:
     struct MaxIterationsReached : public std::runtime_error { MaxIterationsReached() : std::runtime_error("") {} };
 
-    using Func = T (*)(T);
+    using Func = std::function<T(T)>;
 
     Integral(Func f, T threshold = 1e-5, int maxIterations = 25)
         : mF(f), mThresh(threshold), mMaxIter(maxIterations)
@@ -66,11 +67,9 @@ class Sampled_distribution
 {
 public:
     struct InvalidBounds : public std::runtime_error { InvalidBounds() : std::runtime_error("") {} };
-    struct CDFNotMonotonic : public std::runtime_error { CDFNotMonotonic() : std::runtime_error("") {} };
+    struct CDFNotMonotonic : public std::runtime_error { CDFNotMonotonic(const std::string& m = "") : std::runtime_error(m) {} };
 
-    using CDFFunc = T (*)(T);
-    using PDFFunc = T (*)(T);
-    using Func = T (*)(T);
+    using Func = std::function<T(T)>;
 
     // PDF requires numerical integration -- better performance and result if possible to provide analytic CDF instead
     enum DistType { PDF, CDF };
@@ -91,10 +90,11 @@ public:
             if (dtype == CDF)
                 cdf = f(x);
             else
-                cdf = Integral<T>(f)(mL, x); 
+                cdf = Integral<T>(f)(mL, x); // this is probably quite inefficient
+
             const T p = (cdf - fl)/(fh - fl); // normalising 
 
-            if (! (p >= last_p)) throw CDFNotMonotonic();
+            if (! (p >= last_p)) throw CDFNotMonotonic(std::to_string(p) + " < " + std::to_string(last_p));
             mSampledCDF[i] = Sample{p, x};
             last_p = p;
         }

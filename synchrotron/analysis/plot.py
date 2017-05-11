@@ -129,20 +129,6 @@ def plot_hamiltonian_lost_dist(ps, lm, time=16.5):
     plt.show()
 
 
-def plot_lost():
-    # lossmap = get_lossmap(settings.COLL_PATH, ["id"])
-    df = pd.read_csv("calc/lost.dat", names=["id", "turn_lost", "coll_hit", "delta"])
-    fig, ax = plt.subplots()
-    ax.scatter(df["turn_lost"], df["delta"], s=4, color="b", label="travel time to collimator")
-    ax.scatter(df["turn_lost"], df["coll_hit"], s=4, color="r", label="collimator hit")
-    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
-    ax.set_xlabel("t (s) when found outside of bucket")
-    ax.set_ylabel("t (s)")
-    ax.legend(loc="upper left")
-    plt.show()
-
-
 phasespace_dir = "/Users/swretbor/Workspace/work_afs/2dsynch/phasespace/phasespace"
 def phasespace_frame(num, ps):
     filename = "{}/{}lines.dat".format(phasespace_dir, num)
@@ -197,7 +183,8 @@ if __name__ == "__main__":
         lg.log("plot one series for each action value of the lossmap")
         ps = PhaseSpace(settings.STARTDIST_PATH)
         lossmap = get_lossmap(settings.COLL_PATH)
-        lossmaps, labels = separate_lossmap(lossmap, ps)
+        lossmaps, labels = separate_lossmap(lossmap, ps, True)
+        # plot_lossmap(lossmaps[0:-1:10], labels[0:-1:10])
         plot_lossmap(lossmaps, labels)
     elif ACTION == "energy":
         lg.log("plot energy oscillations")
@@ -244,15 +231,29 @@ if __name__ == "__main__":
         ps = PhaseSpace(settings.STARTDIST_PATH)
         lm = get_lossmap(settings.COLL_PATH)
         plot_hamiltonian_lost_dist(ps, lm, 16.5)
-    elif ACTION == "lost":
-        lg.log("lost plot")
-        plot_lost()
     elif ACTION == "ham-dist":
         lg.log("plot action distribution")
         input_file = settings.STARTDIST_PATH
         if len(argv) == 3: input_file = argv[2]
         ps = PhaseSpace(input_file)
         plot_hamiltonian_dist_histogram(ps)
+    elif ACTION == "e-dist":
+        lg.log("plot energy distribution")
+        input_file = settings.STARTDIST_PATH
+        if len(argv) == 3: input_file = argv[2]
+        ps = PhaseSpace(input_file)
+
+        fig, ax = plt.subplots()
+        nbr_bins = 100
+        emin = ps.denergy.min()
+        emax = ps.denergy.max()
+        bins = np.arange(emin, emax, (emax-emin)/nbr_bins)
+        ax.hist(ps.denergy, bins=bins, edgecolor='white')
+        ax.set_title("Action value ∆E distribution")
+        ax.set_xlabel("∆E")
+        ax.set_ylabel("#")
+        plt.show()
+
     elif ACTION == "x":
         lg.log("plotting x distribution")
         input_file = settings.STARTDIST_PATH
