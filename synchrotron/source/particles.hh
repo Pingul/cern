@@ -196,7 +196,7 @@ struct ParticleGenerator
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
                     T action;
                     T sign;
-                    if (dist(mGenerator) > i_ratio) {
+                    if (dist(mGenerator) < i_ratio) {
                         // generate particle inside separatrix
                         ++pin;
                         sign = dist(mGenerator) > 0.5 ? 1 : -1;
