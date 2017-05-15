@@ -57,7 +57,7 @@ inline void writePhasespaceFrame(const Accelerator<T>& acc, std::string filePath
         throw std::runtime_error("could not open file");
 
     const T ph_step = 0.005;
-    const int ph_steps = std::ceil((FRAME_X_HIGH - FRAME_X_LOW)/ph_step);
+    const int ph_steps = std::ceil((cnst::FRAME_X_HIGH - cnst::FRAME_X_LOW)/ph_step);
 
     const T Hstart = hamiltonian<T>(acc, 0.0, cnst::pi) + 5e4;
     const T Hstep = 2.0e5;
@@ -70,7 +70,7 @@ inline void writePhasespaceFrame(const Accelerator<T>& acc, std::string filePath
     const T Hseparatrix = separatrix<T>(acc);
 
     file << lines << "," << ph_steps << std::endl;
-    for (T ph = FRAME_X_LOW; ph <= FRAME_X_HIGH; ph += ph_step) {
+    for (T ph = cnst::FRAME_X_LOW; ph <= cnst::FRAME_X_HIGH; ph += ph_step) {
         T de = levelCurve(acc, ph, Hseparatrix);
         file << std::setprecision(16) << de  << "," << ph << "," << Hseparatrix << std::endl
                                       << -de  << "," << ph << "," << Hseparatrix << std::endl;

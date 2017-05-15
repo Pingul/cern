@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <sstream>
 
 #include "settings.hh"
 #include "accelerator.hh"
@@ -24,15 +25,22 @@ int main(int argc, char* argv[])
             std::cout << d << std::endl;
         }
     } else if (args[1] == "motor") {
-        unsigned steps = 300*11246;
-        //auto prog = typename Program::Ptr(new stron::CollimatorRamp<Acc>(LHC, steps, "resources/motor_tcp_ir3_f5433b1.txt", 0));
-        auto prog = stron::ramp::create(LHC, steps, stron::ramp::ProgramType::LHCRamp);
-        for (int i = 0; i < steps - 1; ++i) {
-            prog->step();
-            if (i % 11245 == 0)
-                std::cout << i << " " << LHC.lag_phase() << " " << LHC.collimators[0].left << " " << LHC.collimators[0].right << std::endl;
-        }
-        
+    } else if (args[1] == "levelCurve") {
+        std::stringstream ss(args[2]);
+        double h;
+        ss >> h;
+        std::cout << "∆H = " << h << std::endl;
+        h += stron::separatrix(LHC);
+        std::cout << "∆E = " << stron::levelCurve(LHC, stron::cnst::pi, h) << std::endl;
+    } else if (args[1] == "hamiltonian") {
+        std::stringstream ss(args[2]);
+        double e;
+        ss >> e;
+        std::cout << "∆E = " << e << std::endl;
+        std::cout << "∆H(π, ∆E) = " << (stron::hamiltonian(LHC, e, stron::cnst::pi) - stron::separatrix(LHC))  << std::endl;
+    } else {
+        std::cout << "unrecognised action" << std::endl;
     }
+
 }
 

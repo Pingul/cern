@@ -88,7 +88,7 @@ class DefaultEnergyProgram : public EnergyProgram
     using Prog = Program<Acc>;
 public:
     DefaultEnergyProgram(Acc& acc, unsigned steps)
-        : Prog(acc, steps), EnergyProgram(acc, steps, LHC_RAMP_FILE) {}
+        : Prog(acc, steps), EnergyProgram(acc, steps, path::LHC_RAMP_FILE) {}
 };
 
 template <typename Acc, typename EnergyProgram = EnergyProgram<Acc>>
@@ -171,7 +171,7 @@ class TCP_IR3Program : public CollimatorProgram
     using Prog = Program<Acc>;
 public:
     TCP_IR3Program(Acc& acc, unsigned steps)
-        : Prog(acc, steps), CollimatorProgram(acc, steps, TCP_IR3_MOTOR_FILE, 0) {}
+        : Prog(acc, steps), CollimatorProgram(acc, steps, path::TCP_IR3_MOTOR_FILE, 0) {}
 };
 
 template <typename Acc, typename CollimatorProgram = CollimatorProgram<Acc>>
@@ -180,7 +180,7 @@ class TCPc_IR7Program : public CollimatorProgram
     using Prog = Program<Acc>;
 public:
     TCPc_IR7Program(Acc& acc, unsigned steps)
-        : Prog(acc, steps), CollimatorProgram(acc, steps, TCPC_IR7_MOTOR_FILE, 1) {}
+        : Prog(acc, steps), CollimatorProgram(acc, steps, path::TCPC_IR7_MOTOR_FILE, 1) {}
 };
 
 

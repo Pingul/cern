@@ -10,8 +10,7 @@
 #include "accelerator.hh"
 #include "sampled_distribution.hh"
 
-//namespace stron {
-namespace stron {
+namespace particles {
 
 template <typename T>
 struct ParticleCollection 
@@ -362,6 +361,6 @@ private:
 };
 
 
-} // namespace stron
+} // namespace particles
 
 #endif

@@ -42,7 +42,7 @@ class SimpleSynchrotron
 
 public:
     using Acc = Accelerator<T>;
-    using Particles = ParticleCollection<T>;
+    using Particles = particles::ParticleCollection<T>;
     using ParticlesPtr = typename Particles::Ptr;
     using Collimat = typename Acc::Collimat;
     using ProgramPtr = typename Program<Acc>::Ptr;
@@ -51,9 +51,9 @@ public:
         : mAcc(acc), mParticles(nullptr), mProgram(nullptr) 
     {
         // Erasing previous files
-        { std::ofstream f(PATH_FILE); }
-        { std::ofstream f(STARTDIST_FILE); }
-        { std::ofstream f(ENDDIST_FILE); }
+        { std::ofstream f(path::PATH_FILE); }
+        { std::ofstream f(path::STARTDIST_FILE); }
+        { std::ofstream f(path::ENDDIST_FILE); }
     }
 
     void addParticles(ParticlesPtr particles)
@@ -62,7 +62,7 @@ public:
         mCollHits.clear();
         for (const auto& c : mAcc.collimators)
             mCollHits.emplace_back(CollimatorHits(c, *mParticles));
-        writeDistribution(STARTDIST_FILE);
+        writeDistribution(path::STARTDIST_FILE);
     }
 
     void writeDistribution(std::string filePath) const 
@@ -165,9 +165,9 @@ public:
         if (dur.s > 0) std::cout << dur.s << "s ";
         std::cout << dur.ms << "ms" << std::endl;
 
-        writeDistribution(ENDDIST_FILE);
+        writeDistribution(path::ENDDIST_FILE);
         writeCollHits();
-        meta.write(META_FILE);
+        meta.write(path::META_FILE);
     }
 
     Acc& getAcc() { return mAcc; }
