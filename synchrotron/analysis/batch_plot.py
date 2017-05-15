@@ -6,8 +6,9 @@ from phasespace import PhaseSpace
 from lhccomp import LHCComparison, plot_comp
 from lossmap import *
 from settings import *
-from plot import plot_hamiltonian_dist_histogram
+from plot import plot_hamiltonian_dist_histogram, plot_e_dist_histogram
 from logger import ModuleLogger, LogLevel
+import analyse_fill as af
 lg = ModuleLogger("batch")
 
 class Batch:
@@ -97,6 +98,10 @@ if __name__ == "__main__":
         if b.ps:
             nbr_lost = sum(map(len, b.lossmap.values()))
             lg.log("{} particles, {:.1f}% lost".format(b.ps.nbr_p, 100*nbr_lost/b.ps.nbr_p))
+            lg.log("Particle distribution")
+            lg.log("\t{:.2f}% outside above".format(np.sum((b.ps.h > settings.H_SEPARATRIX)*(b.ps.denergy > 0))/b.ps.nbr_p*100.0), module_prestring=False)
+            lg.log("\t{:.2f}% inside separatrix".format(np.sum(b.ps.h < settings.H_SEPARATRIX)/b.ps.nbr_p*100.0), module_prestring=False)
+            lg.log("\t{:.2f}% outside below".format(np.sum((b.ps.h > settings.H_SEPARATRIX)*(b.ps.denergy < 0))/b.ps.nbr_p*100.0), module_prestring=False)
     elif ACTION == "lossmap":
         plot_lossmap([b.lossmap])
     elif ACTION == "separated-lossmap":
@@ -104,6 +109,7 @@ if __name__ == "__main__":
     elif ACTION == "compare":
         fill = af.aggregate_fill(1, from_cache=1)
         comp = LHCComparison(fill, b.ps, b.lossmap)
+        # comp.halign()
         plot_comp(fill, (comp.t(), comp.BLM()))
     elif ACTION == "fit":
         raise Exception("Not implemented")
@@ -114,3 +120,7 @@ if __name__ == "__main__":
         b.ps.plot_particles(pbin)
     elif ACTION == "ham-dist":
         plot_hamiltonian_dist_histogram(b.ps)
+    elif ACTION == "e-dist":
+        plot_e_dist_histogram(b.ps)
+    else:
+        lg.log("unrecognised action", log_level=LogLevel.warning)
