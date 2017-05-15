@@ -99,6 +99,21 @@ def plot_hamiltonian_dist_histogram(ps):
     ax.set_ylabel("#")
     plt.show()
 
+def plot_e_dist_histogram(ps):
+    fig, ax = plt.subplots()
+    nbr_bins = 150
+    emin = ps.denergy.min()
+    emax = ps.denergy.max()
+    bins = np.arange(emin, emax, (emax-emin)/nbr_bins)
+    ax.hist(ps.denergy, bins=bins, edgecolor='white')
+    ax.set_title("Action value ∆E distribution")
+    ax.set_xlabel("∆E")
+    ax.set_ylabel("#")
+    plt.show()
+
+def plot_impact_parameter(lossmap):
+    fig, ax = plt.subplots()
+    
 
 def plot_hamiltonian_lost_dist(ps, lm, time=16.5):
     """ ps : PhaseSpace
@@ -183,7 +198,7 @@ if __name__ == "__main__":
         lg.log("plot one series for each action value of the lossmap")
         ps = PhaseSpace(settings.STARTDIST_PATH)
         lossmap = get_lossmap(settings.COLL_PATH)
-        lossmaps, labels = separate_lossmap(lossmap, ps, True)
+        lossmaps, labels = separate_lossmap(lossmap, ps, False)
         # plot_lossmap(lossmaps[0:-1:10], labels[0:-1:10])
         plot_lossmap(lossmaps, labels)
     elif ACTION == "energy":
@@ -242,17 +257,7 @@ if __name__ == "__main__":
         input_file = settings.STARTDIST_PATH
         if len(argv) == 3: input_file = argv[2]
         ps = PhaseSpace(input_file)
-
-        fig, ax = plt.subplots()
-        nbr_bins = 100
-        emin = ps.denergy.min()
-        emax = ps.denergy.max()
-        bins = np.arange(emin, emax, (emax-emin)/nbr_bins)
-        ax.hist(ps.denergy, bins=bins, edgecolor='white')
-        ax.set_title("Action value ∆E distribution")
-        ax.set_xlabel("∆E")
-        ax.set_ylabel("#")
-        plt.show()
+        plot_e_dist_histogram(ps)
 
     elif ACTION == "x":
         lg.log("plotting x distribution")
@@ -279,5 +284,7 @@ if __name__ == "__main__":
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1E}".format(x)))
         plt.title("Motion for geometric coordinates at IR3 TCP")
         plt.show()
+    elif ACTION == 'impacts':
+        plot_first_impacts(settings.COLL_PATH)
     else:
         lg.log("unrecognised action")
