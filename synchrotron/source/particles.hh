@@ -10,8 +10,7 @@
 #include "accelerator.hh"
 #include "sampled_distribution.hh"
 
-//namespace stron {
-namespace stron {
+namespace particles {
 
 template <typename T>
 struct ParticleCollection 
@@ -153,7 +152,7 @@ struct ParticleGenerator
                 std::uniform_real_distribution<> dist(0.0, 1.0);
                 for (int i = 0; i < p->size(); ++i) {
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
-                    const T sign = dist(mGenerator) > a_ratio ? 1 : -1;
+                    const T sign = dist(mGenerator) < a_ratio ? 1 : -1;
                     const T action = max*(sign > 0 ? a_dist(mGenerator) : b_dist(mGenerator)) + sep;
                     const T energy = levelCurve(mAcc, phase, action, sign);
                     if (std::isnan(energy)) { --i; continue; }
@@ -204,7 +203,7 @@ struct ParticleGenerator
                     } else {
                         // outside
                         ++pout;
-                        sign = dist(mGenerator) > a_ratio ? 1 : -1;
+                        sign = dist(mGenerator) < a_ratio ? 1 : -1;
                         action = max*(sign > 0 ? oa_dist(mGenerator) : ob_dist(mGenerator));
                     }   
                     action += sep;
@@ -362,6 +361,6 @@ private:
 };
 
 
-} // namespace stron
+} // namespace particles
 
 #endif

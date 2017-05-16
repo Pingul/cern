@@ -107,7 +107,7 @@ public:
         T b;    // beta
         T W2;    // Omega2
     };
-    ParticleProp calcParticleProp(T de, T phase) const 
+    ParticleProp calcParticleProp(T de, T phase = 0) const 
     {
         ParticleProp p;
 

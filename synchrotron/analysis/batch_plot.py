@@ -1,13 +1,14 @@
 import pickle
 import os, sys
 
+import numpy as np
+import lossmap as lm
 from phasespace import PhaseSpace
-# from lhccomp import fit_to_LHC_aggregate, compare_to_LHC_aggregate
 from lhccomp import LHCComparison, plot_comp
-from lossmap import *
-from settings import *
-from plot import plot_hamiltonian_dist_histogram
+from settings import settings
+from plot import plot_hamiltonian_dist_histogram, plot_e_dist_histogram
 from logger import ModuleLogger, LogLevel
+import analyse_fill as af
 lg = ModuleLogger("batch")
 
 class Batch:
@@ -18,7 +19,7 @@ class Batch:
 
         self.ps = None
         self.hits = []
-        self.lossmap = None
+        self.hitmap = None
 
         if path:
             cache_path = "{}/{}".format(path, settings.CACHE_BATCH_FILE)
@@ -38,7 +39,7 @@ class Batch:
             'nbr_jobs' : self.nbr_jobs,
             'nbr_valid_jobs' : self.nbr_valid_jobs,
             'ps' : self.ps,
-            'lossmap' : self.lossmap
+            'hitmap' : self.hitmap
         }
 
     def unpack(self, dump):
@@ -46,7 +47,7 @@ class Batch:
         self.nbr_jobs = dump['nbr_jobs']
         self.nbr_valid_jobs = dump['nbr_valid_jobs']
         self.ps = dump['ps']
-        self.lossmap = dump['lossmap']
+        self.hitmap = dump['hitmap']
 
     def cache(self, file_path):
         lg.log("caching batch at '{}'".format(file_path))
@@ -71,20 +72,18 @@ class Batch:
                     lg.log("not ok", module_prestring=False, log_level=LogLevel.warning)
                     break;
             else:
-                # try:
                 pid_offset = self.ps.nbr_p if self.ps else 0
-                job_ps = PhaseSpace("{}/{}".format(job_path, settings.STARTDIST_FILE), mute=True)
-                self.ps = PhaseSpace.merge_two(self.ps, job_ps)
-                
-                hits = hits_from_collfile("{}/{}".format(job_path, settings.COLL_FILE), pid_offset=pid_offset, mute=True)
-                self.hits += hits
-    
+                ps = PhaseSpace("{}/{}".format(job_path, settings.STARTDIST_FILE), mute=True)
+                hm = lm.CHitMap("{}/{}".format(job_path, settings.COLL_FILE), pid_offset=pid_offset, store_ip=False)
+                if self.ps is None:
+                    self.ps = ps
+                    self.hitmap = hm
+                else:
+                    self.ps = PhaseSpace.merge_two(self.ps, ps)
+                    self.hitmap = self.hitmap.concatenate(hm)
                 self.nbr_valid_jobs += 1
                 lg.log("ok", module_prestring=False, log_level=LogLevel.success)
-                # except:
-                    # lg.log("not ok")
             n += 1
-        self.lossmap = lossmap_from_hits(self.hits)
             
 
 if __name__ == "__main__":
@@ -95,22 +94,29 @@ if __name__ == "__main__":
     if ACTION == "stats":
         lg.log("jobs: {}, {:.1f}% valid".format(b.nbr_jobs, 100*b.nbr_valid_jobs/b.nbr_jobs))
         if b.ps:
-            nbr_lost = sum(map(len, b.lossmap.values()))
+            nbr_lost = b.hitmap.nbr_lost()
             lg.log("{} particles, {:.1f}% lost".format(b.ps.nbr_p, 100*nbr_lost/b.ps.nbr_p))
+            lg.log("Particle distribution")
+            lg.log("\t{:.2f}% outside above".format(np.sum((b.ps.h > settings.H_SEPARATRIX)*(b.ps.denergy > 0))/b.ps.nbr_p*100.0), module_prestring=False)
+            lg.log("\t{:.2f}% inside separatrix".format(np.sum(b.ps.h < settings.H_SEPARATRIX)/b.ps.nbr_p*100.0), module_prestring=False)
+            lg.log("\t{:.2f}% outside below".format(np.sum((b.ps.h > settings.H_SEPARATRIX)*(b.ps.denergy < 0))/b.ps.nbr_p*100.0), module_prestring=False)
     elif ACTION == "lossmap":
-        plot_lossmap([b.lossmap])
+        lm.plot(b.hitmap)
     elif ACTION == "separated-lossmap":
-        plot_lossmap(*separate_lossmap(b.lossmap, b.ps))
+        lm.plot(*b.hitmap.split(b.ps))
     elif ACTION == "compare":
         fill = af.aggregate_fill(1, from_cache=1)
-        comp = LHCComparison(fill, b.ps, b.lossmap)
+        comp = LHCComparison(fill, b.ps, b.hitmap)
+        # comp.halign()
         plot_comp(fill, (comp.t(), comp.BLM()))
-    elif ACTION == "fit":
-        raise Exception("Not implemented")
     elif ACTION == "startdist":
         lg.log("categorizing particles")
-        pbin = b.ps.categorize_particles(b.lossmap)
+        pbin = b.ps.categorize_particles(b.hitmap.old_lossmap())
         lg.log("plotting")
         b.ps.plot_particles(pbin)
     elif ACTION == "ham-dist":
         plot_hamiltonian_dist_histogram(b.ps)
+    elif ACTION == "e-dist":
+        plot_e_dist_histogram(b.ps)
+    else:
+        lg.log("unrecognised action", log_level=LogLevel.warning)

@@ -4,7 +4,8 @@ from matplotlib.ticker import FuncFormatter
 import numpy as np
 
 from scipy import stats
-from settings import *
+from settings import settings
+from ramp import read_ramp
 
 import sys
 sys.path.append("../../common")
@@ -18,6 +19,137 @@ def trailing_integration(sequence, N):
 
     sums = np.convolve(sequence, np.ones((N,)))
     return sums[:len(sequence)]
+
+class CHitMap:
+    """ Collimator hit map """
+
+    @classmethod
+    def from_hits(clss, hits):
+        """ Create CHitMap from a list of hits
+            hits = [[turn, pid], [turn, pid]] ...
+        """
+        hm = clss(store_ip=False)
+        hm.ids = np.empty(len(hits), dtype=int)
+        hm.turns = np.empty(len(hits), dtype=int)
+        for i, h in enumerate(hits):
+            hm.turns[i], hm.ids[i] = h
+        return hm
+
+    def __init__(self, collfile="", pid_offset=0, store_ip=True):
+        """ 
+            Set store_ip=True (store impact parameters) to store phase, ∆E, and x,
+            otherwise only particle id and turn is stored
+        """
+        self.store_ip = store_ip
+        if collfile != "":
+            with open(collfile, 'r') as f:
+                f.readline() # nbr_p which we don't need
+                if self.store_ip:
+                    self.ids, self.turns, self.phase, self.denergy, self.x = np.loadtxt(f.readlines(), delimiter=',', skiprows=1, unpack=True)
+                else:
+                    self.ids, self.turns = np.loadtxt(f.readlines(), delimiter=',', skiprows=1, usecols=(0, 1), unpack=True)
+                self.ids = self.ids.astype(int) + pid_offset
+                self.turns = self.turns.astype(int)
+
+    def old_lossmap(self):
+        """ compatible with what 'get_lossmap' returned previously """ 
+        hits = {}
+        for i, pid in enumerate(self.ids):
+            try: hits[self.turns[i]].append(pid)
+            except: hits[self.turns[i]] = [pid]
+        return hits
+
+    def trange(self, integrated=False):
+        """ Returns the extent in time [turn] for first/last loss """
+        return (0, self.turns.max() + settings.BLM_INT + 1 if integrated else self.turns.max() + 1)
+
+    def losses(self, integrated=False):
+        """ Returns 1d array with number of hits/turn """ 
+        l = np.zeros(self.turns.max() + 1, dtype=int)
+        for t in self.turns:
+            l[t] = l[t] + 1
+
+        if integrated:
+            l = np.concatenate((l, np.zeros(settings.BLM_INT)))
+            l = trailing_integration(l, settings.BLM_INT)
+        return l
+
+    def split(self, ps, separate_above_bucket=False):
+        """ Separate the CHitMap into one hitamp per discrete action values, 
+            given the initial PhaseSpace distribution 'ps'.
+
+            Set separate_above_bucket=True if a distinction between particles ±∆E should be made.
+        """
+        h = ps.h.astype(int)
+        uh = np.unique(h)
+        ch = np.empty(uh.size, dtype=object)
+        tot_p = 0
+        for i, v in enumerate(uh):
+            ch[i] = CHitMap()
+            m = v == h
+            ch[i].ids = self.ids[m]
+            ch[i].turns = self.turns[m]
+            if self.store_ip:
+                ch[i].phase = self.phase[m]
+                ch[i].denergy = self.denergy[m]
+                ch[i].x = self.x[m]
+        return (ch, uh)
+
+    def concatenate(self, hitmap):
+        """ Join two CHitMaps. All particle id's needs to be unique. """
+        hm = CHitMap()
+        hm.store_ip = self.store_ip
+        hm.ids = np.concatenate((self.ids, hitmap.ids))
+        hm.turns = np.concatenate((self.turns, hitmap.turns))
+        if self.store_ip:
+            hm.phase = np.concatenate((self.phase, hitmap.phase))
+            hm.denergy = np.concatenate((self.denergy, hitmap.denergy))
+            hm.x = np.concatenate((self.x, hitmap.x))
+        return hm
+
+    def nbr_lost(self):
+        return self.ids.size
+
+def plot(hitmaps, labels=[], save_to=''):
+    if not type(hitmaps) is type(list): 
+        hitmaps = [hitmaps]
+
+    colors = 'r'
+    if len(hitmaps) == 2: 
+        colors = ('r', 'g')
+    elif len(hitmaps) > 2: 
+        colors = plt.cm.Set3(np.linspace(0, 1, len(hitmaps)))
+
+    if len(labels) == 0:
+        labels = [str(v) for v in range(len(hitmaps))]
+    
+    max_t = 0
+    fig, ax = plt.subplots()
+    for i, hm in enumerate(hitmaps):
+        max_t = max(max_t, hm.trange()[1])
+        ax.plot(hm.losses(), label="{} (coll. hit)".format(labels[i]), alpha=0.5, c=colors[i])
+        ax.plot(hm.losses(integrated=True), label="{} (integ.)".format(labels[i]), zorder=4, c=colors[i])
+    ax.set_ylabel("Losses")
+    ax.set_xlabel("t (s)")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/11245.0)))
+    ax.spines['right'].set_position(('axes', 1.15))
+    ax.set_yscale('log')
+    ax.legend(loc='upper right')
+
+    # # RAMP
+    ramp = read_ramp(settings.RAMP_PATH, max_t)
+    e_ax = ax.twinx()
+    e_ax.plot(ramp, color='gray', zorder=0, label='LHC energy ramp')
+    e_ax.set_axis_off()
+
+    title = "Toy model off-momentum losses"
+    if save_to: title += " ('{}')".format(save_to)
+    plt.title(title)
+
+    if (save_to): 
+        lg.log("saving plot to {}".format(save_to))
+        plt.savefig(save_to) 
+    plt.show()
 
 
 def hits_from_collfile(collfile, pid_offset=0, mute=False):
@@ -125,7 +257,7 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
         loss_ax.legend(loc='upper right')
 
     # # RAMP
-    ramp = np.array(read_ramp(settings.RAMP_PATH, len(turns))['e'])
+    ramp = np.array(read_ramp(settings.RAMP_PATH, len(turns)))
     e_ax = loss_ax.twinx()
     e_ax.plot(turns, ramp, color='gray', zorder=0, label='LHC energy ramp')
     e_ax.set_axis_off()
@@ -139,26 +271,49 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
         plt.savefig(save_to) 
     plt.show()
 
-def read_ramp(file, nbr_turns):
-    e = np.empty(nbr_turns)
-    with open(file, 'r') as f:
-        for i, line in enumerate(f.readlines()):
-            if i >= nbr_turns: break
-            e[i] = float(line.rstrip().split()[1])*1e6
+def plot_first_impacts(collfile):
+    x = []
+    with open(collfile, 'r') as f:
+        f.readline()
+        f.readline()
+        for l in f.readlines():
+            id, turn, ph, de, _x = map(float, l.strip().split(','))
+            if turn < 1000: continue
+            x.append(_x)
+    x = np.array(x)
 
-    turns = range(nbr_turns)
-    #de = np.gradient(e)
-    de = np.diff(e) # size n - 1
-    de = np.append(de, de[-1])
+    fig, ax = plt.subplots()
+    mx = x.max()
+    mn = x.min()
+    nbr_bins = 50
+    bins = np.arange(mn, mx, (mx - mn)/nbr_bins)
+    ax.hist(x, bins=bins, edgecolor='white')
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.3f}".format(x*1e3)))
+    ax.set_xlabel("x [mm]")
+    ax.set_ylabel("#")
+    plt.title("First impacts")
+    plt.show()
 
-    slope, intercept, r_value, p_value, std_err = stats.linregress(turns, de)
-    de_fitted = [slope*turn + intercept for turn in turns]
-    e_fitted = []
-    s = 0
-    for v in de_fitted:
-        s += v
-        e_fitted.append(s + 450e9)
+# def read_ramp(file, nbr_turns):
+    # e = np.empty(nbr_turns)
+    # with open(file, 'r') as f:
+        # for i, line in enumerate(f.readlines()):
+            # if i >= nbr_turns: break
+            # e[i] = float(line.rstrip().split()[1])*1e6
 
-    return {'e' : e, 'e_fitted' : e_fitted, 'de' : de, 'de_fitted' : de_fitted}
+    # turns = range(nbr_turns)
+    # #de = np.gradient(e)
+    # de = np.diff(e) # size n - 1
+    # de = np.append(de, de[-1])
+
+    # slope, intercept, r_value, p_value, std_err = stats.linregress(turns, de)
+    # de_fitted = [slope*turn + intercept for turn in turns]
+    # e_fitted = []
+    # s = 0
+    # for v in de_fitted:
+        # s += v
+        # e_fitted.append(s + 450e9)
+
+    # return {'e' : e, 'e_fitted' : e_fitted, 'de' : de, 'de_fitted' : de_fitted}
 
 
