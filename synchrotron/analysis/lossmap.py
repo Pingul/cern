@@ -22,12 +22,32 @@ def trailing_integration(sequence, N):
 
 class CHitMap:
     """ Collimator hit map """
-    
-    def __init__(self, collfile="", pid_offset=0):
+
+    @classmethod
+    def from_hits(clss, hits):
+        """ Create CHitMap from a list of hits
+            hits = [[turn, pid], [turn, pid]] ...
+        """
+        hm = clss(store_ip=False)
+        hm.ids = np.empty(len(hits), dtype=int)
+        hm.turns = np.empty(len(hits), dtype=int)
+        for i, h in enumerate(hits):
+            hm.turns[i], hm.ids[i] = h
+        return hm
+
+    def __init__(self, collfile="", pid_offset=0, store_ip=True):
+        """ 
+            Set store_ip=True (store impact parameters) to store phase, ∆E, and x,
+            otherwise only particle id and turn is stored
+        """
+        self.store_ip = store_ip
         if collfile != "":
             with open(collfile, 'r') as f:
-                self.nbr_p = int(f.readline().strip())
-                self.ids, self.turns, self.phase, self.denergy, self.x = np.loadtxt(f.readlines(), delimiter=',', skiprows=1, unpack=True)
+                f.readline() # nbr_p which we don't need
+                if self.store_ip:
+                    self.ids, self.turns, self.phase, self.denergy, self.x = np.loadtxt(f.readlines(), delimiter=',', skiprows=1, unpack=True)
+                else:
+                    self.ids, self.turns = np.loadtxt(f.readlines(), delimiter=',', skiprows=1, usecols=(0, 1), unpack=True)
                 self.ids = self.ids.astype(int) + pid_offset
                 self.turns = self.turns.astype(int)
 
@@ -39,9 +59,9 @@ class CHitMap:
             except: hits[self.turns[i]] = [pid]
         return hits
 
-    def span(self):
+    def trange(self, integrated=False):
         """ Returns the extent in time [turn] for first/last loss """
-        return (self.turns.min(), self.turns.max())
+        return (0, self.turns.max() + settings.BLM_INT + 1 if integrated else self.turns.max() + 1)
 
     def losses(self, integrated=False):
         """ Returns 1d array with number of hits/turn """ 
@@ -69,22 +89,35 @@ class CHitMap:
             m = v == h
             ch[i].ids = self.ids[m]
             ch[i].turns = self.turns[m]
-            ch[i].phase = self.phase[m]
-            ch[i].denergy = self.denergy[m]
-            ch[i].x = self.x[m]
-            ch[i].nbr_p = np.sum(m)
-            tot_p += ch[i].nbr_p
+            if self.store_ip:
+                ch[i].phase = self.phase[m]
+                ch[i].denergy = self.denergy[m]
+                ch[i].x = self.x[m]
+        return (ch, uh)
 
-        # Adding the check here as a precaution
-        if not tot_p == self.nbr_p:
-            raise Exception("Number of particles was not conserved {} != {}".format(tot_p, self.nbr_p))
-        return ch
+    def concatenate(self, hitmap):
+        """ Join two CHitMaps. All particle id's needs to be unique. """
+        hm = CHitMap()
+        hm.store_ip = self.store_ip
+        hm.ids = np.concatenate((self.ids, hitmap.ids))
+        hm.turns = np.concatenate((self.turns, hitmap.turns))
+        if self.store_ip:
+            hm.phase = np.concatenate((self.phase, hitmap.phase))
+            hm.denergy = np.concatenate((self.denergy, hitmap.denergy))
+            hm.x = np.concatenate((self.x, hitmap.x))
+        return hm
+
+    def nbr_lost(self):
+        return self.ids.size
 
 def plot(hitmaps, labels=[], save_to=''):
+    if not type(hitmaps) is type(list): 
+        hitmaps = [hitmaps]
+
     colors = 'r'
     if len(hitmaps) == 2: 
         colors = ('r', 'g')
-    else: 
+    elif len(hitmaps) > 2: 
         colors = plt.cm.Set3(np.linspace(0, 1, len(hitmaps)))
 
     if len(labels) == 0:
@@ -93,7 +126,7 @@ def plot(hitmaps, labels=[], save_to=''):
     max_t = 0
     fig, ax = plt.subplots()
     for i, hm in enumerate(hitmaps):
-        max_t = max(max_t, hm.span()[1])
+        max_t = max(max_t, hm.trange()[1])
         ax.plot(hm.losses(), label="{} (coll. hit)".format(labels[i]), alpha=0.5, c=colors[i])
         ax.plot(hm.losses(integrated=True), label="{} (integ.)".format(labels[i]), zorder=4, c=colors[i])
     ax.set_ylabel("Losses")

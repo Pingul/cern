@@ -34,19 +34,13 @@ def trailing_integration(sequence, N):
 class LHCComparison:
     """ Compare a fill with data from the toy model """
 
-    def __init__(self, fill, ps, lossmap):
+    def __init__(self, fill, ps, hitmap):
         self.fill = fill
         self.ps = ps
-        self.lossmap = lossmap
+        self.hitmap = hitmap
 
-        self.min_t = min(self.lossmap.keys()) - settings.BLM_INT
-        self.max_t = max(self.lossmap.keys()) + settings.BLM_INT
-
+        self.min_t, self.max_t = self.hitmap.trange(integrated=True)
         self.secs = np.arange(self.min_t, self.max_t)/11245.0
-        self.losses = np.zeros(self.secs.size)
-        for turn in self.lossmap:
-            self.losses[turn - self.min_t] = len(self.lossmap[turn])
-
         self.opt_mask = np.ones(self.secs.shape, dtype=bool)
 
     def set_window(self, t_start=None, t_end=None):
@@ -61,7 +55,7 @@ class LHCComparison:
         self.secs -= 0.45 # this seems to be a good choice with no betatron amplitude
 
     def BLM(self, normalised=True):
-        blm = trailing_integration(self.losses, settings.BLM_INT)
+        blm = self.hitmap.losses(integrated=True)
         if (normalised):
             fmax = self.fill.blm_ir3().y.max()
             blm /= blm.max()/fmax
@@ -72,20 +66,17 @@ class LHCComparison:
         return self.secs[self.opt_mask]
 
     def fit_action_values(self):
-        lms, avs = lm.separate_lossmap(self.lossmap, self.ps, separate_above_bucket=False)
-        avs = np.array(avs)
+        lg.log("separate hit maps")
+        chs, avs = self.hitmap.split(self.ps, separate_above_bucket=False)
         for i in range(avs.size):
             if avs[i] < 0: avs[i] += round(settings.H_SEPARATRIX)
             else: avs[i] -= round(settings.H_SEPARATRIX)
 
-        lg.log("separate lossmaps")
-        blms = np.zeros((len(lms), self.secs.size), dtype=float)
-        for i, l in enumerate(lms):
-            for turn in l:
-                blms[i][turn - self.min_t] = len(l[turn])
-
-            if settings.TRAILING_INTEGRATION:
-                blms[i] = trailing_integration(blms[i], settings.BLM_INT)
+        lg.log("integrating")
+        blms = np.zeros((len(chs), self.secs.size), dtype=float)
+        for i, hm in enumerate(chs):
+            m = hm.trange(integrated=True)[1]
+            blms[i][:m] = hm.losses(integrated=True)
         blms = blms[:, self.opt_mask]
 
         lg.log("fit")
@@ -415,8 +406,8 @@ if __name__ == "__main__":
     
     fill = af.aggregate_fill(1, from_cache=True)
     ps = PhaseSpace(settings.STARTDIST_PATH)
-    lossmap = lm.get_lossmap(settings.COLL_PATH)
-    comp = LHCComparison(fill, ps, lossmap)
+    hitmap = lm.CHitMap(settings.COLL_PATH)
+    comp = LHCComparison(fill, ps, hitmap)
 
     if action == "fit":
         blm_s = (comp.t(), comp.BLM())
@@ -479,19 +470,5 @@ if __name__ == "__main__":
             coef = coef[mask]
             f = dist_curve(H, coef, "linear")
             plot_coefficients(H, coef, plot_type="scatter", curve=f)
-
-    elif action == "test":
-        fill = af.aggregate_fill(1, from_cache=True)
-        ps = PhaseSpace(settings.STARTDIST_PATH)
-        lossmap = lm.get_lossmap(settings.COLL_PATH)
-
-        comp = LHCComparison(fill, ps, lossmap)
-        blm_s = (comp.t(), comp.BLM())
-        comp.set_window(10, 20)
-        comp.fit_action_values()
-        r = comp.fit_results()
-        blm_fit = (comp.t(), r['blm_fit'])
-        plot_comp(fill, blm_s, blm_fit, block=False)
-        plot_coefficients(r['action_values'], r['c'])
     else:
         lg.log("unrecognised action", log_level=LogLevel.warning)
