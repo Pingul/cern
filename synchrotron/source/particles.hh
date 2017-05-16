@@ -5,6 +5,8 @@
 #include <vector>
 #include <random>
 #include <stdexcept>
+#include <fstream>
+#include <iomanip>
 
 #include "hamiltonian.hh"
 #include "accelerator.hh"
@@ -52,6 +54,26 @@ private:
     std::vector<int> mActive; // using int to allow for concurrent writes
 };
 
+template <typename T>
+void sixtrackExport(const stron::Accelerator<T>& acc, const ParticleCollection<T>& p, const std::string& file)
+{
+    std::ofstream f(file.c_str());
+    for (size_t i = 0; i < p.size(); ++i) {
+        auto prop = acc.calcParticleProp(p.momentum[i]);
+        const T z = (cnst::pi - p.phase[i])*acc.C/(2*cnst::pi*acc.h_rf*prop.b);
+        const T e = (p.momentum[i] + acc.E())*1e-6;
+        const T x = 0;
+        const T px = 0;
+        const T y = 0;
+        const T py = 0;
+        f << std::setw(2) << std::setprecision(16) << x << "," << std::setw(2) << std::setprecision(16) << px << "," // x, px
+          << std::setw(2) << std::setprecision(16) << y << "," << std::setw(2) << std::setprecision(16) << py << "," // y, py
+          << std::setw(2) << std::setprecision(16) << z << "," << std::setw(2) << std::setprecision(16) << e << std::endl;
+    }
+    std::cout << "Exported data to '" << file << "'" << std::endl;
+}
+
+
 static const char* LONGITUDINAL_DIST_NAMES[] = {
     "AroundSeparatrix", 
     "AVFull", 
@@ -60,6 +82,9 @@ static const char* LONGITUDINAL_DIST_NAMES[] = {
     "Cont. outside, exponential",
     "Cont. outside, non-uniform exponential dist. above/below bucket",
     "Cont. inside, linear",
+    "Cont. inside, linearly increasing (towards separatrix)",
+    "Cont. inside, linearly decreasing (towards separatrix)",
+    "Cont. inside, constant",
     "Cont. combined: non-uniform exponential outside, linear inside",
     "AV outside, uniform H",
     "AV outside, unfform E",
@@ -73,6 +98,9 @@ enum LongitudinalDist
     COutside_exp,
     COutside_ab,
     CInside_lin,
+    CInside_LI,
+    CInside_LD,
+    CInside_C,
     CCombined,
     AVOutside_H,
     AVOutside_E,
@@ -160,9 +188,26 @@ struct ParticleGenerator
                     p->phase[i] = phase;
                 }
             } break;
+            case CInside_LD:
             case CInside_lin: {
                 const T sep = separatrix(mAcc);
                 std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
+                std::vector<T> d{-7000 + sep, sep};
+                std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
+                auto pnext = [&](Generator& g) { return dist(g); };
+                generateAVDist(*p, pnext);
+            } break;
+            case CInside_LI: {
+                const T sep = separatrix(mAcc);
+                std::vector<T> q{7.14053036791e-05, 0.8152908985876791};
+                std::vector<T> d{-7000 + sep, sep};
+                std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
+                auto pnext = [&](Generator& g) { return dist(g); };
+                generateAVDist(*p, pnext);
+            } break;
+            case CInside_C: {
+                const T sep = separatrix(mAcc);
+                std::vector<T> q{1.0, 1.0};
                 std::vector<T> d{-7000 + sep, sep};
                 std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
                 auto pnext = [&](Generator& g) { return dist(g); };
@@ -197,14 +242,15 @@ struct ParticleGenerator
                     T sign;
                     if (dist(mGenerator) < i_ratio) {
                         // generate particle inside separatrix
-                        ++pin;
                         sign = dist(mGenerator) > 0.5 ? 1 : -1;
                         action = i_dist(mGenerator);
+                        ++pin;
                     } else {
                         // outside
-                        ++pout;
                         sign = dist(mGenerator) < a_ratio ? 1 : -1;
+                        if (sign > 0) { --i; continue; }
                         action = max*(sign > 0 ? oa_dist(mGenerator) : ob_dist(mGenerator));
+                        ++pout;
                     }   
                     action += sep;
                     const T energy = levelCurve(mAcc, phase, action, sign);
@@ -216,7 +262,6 @@ struct ParticleGenerator
                 std::cout << "outside: " << pout << ", " << T(pout)/(pin+pout) << std::endl;
             } break;
             case AVOutside_H: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/true); break;
-            //case AVOutside_E: AVInRange(*p, 0, 1.75e7, 15, [>uniform_in_H<]false); break;
             case AVOutside_E: AVInRange(*p, 0, 3.20e7, 35, /*uniform_in_H*/false); break;
             default:
                 throw DistributionNotFound("longitudinal");
