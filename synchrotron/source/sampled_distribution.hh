@@ -19,7 +19,7 @@ public:
 
     using Func = std::function<T(T)>;
 
-    Integral(Func f, T threshold = 1e-5, int maxIterations = 25)
+    Integral(Func f, T threshold = 1e-7, int maxIterations = 25)
         : mF(f), mThresh(threshold), mMaxIter(maxIterations)
     {}
 
@@ -85,16 +85,17 @@ public:
         T last_p = 0;
         for (unsigned i = 0; i < mSampledCDF.size(); ++i) {
             const T x = i/mR*(mH - mL) + mL;
+            const T thresh = 0.5e-7;
 
             T cdf;
             if (dtype == CDF)
                 cdf = f(x);
             else
-                cdf = Integral<T>(f)(mL, x); // this is probably quite inefficient
+                cdf = Integral<T>(f, thresh)(mL, x); // this is probably quite inefficient
 
             const T p = (cdf - fl)/(fh - fl); // normalising 
 
-            if (! (p >= last_p)) throw CDFNotMonotonic(std::to_string(p) + " < " + std::to_string(last_p));
+            if (! (p - last_p > -thresh)) throw CDFNotMonotonic(std::to_string(p) + " < " + std::to_string(last_p));
             mSampledCDF[i] = Sample{p, x};
             last_p = p;
         }
