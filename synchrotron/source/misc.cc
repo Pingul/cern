@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <tbb/task_scheduler_init.h>
 
 #include "settings.hh"
 #include "accelerator.hh"
@@ -21,7 +22,7 @@ int main(int argc, char* argv[])
         double maxdE = 1.9e9;
         double de = maxdE/double(n);
         for (int i = 0; i < n; ++i) {
-            double d = stron::hamiltonian(LHC, de*double(i), stron::cnst::pi);
+            double d = stron::hamiltonian(LHC, de*double(i), cnst::pi);
             std::cout << d << std::endl;
         }
     } else if (args[1] == "motor") {
@@ -31,13 +32,16 @@ int main(int argc, char* argv[])
         ss >> h;
         std::cout << "∆H = " << h << std::endl;
         h += stron::separatrix(LHC);
-        std::cout << "∆E = " << stron::levelCurve(LHC, stron::cnst::pi, h) << std::endl;
+        std::cout << "∆E = " << stron::levelCurve(LHC, cnst::pi, h) << std::endl;
     } else if (args[1] == "hamiltonian") {
         std::stringstream ss(args[2]);
         double e;
         ss >> e;
         std::cout << "∆E = " << e << std::endl;
-        std::cout << "∆H(π, ∆E) = " << (stron::hamiltonian(LHC, e, stron::cnst::pi) - stron::separatrix(LHC))  << std::endl;
+        std::cout << "∆H(π, ∆E) = " << (stron::hamiltonian(LHC, e, cnst::pi) - stron::separatrix(LHC))  << std::endl;
+    } else if (args[1] == "tbb") {
+        tbb::task_scheduler_init init;
+        std::cout << init.default_num_threads() << std::endl;
     } else {
         std::cout << "unrecognised action" << std::endl;
     }
