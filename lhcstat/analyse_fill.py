@@ -479,3 +479,45 @@ def comp_blm_ir3_vs_abort_gap(file):
 
     fig.suptitle("Correlation between abort gap intensity and BLM signal for TCP in IR3")
     plt.show()
+
+def corr_inj_OML(fills):
+    inj_t = {"b1" : [], "b2" : []}
+    oml = {"b1" : [], "b2" : []}
+    for i, nbr in enumerate(fills):
+        for b in (1, 2):
+            f = Fill(nbr, beam=b)
+
+            inj = next((item for item in f.meta['beamModes'] if item['mode'] == 'INJPHYS'), None)
+            preramp = next((item for item in f.meta['beamModes'] if item['mode'] == 'PRERAMP'), None)
+
+            if preramp is None or inj is None:
+                raise Exception("Invalid fill {}".format(nbr))
+
+            if b == 1 and f.blm_ir3().y.max() > 0.3 or b == 2 and f.blm_ir3().y.max() > 0.11:
+                continue
+
+
+            dt = preramp['endTime'] - inj['startTime']
+            inj_t['b{}'.format(b)].append(dt)
+            oml['b{}'.format(b)].append(f.blm_ir3().y.max())
+
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+    fig, ax = plt.subplots(nrows=2, ncols=1)
+
+    ax[0].scatter(inj_t['b1'], oml['b1'], label='beam 1')
+    k1, m1, r1, p1, err1 = stats.linregress(inj_t['b1'], oml['b1'])
+    ax[0].plot(ax[0].get_xlim(), [k1*x + m1 for x in ax[0].get_xlim()], label='fit b1, r={:.3f}'.format(r1))
+
+    ax[1].scatter(inj_t['b2'], oml['b2'], label='beam 2', c=colors[1])
+    k2, m2, r2, p2, err2 = stats.linregress(inj_t['b2'], oml['b2'])
+    ax[1].plot(ax[1].get_xlim(), [k2*x + m2 for x in ax[1].get_xlim()], label='fit b2, r={:.3f}'.format(r2), c=colors[1])
+
+    for a in ax:
+        a.legend(loc="upper right")
+        a.set_xlabel("t")
+        a.set_ylabel("OML peak")
+    print("Fit 1: {}*x + {}, r={}".format(k1, m1, r1))
+    print("Fit 2: {}*x + {}, r={}".format(k2, m2, r2))
+    plt.show()
+
