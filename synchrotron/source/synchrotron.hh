@@ -96,10 +96,8 @@ public:
     {
         std::cout << "** Collimator stats **" << std::endl;
         for (const auto& ch : mCollHits) {
-            //if (ch.collimat.type == Collimat::Type::TCP_IR3) {
-                ch.printStats();
-                ch.write(ch.collimat.filePath());
-            //}
+            ch.printStats();
+            ch.write(ch.collimat.filePath());
         }
         std::cout << "**" << std::endl;
     }
@@ -113,7 +111,6 @@ public:
         tbb::parallel_for(tbb::blocked_range<size_t>(0, mParticles->size()), op);
     }
     
-    //void simulateTurns(int n, std::string filePath = "", int saveFreq = 1)
     void simulateTurns(ProgramPtr program, std::string filePath = "", int saveFreq = 1)
     {
         MetaData meta;
