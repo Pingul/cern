@@ -142,6 +142,13 @@ class Fill:
 
 
     def fetch(self, forced=False, cache=True):
+        self.fetch_range("PRERAMP", "RAMP", forced, cache)
+
+    def fetch_range(self, start, stop, forced=False, cache=True):
+        l = ["INJPHYS", "PRERAMP", "RAMP", "FLATTOP", "SQUEEZE", "ADJUST", "STABLE", "BEAMDUMP", "RAMPDOWN"]
+        if not start in l or not stop in l:
+            raise Exception("fetch range [{} - {}] is not allowed".format(start, stop))
+
         to_fetch = self.timber_var_map.keys()
         cache_file = store_file_for_fill(self.nbr)
         if not forced and os.path.isfile(cache_file):
@@ -162,17 +169,17 @@ class Fill:
         self.meta = self.db.getLHCFillData(self.nbr)
         start_t = self.meta['startTime']
         end_t = self.meta['endTime']
-        preramp = next((item for item in self.meta['beamModes'] if item['mode'] == 'PRERAMP'), None)
-        ramp = next((item for item in self.meta['beamModes'] if item['mode'] == 'RAMP'), None)
-        if not ramp or not preramp:
+        start_mode = next((item for item in self.meta['beamModes'] if item['mode'] == start), None)
+        end_mode = next((item for item in self.meta['beamModes'] if item['mode'] == stop), None)
+        if not end_mode or not start_mode:
             self.status = Fill.STATUS.NORAMP
         else:
 
             # It's nice to have some context just before the ramp starts
             # Also, it's quite inexact
-            # start_t = ramp['startTime']
-            start_t = preramp['startTime']
-            end_t = ramp['endTime']
+            # start_t = end_mode['startTime']
+            start_t = start_mode['startTime']
+            end_t = end_mode['endTime']
         
         # The actual data fetching
         if non_aligned_var:
@@ -198,7 +205,6 @@ class Fill:
 
         if cache:
             self.cache()
-        
 
     def pack(self):
         return {
