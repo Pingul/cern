@@ -20,3 +20,5 @@ resources
 *.log
 *.mp4
 *.mov
+*.swp
+*.csv

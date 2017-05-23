@@ -42,44 +42,46 @@ ignore_collimators = [
         ]
 
 def plot_func(cfunc):
-    trim_vars = [ 
-        ["t",
-        "left_downstream",
-        "right_downstream",
-        "left_upstream",
-        "right_upstream",],
-        ["t",
-        "dump_inner_left_downstream",
-        "dump_inner_left_upstream",
-        "dump_inner_right_downstream",
-        "dump_inner_right_upstream",],
-        ["t",
-        "dump_outer_left_downstream",
-        "dump_outer_left_upstream",
-        "dump_outer_right_downstream",
-        "dump_outer_right_upstream",]]
 
-    for tv in trim_vars:
-        fig, ax = plt.subplots(nrows=2, ncols=1)
-        
-        d = cfunc.trim.get_series(names=("t", "left_downstream", "right_downstream", "left_upstream", "right_upstream"))
-        ax[0].plot(d[0], d[1], label='trim LD', linestyle='--', zorder=4)
-        ax[0].plot(d[0], d[2], label='trim RD', linestyle='--', zorder=4)
-        ax[1].plot(d[0], d[3], label='trim LU', linestyle='--', zorder=4)
-        ax[1].plot(d[0], d[4], label='trim RU', linestyle='--', zorder=4)
-        
-        df = cfunc.fill.get_series(names=("t", "MEAS_MOTOR_LD", "MEAS_MOTOR_RD", "MEAS_MOTOR_LU", "MEAS_MOTOR_RU"))
-        ax[0].plot(df[0], df[1], label='fill LD')
-        ax[0].plot(df[0], df[2], label='fill RD')
-        ax[1].plot(df[0], df[3], label='fill LU')
-        ax[1].plot(df[0], df[4], label='fill RU')
+    series = [
+        ["t",
+         "left_downstream",
+         "dump_inner_left_downstream",
+         "dump_outer_left_downstream"],
+        ["t",
+         "right_downstream",
+         "dump_inner_right_downstream",
+         "dump_outer_right_downstream"],
+        ["t",
+         "left_upstream",
+         "dump_inner_left_upstream",
+         "dump_outer_left_upstream"],
+        ["t",
+         "right_upstream",
+         "dump_inner_right_upstream",
+         "dump_outer_right_upstream"]]
+    labels = ["LD", "RD", "LU", "RU"]
+    
+    fig, axs = plt.subplots(nrows=2, ncols=2)
+    for tup in zip(series, labels, axs.flatten()):
+        tv = tup[0]
+        l = tup[1]
+        ax = tup[2]
 
-        for a in ax:
-            a.legend(loc="upper right")
-            a.set_xlabel("t [s]")
-            a.set_ylabel("Collimator pos. [mm]")
-        
-        fig.suptitle("Collimator function {}".format(cfunc.fill.cname))
+        d = cfunc.trim.get_series(names=tv)
+        ax.plot(d[0], d[1], label='trim motor {}'.format(l), linestyle='--', zorder=4)
+        ax.plot(d[0], d[2], label='trim int. in {}'.format(l), linestyle='--', zorder=4)
+        ax.plot(d[0], d[3], label='trim int. out {}'.format(l), linestyle='--', zorder=4)
+
+        df = cfunc.fill.get_series(names=cf.CollTrimVMap.fillVarsForTrim(tv))
+        ax.plot(df[0], df[1], label='coll motor {}'.format(l))
+        ax.plot(df[0], df[2], label='coll int. in {}'.format(l))
+        ax.plot(df[0], df[3], label='coll int. out {}'.format(l))
+
+        ax.legend(loc="upper right")
+        ax.set_xlabel("t [s]")
+        ax.set_ylabel("Pos. [mm]")
+        ax.set_title("Collimator {} function {}".format(cfunc.fill.cname, l))
     plt.show()
 
 def compare_funcs(funcs, threshold=0.1):
@@ -149,8 +151,8 @@ if __name__ == "__main__":
 
         funcs = cf.get_cfunctions(coll_trim_file, fill_nbr, ignore_collimators)
         print("\ninterpolate trims to match fills...", end=" ")
-        for f in funcs:
-            f.trim.recalculate_time(f.fill)
+        # for f in funcs:
+            # f.trim.recalculate_time(f.fill)
         print("done")
 
         if action == "stats":
@@ -158,7 +160,12 @@ if __name__ == "__main__":
         elif action == "hist":
             variable = sys.argv[2]
             plot_compare_hist(funcs, variable)
-        elif action == "plot-fill":
-            plot_func(funcs[-1])
+        elif action == "plot":
+            name = sys.argv[2]
+            for f in funcs:
+                if f.trim.cname == name:
+                    plot_func(f)
+            else:
+                print("could not find collimator")
         else: 
             print("unrecognised action")
