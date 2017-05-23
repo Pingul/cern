@@ -145,7 +145,7 @@ class Fill:
         self.fetch_range("PRERAMP", "RAMP", forced, cache)
 
     def fetch_range(self, start, stop, forced=False, cache=True):
-        l = ["INJPHYS", "PRERAMP", "RAMP", "FLATTOP", "SQUEEZE", "ADJUST", "STABLE", "BEAMDUMP", "RAMPDOWN"]
+        l = ["INJPROT", "INJPHYS", "PRERAMP", "RAMP", "FLATTOP", "SQUEEZE", "ADJUST", "STABLE", "BEAMDUMP", "RAMPDOWN"]
         if not start in l or not stop in l:
             raise Exception("fetch range [{} - {}] is not allowed".format(start, stop))
 
@@ -465,18 +465,16 @@ def plot_2_blm(f1, f2):
 def plot_motor(fill):
     lg.log("plotting motors")
     fig, motor_ax = plt.subplots()
-    e_ax = motor_ax.twinx()
+    lax = motor_ax.twinx()
 
     motor_ax.plot(fill.motor_ir3().x, fill.motor_ir3().y[0], color='r')
     motor_ax.plot(fill.motor_ir3().x, fill.motor_ir3().y[1], color='r')
-    # print(fill.motor_start().x[0:10])
-    # print(fill.motor_start().y[0:10])
-    # print(fill.motor_ir3().x[0:10])
-    motor_ax.set_ylabel("Motor (mm σ)")
+    motor_ax.set_ylabel("Motor (mm)")
     motor_ax.set_xlabel("Time (s)")
 
-    e_ax.plot(*fill.energy())
-    e_ax.set_ylabel("Energy (MeV)")
+    lax.plot(*fill.blm_ir3())
+    lax.set_ylabel("BLM")
+    lax.set_yscale("log")
 
     plt.title("Motor plot: fill {}".format(fill.nbr))
     plt.show()
