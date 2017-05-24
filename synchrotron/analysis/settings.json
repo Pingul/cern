@@ -1,10 +1,10 @@
 {
-    "BATCH_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/action_values/v6",
+    "BATCH_DIR": "/Users/swretbor/Workspace/work_afs/2dsynch/action_values/v15",
     "BATCH_JOB_PRESTRING": "job",
-    "BLM_INT": 11245,
+    "BLM_INT": 14618,
     "CACHE_BATCH": true,
     "CACHE_BATCH_FILE": "batch_cache.dat",
-    "COLL_FILE": "TCP_IR3.dat",
+    "COLL_FILE": "TCP_IR3.ch",
     "_COLL_FILE": "coll.dat",
     "DATA_DIR": "/Users/swretbor/Workspace/collimation/proj/synchrotron/calc",
     "ENDDIST_FILE": "enddist.dat",

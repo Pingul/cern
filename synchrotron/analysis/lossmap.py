@@ -111,7 +111,7 @@ class CHitMap:
         return self.ids.size
 
 def plot(hitmaps, labels=[], save_to=''):
-    if not type(hitmaps) is type(list): 
+    if not isinstance(hitmaps, list):
         hitmaps = [hitmaps]
 
     colors = 'r'
