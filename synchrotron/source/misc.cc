@@ -40,8 +40,9 @@ int main(int argc, char* argv[])
         std::cout << "∆E = " << e << std::endl;
         std::cout << "∆H(π, ∆E) = " << (stron::hamiltonian(LHC, e, cnst::pi) - stron::separatrix(LHC))  << std::endl;
     } else if (args[1] == "tbb") {
+        // This is most likely unreliable
         tbb::task_scheduler_init init;
-        std::cout << init.default_num_threads() << std::endl;
+        std::cout << "Threads: " << init.default_num_threads() << std::endl;
     } else {
         std::cout << "unrecognised action" << std::endl;
     }

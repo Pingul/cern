@@ -56,9 +56,9 @@ int main(int argc, char* argv[])
         std::cout << "Not enough arguments specified" << std::endl;
     
     } else if (args[1] == "lossmap" || args[1] == "startdist" || args[1] == "export") {
-        // We often work with these two together, so we make sure we have the same
+        // We often work with these together, so we make sure we have the same
         // particle distribution for both
-        auto p = partGen.create(5000, particles::CInside_LD, particles::Zero);
+        auto p = partGen.create(2000, particles::AroundSeparatrix, particles::DoubleGaussian);
         ss.addParticles(p);
         if (args[1] == "lossmap")
             ss.simulateTurns(progGen.create(20*11245, progType), path::PATH_FILE, 11245);
