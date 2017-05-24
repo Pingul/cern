@@ -30,12 +30,16 @@ struct ParticleCollection
     std::vector<T> px; // 
 
     struct HCoord { T x, px; }; // Horizontal coordinate
-    HCoord xBeta(int i, T alpha, T beta, T mu_b, T mu_g) {
+    HCoord xBeta(int i, T alpha, T beta, T mu_b, T mu_g) const {
         // p. 165 in Wiedemann             | relativistic beta and gamma
-        T sb = std::sqrt(beta*cnst::emittance/(mu_b*mu_g));
+        //const T eg = cnst::emittance/(mu_b*mu_g);
+        //const T gt = (1 + alpha*alpha)/beta;
+        //const T sigmap = std::sqrt(gt*eg/beta);
+        const T sb = std::sqrt(beta*cnst::emittance/(mu_b*mu_g));
         HCoord xc{
             x[i]*sb,
-            px[i]/sb - x[i]*alpha/sb
+            px[i]/sb - x[i]*alpha/sb, // WARNING: This is probably not correct
+            //-alpha*sigmap*x[i] + sigmap*px[i],
         };
         return xc;
     }
@@ -62,13 +66,17 @@ void sixtrackExport(const stron::Accelerator<T>& acc, const ParticleCollection<T
         auto prop = acc.calcParticleProp(p.momentum[i]);
         const T z = (cnst::pi - p.phase[i])*acc.C/(2*cnst::pi*acc.h_rf*prop.b);
         const T e = (p.momentum[i] + acc.E())*1e-6;
-        const T x = 0;
-        const T px = 0;
+        //const auto xc = p.xBeta(i, -0.011, 10.987300, prop.b, prop.g); // at ip1. NOTE: No dispersion
+        //const T x = xc.x;
+        //const T px = xc.px;
+        // currently hard coded for ip1 -- still not entirely sure about the px distribution
+        const T x = p.x[i]*std::sqrt(cnst::emittance/479.0*11);
+        const T px = p.px[i]*std::sqrt(cnst::emittance/479.0/11);
         const T y = 0;
         const T py = 0;
-        f << std::setw(2) << std::setprecision(16) << x << "," << std::setw(2) << std::setprecision(16) << px << "," // x, px
-          << std::setw(2) << std::setprecision(16) << y << "," << std::setw(2) << std::setprecision(16) << py << "," // y, py
-          << std::setw(2) << std::setprecision(16) << z << "," << std::setw(2) << std::setprecision(16) << e << std::endl;
+        f << std::fixed << std::setprecision(10) << x << " " << std::fixed << std::setprecision(10) << px << " " // x  px
+          << std::fixed << std::setprecision(10) << y << " " << std::fixed << std::setprecision(10) << py << " " // y  py
+          << std::fixed << std::setprecision(10) << z << " " << std::fixed << std::setprecision(10) << e << std::endl;
     }
     std::cout << "Exported data to '" << file << "'" << std::endl;
 }
@@ -87,7 +95,9 @@ static const char* LONGITUDINAL_DIST_NAMES[] = {
     "Cont. inside, constant",
     "Cont. combined: non-uniform exponential outside, linear inside",
     "AV outside, uniform H",
-    "AV outside, unfform E",
+    "AV outside, uniform E",
+    "OutsideColl",
+    "Zero",
 };
 enum LongitudinalDist
 {
@@ -104,6 +114,8 @@ enum LongitudinalDist
     CCombined,
     AVOutside_H,
     AVOutside_E,
+    OutsideColl,
+    LZero,
 };
 std::ostream& operator<<(std::ostream& os, LongitudinalDist e)
 {
@@ -169,9 +181,11 @@ struct ParticleGenerator
                     return std::exp(a*std::pow(x, b) + c);
                 };
 
-                auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
+                //auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
+                auto a_pdf = [&](T x) { return pdf(x, -20.984, 1.000, 0.320); };
+                //auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
                 auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
-                const T a_ratio = 0.49;
+                const T a_ratio = 0.40;
                 
                 Sampled_distribution<T> a_dist(a_pdf, 0, 1, Sampled_distribution<T>::PDF);
                 Sampled_distribution<T> b_dist(b_pdf, 0, 1, Sampled_distribution<T>::PDF);
@@ -220,14 +234,16 @@ struct ParticleGenerator
                     return std::exp(a*std::pow(x, b) + c);
                 };
 
-                const T a_ratio = 0.49;
-                auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
-                auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
+                //auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
+                auto a_pdf = [&](T x) { return pdf(x, -20.984, 1.000, 0.320); };
+                //auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
+                auto b_pdf = [&](T x) { return pdf(x, -13.032, 0.703, 0.488); };
+                const T a_ratio = 0.40;
                 
                 Sampled_distribution<T> oa_dist(a_pdf, 0, 1, Sampled_distribution<T>::PDF);
                 Sampled_distribution<T> ob_dist(b_pdf, 0, 1, Sampled_distribution<T>::PDF);
 
-                const T i_ratio = 0.35;
+                const T i_ratio = 0.20;
                 std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
                 std::vector<T> d{-7000, 0};
                 std::piecewise_linear_distribution<> i_dist(d.begin(), d.end(), q.begin());
@@ -248,7 +264,6 @@ struct ParticleGenerator
                     } else {
                         // outside
                         sign = dist(mGenerator) < a_ratio ? 1 : -1;
-                        if (sign > 0) { --i; continue; }
                         action = max*(sign > 0 ? oa_dist(mGenerator) : ob_dist(mGenerator));
                         ++pout;
                     }   
@@ -258,11 +273,20 @@ struct ParticleGenerator
                     p->momentum[i] = energy;
                     p->phase[i] = phase;
                 }
-                std::cout << "inside: " << pin << ", " << T(pin)/(pin+pout) << std::endl;
-                std::cout << "outside: " << pout << ", " << T(pout)/(pin+pout) << std::endl;
+                std::cout << "Particles" << std::endl;
+                std::cout << "\tinside: " << pin << ", " << T(pin)/(pin+pout) << std::endl;
+                std::cout << "\toutside: " << pout << ", " << T(pout)/(pin+pout) << std::endl;
             } break;
             case AVOutside_H: AVInRange(*p, 0, 1.75e7, 100, /*uniform_in_H*/true); break;
             case AVOutside_E: AVInRange(*p, 0, 3.20e7, 35, /*uniform_in_H*/false); break;
+            case OutsideColl: AVInRange(*p, 3.3e7, 4.0e7, 20, false); break;
+            case LZero: {
+                for (size_t i = 0; i < p->size(); ++i) {
+                    p->momentum[i] = 0;
+                    p->phase[i] =0;
+                }
+                break;
+            }
             default:
                 throw DistributionNotFound("longitudinal");
         }
@@ -277,10 +301,21 @@ struct ParticleGenerator
             }
             case DoubleGaussian:
             {
-                std::normal_distribution<> d(0, 1);
+                // Orthogonal
+                //std::normal_distribution<> d(0, 1);
+                //for (size_t i = 0; i < p->size(); ++i) {
+                    //p->x[i] = d(mGenerator);
+                    //p->px[i] = d(mGenerator);
+                //}
+
+                // Bi-gaussian
+                std::normal_distribution<> rd(0, 1);
+                std::uniform_real_distribution<> phid(0, 2*cnst::pi);
                 for (size_t i = 0; i < p->size(); ++i) {
-                    p->x[i] = d(mGenerator);
-                    p->px[i] = d(mGenerator);
+                    const T r = rd(mGenerator);
+                    const T phi = phid(mGenerator);
+                    p->x[i] = r*std::cos(phi);
+                    p->px[i] = r*std::sin(phi);
                 }
                 break;
             }
