@@ -10,7 +10,7 @@ def color_wrap(string, color):
 def red(string):
     return color_wrap(string, "1;31;40")
 
-fill_nbr = 5668
+fill_nbr = 5699
 coll_trim_file = "motor_functions_ramp_B12_2017_CRS_2017_5_19_16_11_16.755108.csv"
 ignore_collimators = [
         "TCL.5R1.B1",
@@ -63,11 +63,7 @@ def plot_func(cfunc):
     labels = ["LD", "RD", "LU", "RU"]
     
     fig, axs = plt.subplots(nrows=2, ncols=2)
-    for tup in zip(series, labels, axs.flatten()):
-        tv = tup[0]
-        l = tup[1]
-        ax = tup[2]
-
+    for tv, l, ax in zip(series, labels, axs.flatten()):
         d = cfunc.trim.get_series(names=tv)
         ax.plot(d[0], d[1], label='trim motor {}'.format(l), linestyle='--', zorder=4)
         ax.plot(d[0], d[2], label='trim int. in {}'.format(l), linestyle='--', zorder=4)
@@ -82,6 +78,32 @@ def plot_func(cfunc):
         ax.set_xlabel("t [s]")
         ax.set_ylabel("Pos. [mm]")
         ax.set_title("Collimator {} function {}".format(cfunc.fill.cname, l))
+
+    # different plot for gaps
+    fig2, ax = plt.subplots()
+    tv = ["t", 
+          "dump_inner_gap_upstream",
+          "dump_inner_gap_downstream",
+          "dump_outer_gap_upstream",
+          "dump_outer_gap_downstream"]
+    d = cfunc.trim.get_series(names=tv)
+    df = cfunc.fill.get_series(names=cf.CollTrimVMap.fillVarsForTrim(tv))
+
+    ax.plot(d[0], d[1], label='trim in GU'.format(l), linestyle='--', zorder=4)
+    ax.plot(d[0], d[2], label='trim in GD'.format(l), linestyle='--', zorder=4)
+    ax.plot(d[0], d[3], label='trim out GU'.format(l), linestyle='--', zorder=4)
+    ax.plot(d[0], d[3], label='trim out GD'.format(l), linestyle='--', zorder=4)
+
+    ax.plot(df[0], df[1], label='coll in GU'.format(l))
+    ax.plot(df[0], df[2], label='coll in GD'.format(l))
+    ax.plot(df[0], df[3], label='coll out GU'.format(l))
+    ax.plot(df[0], df[3], label='coll out GD'.format(l))
+
+    ax.legend(loc="upper right")
+    ax.set_xlabel("t [s]")
+    ax.set_ylabel("Pos. [mm]")
+    ax.set_title("Interlock gap for coll. {}".format(cfunc.fill.cname))
+
     plt.show()
 
 def compare_funcs(funcs, threshold=0.1):
@@ -139,7 +161,7 @@ def plot_compare_hist(funcs, trim_var):
     ax.hist(delta_cg, edgecolor='white', bins=bins)
     ax.set_xlabel("∆x [mm]")
     ax.set_ylabel("#")
-    plt.title("Compare collgaps for '{}'".format(trim_var))
+    plt.title("Histogram for variable '{}'".format(trim_var))
     plt.show()
 
 
@@ -151,8 +173,8 @@ if __name__ == "__main__":
 
         funcs = cf.get_cfunctions(coll_trim_file, fill_nbr, ignore_collimators)
         print("\ninterpolate trims to match fills...", end=" ")
-        # for f in funcs:
-            # f.trim.recalculate_time(f.fill)
+        for f in funcs:
+            f.trim.recalculate_time(f.fill)
         print("done")
 
         if action == "stats":
@@ -165,6 +187,7 @@ if __name__ == "__main__":
             for f in funcs:
                 if f.trim.cname == name:
                     plot_func(f)
+                    break
             else:
                 print("could not find collimator")
         else: 

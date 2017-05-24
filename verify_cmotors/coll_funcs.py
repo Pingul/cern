@@ -13,14 +13,18 @@ class CollTrimVMap:
         "MEAS_MOTOR_RD",
         "MEAS_MOTOR_LU",
         "MEAS_MOTOR_RU",
-        "DUMP_IN_LD",
-        "DUMP_IN_LU",
-        "DUMP_IN_RD",
-        "DUMP_IN_RU",
-        "DUMP_OUT_LD",
-        "DUMP_OUT_LU",
-        "DUMP_OUT_RD",
-        "DUMP_OUT_RU",
+        "MEAS_LIMIT_DUMP_INNER_LD",
+        "MEAS_LIMIT_DUMP_INNER_LU",
+        "MEAS_LIMIT_DUMP_INNER_RD",
+        "MEAS_LIMIT_DUMP_INNER_RU",
+        "MEAS_LIMIT_DUMP_OUTER_LD",
+        "MEAS_LIMIT_DUMP_OUTER_LU",
+        "MEAS_LIMIT_DUMP_OUTER_RD",
+        "MEAS_LIMIT_DUMP_OUTER_RU",
+        "MEAS_LIMIT_DUMP_INNER_GU",
+        "MEAS_LIMIT_DUMP_INNER_GD",
+        "MEAS_LIMIT_DUMP_OUTER_GU",
+        "MEAS_LIMIT_DUMP_OUTER_GD",
         ])
 
     trimVars = np.array([
@@ -37,6 +41,10 @@ class CollTrimVMap:
         "dump_outer_left_upstream",
         "dump_outer_right_downstream",
         "dump_outer_right_upstream",
+        "dump_inner_gap_upstream",
+        "dump_inner_gap_downstream",
+        "dump_outer_gap_upstream",
+        "dump_outer_gap_downstream",
         ])
 
     @classmethod
@@ -139,11 +147,12 @@ class CollFillFunction(CollFunction):
         
         # Collimator motor data
         variables = ["{}:{}".format(self.cname, v) for v in CollTrimVMap.fillVars[CollTrimVMap.fillVars != "t"]]
-        print(variables)
         variables.append("{}:MEAS_PROFILE_TIME".format(self.cname))
+        print(variables)
         response = self.db.getAligned(variables, start, end)
         dmap = []
         data = []
+        print(response.keys())
         for key in response:
             if "PROFILE" in key: 
                 i_align = np.argmin(response[key])
@@ -185,7 +194,7 @@ def cfunc_from_trimfile(filepath):
         f.readline()
         data = np.loadtxt(f, delimiter=',')
 
-        m = np.array([not "warning" in h and not "gap" in h for h in header], dtype=bool)
+        m = np.array([not "warning" in h for h in header], dtype=bool)
         header = header[m]
         data = data[:, m]
     
