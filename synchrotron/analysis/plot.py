@@ -111,39 +111,6 @@ def plot_e_dist_histogram(ps):
     ax.set_ylabel("#")
     plt.show()
 
-def plot_impact_parameter(lossmap):
-    fig, ax = plt.subplots()
-    
-
-def plot_hamiltonian_lost_dist(ps, lm, time=16.5):
-    """ ps : PhaseSpace
-            Should be the start distribution. 
-        lm : lossmap
-    """
-    pbin = ps.categorize_particles(lm, time)
-    fig, ax = plt.subplots()
-    data = {}
-    for key in sorted(pbin): # sorted to make sure we get the same colors all the time
-        data[key] = {}
-        for pid in pbin[key]:
-            h = round(ps.h[pid] - H_SEPARATRIX)
-            if h in data[key]: data[key][h] += 1
-            else: data[key][h] = 1
-        
-        if key == 'lost':
-            label = "lost after {} s".format(time)
-        elif key == 'discarded':
-            label = "lost before {} s".format(time)
-        else:
-            label = key
-        ax.scatter(list(data[key].keys()), list(data[key].values()), label=label)
-    ax.legend(loc='upper left')
-    ax.set_ylabel("Particles")
-    ax.set_xlabel("∆H")
-    plt.title("Hamiltonian lost distribution")
-    plt.show()
-
-
 phasespace_dir = "/Users/swretbor/Workspace/work_afs/2dsynch/phasespace/phasespace"
 def phasespace_frame(num, ps):
     filename = "{}/{}lines.dat".format(phasespace_dir, num)
@@ -241,11 +208,6 @@ if __name__ == "__main__":
         lg.log("plot hamiltonian")
         ps = PhaseSpace(settings.PARTICLE_PATH)
         plot_hamiltonian_evolution(ps)
-    elif ACTION == "ham-lostdist":
-        lg.log("ploting hamiltonian lost distribution")
-        ps = PhaseSpace(settings.STARTDIST_PATH)
-        lm = get_lossmap(settings.COLL_PATH)
-        plot_hamiltonian_lost_dist(ps, lm, 16.5)
     elif ACTION == "ham-dist":
         lg.log("plot action distribution")
         input_file = settings.STARTDIST_PATH
