@@ -7,11 +7,20 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Rectangle
 
 import numpy as np
+import math
 
-from settings import *
+from settings import settings
 from math import pi
 from logger import ModuleLogger, LogLevel
 lg = ModuleLogger("phasespace")
+
+def z_to_phi(z, tot_energy):
+    """ tot_energy in MeV """
+    C = 26658.8832
+    h = 35640.0
+    b = np.sqrt(1.0 - (938.2796/tot_energy)**2)
+    phi = - (2*math.pi*h*b)*z/C
+    return phi # convert to mm
 
 
 class PhaseSpace:
@@ -52,6 +61,34 @@ class PhaseSpace:
             # setattr(ps_merge, attr, np.hstack((a1, a2)).reshape(ps_merge.nbr_p*ps_merge.nbr_turns))
 
         return ps_merge
+
+    # Reading in from different file formats
+    @classmethod
+    def from_dist0(clss, filepath):
+        z, e_tot = np.loadtxt(filepath, usecols=(4, 5), unpack=True)
+        count = e_tot.size
+
+        ps = clss(None)
+        ps.denergy = e_tot*1e6 - 450e9
+
+        ps.phase = z_to_phi(z, e_tot)
+        ps.x = np.zeros(count)
+        ps.px = np.zeros(count)
+        ps.h = np.zeros(count)
+        return ps
+    
+    @classmethod
+    def from_six_dump(clss, filepath):
+        x, px, z, de = np.loadtxt(filepath, usecols=(3, 4, 7, 8), skiprows=2, unpack=True)
+
+        ps = clss(None)
+        ps.denergy = de*450e9 
+        ps.phase = z_to_phi(z*1e-3, 450e9)
+        ps.x = x*1e-3
+        ps.px = px*1e-3
+        ps.h = np.zeros(ps.x.size)
+        return ps
+    ## ----
 
     def __init__(self, pfile, mute=False):
         self.nbr_p = 0
@@ -194,7 +231,7 @@ class PhaseSpace:
             if len(pbin['discarded']) > 0: self.ax.scatter(self.phase[pbin['discarded']], self.denergy[pbin['discarded']], color='gray', s=2, zorder=5, label='Discarded')
             self.ax.legend(loc='lower left')
         else:
-            self.ax.scatter(self.phase, self.denergy, s=4)
+            self.ax.scatter(self.phase, self.denergy, s=2, zorder=8)
         plt.show()
         
 
@@ -243,3 +280,23 @@ class PhaseSpace:
             lg.log("finished saving to '{}'".format(save_to))
         else:
             plt.show()
+
+
+
+def plot_x(ps, hitmap=None):
+    fig, ax = plt.subplots()
+    if not hitmap is None:
+        pbin = ps.categorize_particles(hitmap.old_lossmap())
+        if len(pbin['alive']) > 0: ax.scatter(ps.x[pbin['alive']], ps.px[pbin['alive']]);
+        if len(pbin['lost']) > 0: ax.scatter(ps.x[pbin['lost']], ps.px[pbin['lost']], color='r');
+    else:
+        ax.scatter(ps.x, ps.px)
+    ax.set_xlabel("x")
+    ax.set_ylabel("x'")
+    ax.set_axisbelow(True)
+    ax.yaxis.grid(color='gray')
+    ax.xaxis.grid(color='gray')
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.3f}".format(x)))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.3f}".format(x)))
+    plt.title("Motion for geometric coordinates at IR3 TCP")
+    plt.show()
