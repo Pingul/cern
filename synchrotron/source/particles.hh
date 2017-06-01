@@ -64,21 +64,81 @@ void sixtrackExport(const stron::Accelerator<T>& acc, const ParticleCollection<T
     std::ofstream f(file.c_str());
     for (size_t i = 0; i < p.size(); ++i) {
         auto prop = acc.calcParticleProp(p.momentum[i]);
-        const T z = (cnst::pi - p.phase[i])*acc.C/(2*cnst::pi*acc.h_rf*prop.b);
+        const T z = (- p.phase[i])*acc.C/(2*cnst::pi*acc.h_rf*prop.b)*1e3;
         const T e = (p.momentum[i] + acc.E())*1e-6;
-        //const auto xc = p.xBeta(i, -0.011, 10.987300, prop.b, prop.g); // at ip1. NOTE: No dispersion
-        //const T x = xc.x;
-        //const T px = xc.px;
-        // currently hard coded for ip1 -- still not entirely sure about the px distribution
-        const T x = p.x[i]*std::sqrt(cnst::emittance/479.0*11);
-        const T px = p.px[i]*std::sqrt(cnst::emittance/479.0/11);
+        
+        // hard coded for ip1
+        const T x = p.x[i]*std::sqrt(cnst::emittance/prop.g*11);
+        const T px = p.px[i]*std::sqrt(cnst::emittance/prop.g/11);
         const T y = 0;
         const T py = 0;
-        f << std::fixed << std::setprecision(10) << x << " " << std::fixed << std::setprecision(10) << px << " " // x  px
-          << std::fixed << std::setprecision(10) << y << " " << std::fixed << std::setprecision(10) << py << " " // y  py
-          << std::fixed << std::setprecision(10) << z << " " << std::fixed << std::setprecision(10) << e << std::endl;
+        f << std::fixed << std::setprecision(16) << x << " " << std::fixed << std::setprecision(16) << px << " " // x  px
+          << std::fixed << std::setprecision(16) << y << " " << std::fixed << std::setprecision(16) << py << " " // y  py
+          << std::fixed << std::setprecision(16) << z << " " << std::fixed << std::setprecision(16) << e << std::endl;
     }
     std::cout << "Exported data to '" << file << "'" << std::endl;
+}
+
+template <typename T>
+void sixtrackExport_nonCollimat(const stron::Accelerator<T>& acc, const ParticleCollection<T>& p, const std::string& file)
+{
+    std::ofstream f(file.c_str());
+    for (size_t i = 0; i < p.size(); i += 2) {
+        for (size_t j = i; j < i + 2; ++j) {
+            // closed orbit correction from SixTrack twiss function
+            const T xcorr = -1.999999996185254147462700000000000;
+            const T pxcorr = 0.000000000150460499225583966566850;
+            const T ycorr = -0.000000006411949440904753153327300;
+            const T pycorr = -0.169999999800309692377100000000000;
+
+            auto prop = acc.calcParticleProp(p.momentum[j]);
+            const T z = (- p.phase[j])*acc.C/(2*cnst::pi*acc.h_rf*prop.b)*1e3;
+            const T dp = (p.momentum[j] - acc.E())/acc.E();
+
+            // currently hard coded for ip1 
+            const T x = p.x[j]*std::sqrt(cnst::emittance/prop.g*11)*1e3 + xcorr;
+            const T px = p.px[j]*std::sqrt(cnst::emittance/prop.g/11)*1e3 + pxcorr;
+            f << std::fixed << std::setprecision(16) << x << std::endl
+              << std::fixed << std::setprecision(16) << px << std::endl
+              << std::fixed << std::setprecision(16) << ycorr << std::endl // y
+              << std::fixed << std::setprecision(16) << pycorr << std::endl // py
+              << std::fixed << std::setprecision(16) << z << std::endl // path length
+              << std::fixed << std::setprecision(16) << dp << std::endl;
+        }
+        f << std::fixed << std::setprecision(16) << acc.E()*1e-6 << std::endl;
+        for (size_t j = i; j < i + 2; ++j) {
+            f << std::fixed << std::setprecision(16) << (p.momentum[j] + acc.E())*1e-6 << std::endl;
+        }
+    }
+    std::cout << "Exported data to '" << file << "'" << std::endl;
+}
+
+template <typename T>
+typename ParticleCollection<T>::Ptr sixtrackInport(const stron::Accelerator<T>& acc, const std::string& file) 
+{
+    // count lines first
+    std::string line;
+    std::ifstream f(file.c_str());
+    int count = 0;
+    while (std::getline(f, line)) ++count;
+    std::cout << "Lines: " << count << std::endl;
+
+    f.clear();
+    f.seekg(0, std::ios::beg);
+
+    auto p = ParticleCollection<T>::create(count);
+    for (int i = 0; i < count; ++i) {
+        T x, px, y, py, z, p_tot;
+        f >> x >> px >> y >> py >> z >> p_tot;
+        p->momentum[i] = p_tot*1e6 - acc.E();
+        auto prop = acc.calcParticleProp(p->momentum[i]);
+        p->phase[i] = cnst::pi - z*(2*cnst::pi*acc.h_rf*prop.b)/acc.C;
+        p->x[i] = 0; 
+        p->px[i] = 0;
+        //p->x[i] = x/std::sqrt(cnst::emittance/479.0*11);
+        //p->px[i] = x/std::sqrt(cnst::emittance/479.0/11);
+    }
+    return p;
 }
 
 
@@ -283,7 +343,7 @@ struct ParticleGenerator
             case LZero: {
                 for (size_t i = 0; i < p->size(); ++i) {
                     p->momentum[i] = 0;
-                    p->phase[i] =0;
+                    p->phase[i] = cnst::pi;
                 }
                 break;
             }
