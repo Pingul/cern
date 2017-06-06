@@ -88,6 +88,39 @@ class PhaseSpace:
         ps.px = px*1e-3
         ps.h = np.zeros(ps.x.size)
         return ps
+
+    @classmethod
+    def from_fort13(clss, filepath):
+        x = []
+        px = []
+        e = []
+        z = []
+        with open(filepath, 'r') as f:
+            try:
+                # Reads blocks until it fails
+                while True:
+                    for i in range(2):
+                        x.append(float(f.readline().strip()))
+                        px.append(float(f.readline().strip()))
+                        f.readline()
+                        f.readline()
+                        z.append(float(f.readline().strip()))
+                        f.readline()
+                    e_ref = float(f.readline().strip())
+                    for i in range(2):
+                        e.append((float(f.readline().strip()) - e_ref)*1e6)
+            except ValueError:
+                # This should mean that we've reached end of the file
+                pass 
+                # lg.log("found {} particles from non collimation input".format(len(x)))
+
+        ps = clss(None)
+        ps.denergy = np.array(e)
+        ps.phase = z_to_phi(np.array(z)*1e-3, 450e9)
+        ps.x = np.array(x)*1e-3
+        ps.px = np.array(px)*1e-3
+        ps.h = np.zeros(ps.x.size)
+        return ps
     ## ----
 
     def __init__(self, pfile, mute=False):

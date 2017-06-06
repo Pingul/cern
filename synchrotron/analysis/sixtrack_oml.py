@@ -1,9 +1,12 @@
 import sys, os
 import lossmap as lm
 import phasespace as ps
+import lhccomp
 import plot as psplot
 import numpy as np
 import pickle
+import warnings
+import analyse_fill as af
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
@@ -22,7 +25,7 @@ class Batch:
         self.hits = []
         self.hitmap = None
 
-        if path and False:
+        if path:
             cache_path = "{}/{}".format(path, settings.CACHE_BATCH_FILE)
             if not forced and os.path.exists(cache_path):
                 lg.log("trying to read from cache")
@@ -62,7 +65,7 @@ class Batch:
 
     def aggregate(self):
         n = 1
-        required_files = ["FirstImpacts.dat", "dist0.dat"]
+        required_files = ["chits.txt", "DUMP.txt", "fort.13"]
         lg.log("aggregating batch from '{}'".format(self.path))
         print("{}/{}{:04d}".format(self.path, "run", n))
         while os.path.isdir("{}/{}{:04d}".format(self.path, "run", n)):
@@ -76,8 +79,9 @@ class Batch:
             else:
                 # pid_offset = self.phasespace.nbr_p if self.phasespace else 0
                 pid_offset = self.hitmap.ids.size if self.hitmap else 0
-                phasespace = ps.PhaseSpace.from_dist0("{}/{}".format(job_path, "dist0.dat"))
-                hm = hits_from_FirstImpact("{}/{}".format(job_path, "FirstImpacts.dat"), pid_offset)
+                phasespace = ps.PhaseSpace.from_fort13("{}/{}".format(job_path, "fort.13"))
+                # hm = hits_from_FirstImpact("{}/{}".format(job_path, "FirstImpacts.dat"), pid_offset)
+                hm = hits_from_chits("{}/{}".format(job_path, "chits.txt"), pid_offset)
                 # hm = lm.CHitMap("{}/{}".format(job_path, settings.COLL_FILE), pid_offset=pid_offset, store_ip=False)
                 if self.phasespace is None:
                     self.phasespace = phasespace
@@ -98,12 +102,26 @@ def hits_from_FirstImpact(filepath, offset):
     m = colls == 9 # TCP IR3
     return lm.CHitMap.from_hits(list(zip(turns[m], ids[m])), pid_offset=offset)
 
+def hits_from_chits(filepath, offset):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        # will generate warnings if no hits
+        turns = np.loadtxt(filepath, dtype=int, skiprows=1, usecols=(1,), unpack=True).reshape(-1) # In case of only 1 hit, this becomes a 0-d scalar and not a proper array https://stackoverflow.com/questions/773030/why-are-0d-arrays-in-numpy-not-considered-scalar. Reshaping solves the issue.
+        coll = np.loadtxt(filepath, dtype=np.object, skiprows=1, usecols=(0,), unpack=True).reshape(-1)
+
+    # creating an ID array here. Current output does not contain ID data,
+    # so this is gibberish for now
+    ids = np.arange(0, turns.size).astype(int)
+    return lm.CHitMap.from_hits(list(zip(turns, ids)), pid_offset=offset)
+
 if __name__ == "__main__":
     action = sys.argv[1]
     if action == "batch":
         d = sys.argv[2]
         b = Batch(d)
-        lm.plot(b.hitmap)
+        fill = af.aggregate_fill(1, from_cache=True)
+        comp = lhccomp.LHCComparison(fill, b.phasespace, b.hitmap)
+        lhccomp.plot_comp(fill, (comp.t(), comp.BLM()), block=False)
         b.phasespace.plot_particles()
     elif action == "dump":
         phasespace = ps.PhaseSpace.from_six_dump(sys.argv[2])
