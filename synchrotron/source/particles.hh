@@ -26,20 +26,17 @@ struct ParticleCollection
 
     std::vector<T> momentum; // [eV]
     std::vector<T> phase; // [rad]
-    std::vector<T> x; // [m]
-    std::vector<T> px; // 
+    std::vector<T> x; // [m], normalised
+    std::vector<T> px; // [m], normalised
 
     struct HCoord { T x, px; }; // Horizontal coordinate
     HCoord xBeta(int i, T alpha, T beta, T mu_b, T mu_g) const {
         // p. 165 in Wiedemann             | relativistic beta and gamma
-        //const T eg = cnst::emittance/(mu_b*mu_g);
-        //const T gt = (1 + alpha*alpha)/beta;
-        //const T sigmap = std::sqrt(gt*eg/beta);
-        const T sb = std::sqrt(beta*cnst::emittance/(mu_b*mu_g));
+        const T k = std::sqrt(cnst::emittance/(mu_b*mu_g));
+        const T sb = std::sqrt(beta);
         HCoord xc{
-            x[i]*sb,
-            px[i]/sb - x[i]*alpha/sb, // WARNING: This is probably not correct
-            //-alpha*sigmap*x[i] + sigmap*px[i],
+            k*sb*x[i],
+            k/sb*(px[i] - x[i]*alpha),
         };
         return xc;
     }
@@ -67,9 +64,10 @@ void sixtrackExport(const stron::Accelerator<T>& acc, const ParticleCollection<T
         const T z = (- p.phase[i])*acc.C/(2*cnst::pi*acc.h_rf*prop.b)*1e3;
         const T e = (p.momentum[i] + acc.E())*1e-6;
         
-        // hard coded for ip1
-        const T x = p.x[i]*std::sqrt(cnst::emittance/prop.g*11);
-        const T px = p.px[i]*std::sqrt(cnst::emittance/prop.g/11);
+        // ip1
+        const auto xc = p.xBeta(j, -0.001113, 10.9873, prop.b, prop.g);
+        const T x = xc.x*1e3 + xcorr;
+        const T px = xc.px*1e3 + pxcorr;
         const T y = 0;
         const T py = 0;
         f << std::fixed << std::setprecision(16) << x << " " << std::fixed << std::setprecision(16) << px << " " // x  px
@@ -96,8 +94,9 @@ void sixtrackExport_nonCollimat(const stron::Accelerator<T>& acc, const Particle
             const T dp = (p.momentum[j] - acc.E())/acc.E();
 
             // currently hard coded for ip1 
-            const T x = p.x[j]*std::sqrt(cnst::emittance/prop.g*11)*1e3 + xcorr;
-            const T px = p.px[j]*std::sqrt(cnst::emittance/prop.g/11)*1e3 + pxcorr;
+            const auto xc = p.xBeta(j, -0.001113, 10.9873, prop.b, prop.g);
+            const T x = xc.x*1e3 + xcorr;
+            const T px = xc.px*1e3 + pxcorr;
             f << std::fixed << std::setprecision(16) << x << std::endl
               << std::fixed << std::setprecision(16) << px << std::endl
               << std::fixed << std::setprecision(16) << ycorr << std::endl // y
@@ -169,8 +168,9 @@ typename ParticleCollection<T>::Ptr sixtrackInport_nonCollimat(const stron::Acce
         for (int j = 0; j < 2; ++j) {
             p->momentum[i + j] = (e[j] - e_ref)*1e6;
             auto prop = acc.calcParticleProp(p->momentum[i + j]);
-            p->x[i + j] = (x[j] - xcorr)/std::sqrt(cnst::emittance/prop.g*11)*1e-3;
-            p->px[i + j] = (px[j] - pxcorr)/std::sqrt(cnst::emittance/prop.g/11)*1e-3;
+            // ip1 -- assuming α = 0, which is almost correct (actual value -0.001113)
+            p->x[i + j] = (x[j] - xcorr)/std::sqrt(cnst::emittance/prop.g*10.9873)*1e-3;
+            p->px[i + j] = (px[j] - pxcorr)/std::sqrt(cnst::emittance/prop.g/10.9873)*1e-3;
             p->phase[i + j] = -z[j]*1e-3*(2*cnst::pi*acc.h_rf*prop.b)/acc.C;
         }
     }
