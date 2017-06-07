@@ -141,6 +141,42 @@ typename ParticleCollection<T>::Ptr sixtrackInport(const stron::Accelerator<T>& 
     return p;
 }
 
+template <typename T>
+typename ParticleCollection<T>::Ptr sixtrackInport_nonCollimat(const stron::Accelerator<T>& acc, const std::string& file, int howMany = std::numeric_limits<int>::max()) 
+{
+    std::string line;
+    std::ifstream f(file.c_str());
+    int count = 0;
+    while (std::getline(f, line)) ++count;
+    int n = 2*count/15;
+    std::cout << "Lines: " << count << " --> " << n << " particles" << std::endl;
+    n = howMany < n ? howMany : n;
+    std::cout << "Imported " << n << " particles" << std::endl;
+    
+    f.clear();
+    f.seekg(0, std::ios::beg);
+
+    auto p = ParticleCollection<T>::create(n);
+    for (int i = 0; i < n; i += 2) {
+        T x[2], px[2], y, py, z[2], e[2], dp, e_ref;
+        f >> x[0] >> px[0] >> y >> py >> z[0] >> dp 
+          >> x[1] >> px[1] >> y >> py >> z[1] >> dp 
+          >> e_ref >> e[0] >> e[1];
+        
+        // closed orbit correction from SixTrack twiss function
+        const T xcorr = -1.999999996185254147462700000000000;
+        const T pxcorr = 0.000000000150460499225583966566850;
+        for (int j = 0; j < 2; ++j) {
+            p->momentum[i + j] = (e[j] - e_ref)*1e6;
+            auto prop = acc.calcParticleProp(p->momentum[i + j]);
+            p->x[i + j] = (x[j] - xcorr)/std::sqrt(cnst::emittance/prop.g*11)*1e-3;
+            p->px[i + j] = (px[j] - pxcorr)/std::sqrt(cnst::emittance/prop.g/11)*1e-3;
+            p->phase[i + j] = -z[j]*1e-3*(2*cnst::pi*acc.h_rf*prop.b)/acc.C;
+        }
+    }
+    return p;
+}
+
 
 static const char* LONGITUDINAL_DIST_NAMES[] = {
     "AroundSeparatrix", 

@@ -264,7 +264,7 @@ private:
 
             T deltaRef = mAcc.E() - mAcc.E_prev();
 
-            int Ns = 100;
+            int Ns = 1;
             // Particles outside of the bucket does not need to be tracked as carefully
             if (outsideBucket(index)) Ns = 1;
 
