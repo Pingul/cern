@@ -65,11 +65,15 @@ void sixtrackExport(const stron::Accelerator<T>& acc, const ParticleCollection<T
         const T e = (p.momentum[i] + acc.E())*1e-6;
         
         // ip1
-        const auto xc = p.xBeta(j, -0.001113, 10.9873, prop.b, prop.g);
+        const T xcorr = -1.999999996185254147462700000000000;
+        const T pxcorr = 0.000000000150460499225583966566850;
+        const T ycorr = -0.000000006411949440904753153327300;
+        const T pycorr = -0.169999999800309692377100000000000;
+        const auto xc = p.xBeta(i, -0.001113, 10.9873, prop.b, prop.g);
         const T x = xc.x*1e3 + xcorr;
         const T px = xc.px*1e3 + pxcorr;
-        const T y = 0;
-        const T py = 0;
+        const T y = ycorr;
+        const T py = pycorr;
         f << std::fixed << std::setprecision(16) << x << " " << std::fixed << std::setprecision(16) << px << " " // x  px
           << std::fixed << std::setprecision(16) << y << " " << std::fixed << std::setprecision(16) << py << " " // y  py
           << std::fixed << std::setprecision(16) << z << " " << std::fixed << std::setprecision(16) << e << std::endl;
