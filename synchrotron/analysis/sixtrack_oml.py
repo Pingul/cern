@@ -109,6 +109,9 @@ def hits_from_chits(filepath, offset):
         turns = np.loadtxt(filepath, dtype=int, skiprows=1, usecols=(1,), unpack=True).reshape(-1) # In case of only 1 hit, this becomes a 0-d scalar and not a proper array https://stackoverflow.com/questions/773030/why-are-0d-arrays-in-numpy-not-considered-scalar. Reshaping solves the issue.
         coll = np.loadtxt(filepath, dtype=np.object, skiprows=1, usecols=(0,), unpack=True).reshape(-1)
 
+    # print([i for i, item in enumerate(coll) if "tcp.6" in item])
+    # if np.any(coll == "b'tcp.c6l7.b1'"): print("has loss")
+
     # creating an ID array here. Current output does not contain ID data,
     # so this is gibberish for now
     ids = np.arange(0, turns.size).astype(int)
@@ -119,6 +122,11 @@ if __name__ == "__main__":
     if action == "batch":
         d = sys.argv[2]
         b = Batch(d)
+        lg.log("Batch stats\n\tJobs: {}\n\tParticles: {}".format(b.nbr_jobs, b.phasespace.nbr_p))
+        
+        turn_max = b.hitmap.losses(integrated=True).argmax()
+        lg.log("Peak at {} s".format(turn_max/11200.0))
+
         fill = af.aggregate_fill(1, from_cache=True)
         comp = lhccomp.LHCComparison(fill, b.phasespace, b.hitmap)
         lhccomp.plot_comp(fill, (comp.t(), comp.BLM()), block=False)

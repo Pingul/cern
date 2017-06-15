@@ -65,15 +65,15 @@ class PhaseSpace:
     # Reading in from different file formats
     @classmethod
     def from_dist0(clss, filepath):
-        z, e_tot = np.loadtxt(filepath, usecols=(4, 5), unpack=True)
+        x, px, z, e_tot = np.loadtxt(filepath, usecols=(0, 1, 4, 5), unpack=True)
         count = e_tot.size
 
         ps = clss(None)
         ps.denergy = e_tot*1e6 - 450e9
 
         ps.phase = z_to_phi(z, e_tot)
-        ps.x = np.zeros(count)
-        ps.px = np.zeros(count)
+        ps.x = x
+        ps.px = px
         ps.h = np.zeros(count)
         return ps
     
@@ -120,6 +120,8 @@ class PhaseSpace:
         ps.x = np.array(x)*1e-3
         ps.px = np.array(px)*1e-3
         ps.h = np.zeros(ps.x.size)
+        ps.nbr_p = ps.denergy.size
+        ps.nbr_turns = 1
         return ps
     ## ----
 

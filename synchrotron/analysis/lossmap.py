@@ -119,6 +119,10 @@ class CHitMap:
         return self.ids.size
 
 def plot(hitmaps, labels=[], save_to=''):
+    """ Plot the given hitmaps' time evolution.
+
+        For multiple hitmaps: needs to be a 'list', not a tuple
+    """
     if not isinstance(hitmaps, list):
         hitmaps = [hitmaps]
 

@@ -34,6 +34,9 @@ all: 2dsynch
 misc: source/misc.cc $(H_DEPS)
 	$(CC) $(CPLUS_FLAGS) -o misc $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/misc.cc
 
+tool: source/exportTool.cc $(H_DEPS)
+	$(CC) $(CPLUS_FLAGS) -o tool $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/exportTool.cc
+
 clean :
 	rm -f 2dsynch misc
 
