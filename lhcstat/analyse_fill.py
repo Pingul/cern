@@ -195,6 +195,47 @@ def histogram_intensity(file):
 
     draw_histogram('Intensity for {}'.format(file), intensities, 1e13, "Intensity", "Count")
 
+def histogram_intensity_lost_during_OML(fills, beam):
+    agg_fill = aggregate_fill(beam=beam, from_cache=True)
+    t_agg = agg_fill.blm_ir3().x[agg_fill.OML_period()]
+
+    
+    lost_agg_period = np.empty(len(fills))
+    lost_fill_period = np.empty(len(fills))
+    total_lost_during_ramp = np.empty(len(fills))
+
+    for i, nbr in enumerate(fills):
+        fill = Fill(nbr)
+
+        a_index = fill.intensity().index_for_time(t_agg)
+        int_agg = fill.intensity().y[a_index]
+        lost_agg_period[i] = int_agg[0] - int_agg[1]
+
+        f_index = fill.intensity().index_for_time(fill.blm_ir3().x[fill.OML_period()])
+        int_fill = fill.intensity().y[f_index]
+        lost_fill_period[i] = int_fill[0] - int_fill[1]
+
+        total_lost_during_ramp[i] = fill.intensity().y[0] - fill.intensity().y[-1]
+
+    fig, ax = plt.subplots()
+    ax.hist((lost_agg_period, lost_fill_period), label=("Aggregate OML period", "Fill OML period") , edgecolor='white')
+    # ax.hist((lost_agg_period,), label=("Aggregate OML period",) , edgecolor='white')
+    ax.legend(loc='upper right')
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x*100.0)))
+    ax.set_xlabel("Intensity lost (%)")
+    ax.set_ylabel("# fills")
+    plt.title("Intensity during off-momentum loss peak at start of ramp (beam {})".format(beam))
+    # ax.hist(lost_fill_period, edgecolor='white')
+
+    fig2, ax2 = plt.subplots()
+    ax2.hist(total_lost_during_ramp, edgecolor='white')
+    ax2.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x*100.0)))
+    ax2.set_xlabel("Intensity lost (%)")
+    ax2.set_ylabel("# fills")
+    plt.title("Total intensity lost during whole ramp (beam {})".format(beam))
+
+    plt.show()
+        
 def histogram_spike_duration(file):
     fills = fills_from_file(file, "OML")
     outliers = []

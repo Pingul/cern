@@ -16,25 +16,27 @@ from scipy.optimize import least_squares
 from settings import settings
 
 
-dir_in = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_inside"
-dir_out = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_outside"
+# dir_in = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_inside"
+# dir_out = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_outside"
+dir_in = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_inside_1turnmap"
+dir_out = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_outside_1turnmap"
 
 fill = af.aggregate_fill(1, from_cache=True)
 
 inside = {
         "ps" : PhaseSpace(dir_in + "/" + settings.STARTDIST_FILE),
-        "lm" : lm.get_lossmap(dir_in + "/" + settings.COLL_FILE)
+        "lm" : lm.CHitMap(dir_in + "/" + settings.COLL_FILE)
         }
 ic = LHCComparison(fill, inside['ps'], inside['lm'])
 
 outside = {
         "ps" : PhaseSpace(dir_out + "/" + settings.STARTDIST_FILE),
-        "lm" : lm.get_lossmap(dir_out + "/" + settings.COLL_FILE)
+        "lm" : lm.CHitMap(dir_out + "/" + settings.COLL_FILE)
         }
 oc = LHCComparison(fill, outside['ps'], outside['lm'])
 
-ic.halign()
-oc.halign()
+# ic.halign()
+# oc.halign()
 
 tmin = min(ic.t().min(), oc.t().min())
 tmax = max(ic.t().max(), oc.t().max())
@@ -51,11 +53,13 @@ c0 = np.array([1.0, 1.0])
 
 res = least_squares(error, c0, loss='cauchy', bounds=([0.0, np.inf]), max_nfev=50000, jac='3-point')
 print(res)
+print("Inside: ", res.x[0]/sum(res.x))
+print("Outside: ", res.x[1]/sum(res.x))
 
 fig, ax = plt.subplots()
 ax.plot(*fill.blm_ir3(), label="fill")
-ax.plot(oc.t(), oc.BLM(False), label='inside')
-ax.plot(ic.t(), ic.BLM(False), label='outside')
+ax.plot(oc.t(), oc.BLM(False), label='outside')
+ax.plot(ic.t(), ic.BLM(False), label='inside')
 ax.plot(t, model(c0), label='combined')
 ax.plot(t, model(res.x), label='optimal', linestyle='--')
 ax.legend(loc="upper left")

@@ -24,15 +24,16 @@ class CHitMap:
     """ Collimator hit map """
 
     @classmethod
-    def from_hits(clss, hits):
+    def from_hits(clss, hits, pid_offset=0):
         """ Create CHitMap from a list of hits
-            hits = [[turn, pid], [turn, pid]] ...
+            hits = [(turn, pid), (turn, pid), ...]
         """
         hm = clss(store_ip=False)
         hm.ids = np.empty(len(hits), dtype=int)
         hm.turns = np.empty(len(hits), dtype=int)
         for i, h in enumerate(hits):
             hm.turns[i], hm.ids[i] = h
+        hm.ids += pid_offset
         return hm
 
     def __init__(self, collfile="", pid_offset=0, store_ip=True):
@@ -50,6 +51,13 @@ class CHitMap:
                     self.ids, self.turns = np.loadtxt(f.readlines(), delimiter=',', skiprows=1, usecols=(0, 1), unpack=True)
                 self.ids = self.ids.astype(int) + pid_offset
                 self.turns = self.turns.astype(int)
+        else:
+            self.ids = np.empty(0, dtype=int)
+            self.turns = np.empty(0, dtype=int)
+            if self.store_ip:
+                self.phase = np.empty(0)
+                self.denergy = np.empty(0)
+                self.x = np.empty(0)
 
     def old_lossmap(self):
         """ compatible with what 'get_lossmap' returned previously """ 
@@ -111,7 +119,11 @@ class CHitMap:
         return self.ids.size
 
 def plot(hitmaps, labels=[], save_to=''):
-    if not type(hitmaps) is type(list): 
+    """ Plot the given hitmaps' time evolution.
+
+        For multiple hitmaps: needs to be a 'list', not a tuple
+    """
+    if not isinstance(hitmaps, list):
         hitmaps = [hitmaps]
 
     colors = 'r'

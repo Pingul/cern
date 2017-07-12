@@ -56,14 +56,22 @@ int main(int argc, char* argv[])
         std::cout << "Not enough arguments specified" << std::endl;
     
     } else if (args[1] == "lossmap" || args[1] == "startdist" || args[1] == "export") {
-        // We often work with these two together, so we make sure we have the same
+        // We often work with these together, so we make sure we have the same
         // particle distribution for both
-        auto p = partGen.create(5000, particles::CInside_LD, particles::Zero);
+        auto p = partGen.create(100, particles::CCombined, particles::DoubleGaussian);
         ss.addParticles(p);
         if (args[1] == "lossmap")
             ss.simulateTurns(progGen.create(20*11245, progType), path::PATH_FILE, 11245);
-        else if (args[1] == "export") 
-            particles::sixtrackExport(ss.getAcc(), *p, "export.txt");
+        else if (args[1] == "export") {
+            //ss.simulateTurns(progGen.create(100, progType), path::PATH_FILE, 11245);
+            particles::sixtrackExport(ss.getAcc(), *p, "collimat_export.txt");
+            particles::sixtrackExport_nonCollimat(ss.getAcc(), *p, "non_collimat_export.txt");
+        }
+
+    } else if (args[1] == "inport") {
+        std::cout << "Inporting particles from '" << args[2] << "'" << std::endl;
+        ss.addParticles(particles::sixtrackInport(ss.getAcc(), args[2]));
+        //ss.simulateTurns(progGen.create(20*11245, progType), path::PATH_FILE, 11245);
 
     } else if (args[1].find("animate") == 0) {
         ss.addParticles(partGen.create(1000, particles::AroundSeparatrix, particles::DoubleGaussian));
