@@ -248,5 +248,17 @@ if __name__ == "__main__":
         plt.show()
     elif ACTION == 'impacts':
         plot_first_impacts(settings.COLL_PATH)
+    elif ACTION == "fort13":
+        input_file = argv[2]
+        ps = PhaseSpace.from_fort13(input_file)
+        ps.plot_particles()
+    elif ACTION == 'dist0':
+        input_file = argv[2]
+        ps = PhaseSpace.from_dist0(input_file)
+        ps.plot_particles()
+    elif ACTION == 'dump':
+        input_file = argv[2]
+        ps = PhaseSpace.from_six_dump(input_file)
+        ps.plot_particles()
     else:
         lg.log("unrecognised action")

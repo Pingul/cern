@@ -4,7 +4,7 @@ INCLUDE_FLAGS = -I/opt/local/include -I../common -Isource
 LIBRARY_PATHS = -L/opt/local/lib 
 LIBRARIES = -ltbb
 H_DEPS = $(wildcard source/*.hh) ../common/timer.hh
-CPP = source/main.cc ../common/timer.cc
+CPP = ../common/timer.cc
 #H_DEPS = source/2d-synchrotron.hh source/settings.hh source/accelerator.hh source/hamiltonian.hh ../common/timer.hh
 
 UNAME := $(shell uname)
@@ -29,13 +29,13 @@ endif
 all: 2dsynch
 
 2dsynch: ${H_DEPS} source/main.cc ../common/timer.cc
-	$(CC) $(CPLUS_FLAGS) -o 2dsynch $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) $(CPP)
+	$(CC) $(CPLUS_FLAGS) -o 2dsynch $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/main.cc $(CPP)
 
 misc: source/misc.cc $(H_DEPS)
 	$(CC) $(CPLUS_FLAGS) -o misc $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/misc.cc
 
-tool: source/exportTool.cc $(H_DEPS)
-	$(CC) $(CPLUS_FLAGS) -o tool $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/exportTool.cc
+export: source/exportTool.cc $(H_DEPS)
+	$(CC) $(CPLUS_FLAGS) -o exportTool $(INCLUDE_FLAGS) $(LIBRARY_PATHS) $(LIBRARIES) source/exportTool.cc $(CPP)
 
 clean :
 	rm -f 2dsynch misc
