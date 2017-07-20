@@ -50,9 +50,9 @@ class LHCComparison:
         if not t_end is None:
             self.opt_mask *= self.secs < t_end
 
-    def halign(self):
+    def halign(self, secs):
         lg.log("manual halign", log_level=LogLevel.warning)
-        self.secs -= 0.45 # this seems to be a good choice with no betatron amplitude
+        self.secs -= secs 
 
     def BLM(self, normalised=True):
         blm = self.hitmap.losses(integrated=True)

@@ -118,7 +118,7 @@ class CHitMap:
     def nbr_lost(self):
         return self.ids.size
 
-def plot(hitmaps, labels=[], save_to=''):
+def plot(hitmaps, labels=[], save_to='', block=True):
     """ Plot the given hitmaps' time evolution.
 
         For multiple hitmaps: needs to be a 'list', not a tuple
@@ -161,7 +161,7 @@ def plot(hitmaps, labels=[], save_to=''):
     if (save_to): 
         lg.log("saving plot to {}".format(save_to))
         plt.savefig(save_to) 
-    plt.show()
+    plt.show(block=block)
 
 
 def hits_from_collfile(collfile, pid_offset=0, mute=False):

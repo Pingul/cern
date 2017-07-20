@@ -19,8 +19,8 @@ def z_to_phi(z, tot_energy):
     C = 26658.8832
     h = 35640.0
     b = np.sqrt(1.0 - (938.2796/tot_energy)**2)
-    phi = - (2*math.pi*h*b)*z/C
-    return phi # convert to mm
+    phi = - (2*math.pi*h*b)*z*1e-3/C
+    return phi
 
 
 class PhaseSpace:
@@ -69,12 +69,14 @@ class PhaseSpace:
         count = e_tot.size
 
         ps = clss(None)
-        ps.denergy = e_tot*1e6 - 450e9
+        ps.denergy = e_tot*1e6 - 451208.9804551008855924e6
 
         ps.phase = z_to_phi(z, e_tot)
         ps.x = x
         ps.px = px
         ps.h = np.zeros(count)
+        ps.nbr_p = ps.denergy.size
+        ps.nbr_turns = 1
         return ps
     
     @classmethod
@@ -87,6 +89,8 @@ class PhaseSpace:
         ps.x = x*1e-3
         ps.px = px*1e-3
         ps.h = np.zeros(ps.x.size)
+        ps.nbr_p = ps.denergy.size
+        ps.nbr_turns = 1
         return ps
 
     @classmethod
