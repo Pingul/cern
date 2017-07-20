@@ -13,7 +13,7 @@ from matplotlib.ticker import FuncFormatter
 
 from settings import settings
 from logger import ModuleLogger, LogLevel
-lg = ModuleLogger("sixbatch")
+lg = ModuleLogger("sixtrack_oml")
 
 class Batch:
     def __init__(self, path, forced=False):
@@ -65,7 +65,11 @@ class Batch:
 
     def aggregate(self):
         n = 1
-        required_files = ["chits.txt", "DUMP.txt", "fort.13"]
+        collVersion = True
+        if collVersion:
+            required_files = ['coll_summary.dat', 'dist0.dat', 'FirstImpacts.dat']
+        else:
+            required_files = ["chits.txt", "DUMP.txt", "fort.13"]
         lg.log("aggregating batch from '{}'".format(self.path))
         print("{}/{}{:04d}".format(self.path, "run", n))
         while os.path.isdir("{}/{}{:04d}".format(self.path, "run", n)):
@@ -79,10 +83,14 @@ class Batch:
             else:
                 # pid_offset = self.phasespace.nbr_p if self.phasespace else 0
                 pid_offset = self.hitmap.ids.size if self.hitmap else 0
-                phasespace = ps.PhaseSpace.from_fort13("{}/{}".format(job_path, "fort.13"))
-                # hm = hits_from_FirstImpact("{}/{}".format(job_path, "FirstImpacts.dat"), pid_offset)
-                hm = hits_from_chits("{}/{}".format(job_path, "chits.txt"), pid_offset)
-                # hm = lm.CHitMap("{}/{}".format(job_path, settings.COLL_FILE), pid_offset=pid_offset, store_ip=False)
+                if collVersion:
+                    phasespace = ps.PhaseSpace.from_dist0("{}/{}".format(job_path, "dist0.dat"))
+                    hm = hits_from_FirstImpact("{}/{}".format(job_path, "FirstImpacts.dat"), pid_offset)
+                    # hm = lm.CHitMap("{}/{}".format(job_path, settings.COLL_FILE), pid_offset=pid_offset, store_ip=False)
+                else:
+                    phasespace = ps.PhaseSpace.from_fort13("{}/{}".format(job_path, "fort.13"))
+                    hm = hits_from_chits("{}/{}".format(job_path, "chits.txt"), pid_offset)
+
                 if self.phasespace is None:
                     self.phasespace = phasespace
                     self.hitmap = hm
@@ -99,7 +107,8 @@ def hits_from_FirstImpact(filepath, offset):
         ids, turns, colls = np.loadtxt(filepath, dtype=int, skiprows=1, usecols=(0, 1, 2), unpack=True)
     except ValueError:
         return lm.CHitMap(store_ip=False)
-    m = colls == 9 # TCP IR3
+    # m = colls == 9 # TCP IR3 beam 1
+    m = colls == 37 # TCP IR3 beam 2
     return lm.CHitMap.from_hits(list(zip(turns[m], ids[m])), pid_offset=offset)
 
 def hits_from_chits(filepath, offset):
@@ -124,11 +133,14 @@ if __name__ == "__main__":
         b = Batch(d)
         lg.log("Batch stats\n\tJobs: {}\n\tParticles: {}".format(b.nbr_jobs, b.phasespace.nbr_p))
         
+        lm.plot(b.hitmap, block=False)
+
         turn_max = b.hitmap.losses(integrated=True).argmax()
         lg.log("Peak at {} s".format(turn_max/11200.0))
 
         fill = af.aggregate_fill(1, from_cache=True)
         comp = lhccomp.LHCComparison(fill, b.phasespace, b.hitmap)
+        comp.halign(-11)
         lhccomp.plot_comp(fill, (comp.t(), comp.BLM()), block=False)
         b.phasespace.plot_particles()
     elif action == "dump":
