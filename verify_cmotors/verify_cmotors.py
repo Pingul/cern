@@ -1,18 +1,36 @@
-import sys
-sys.path.insert(0, "../common")
-import numpy as np
-import matplotlib.pyplot as plt
-import coll_funcs as cf
+########
+########
+# This program compares a collimator motor function from a fill (received from Timber) with the corresponding trim function (from file). We are mostly
+# concerned with the threshold interlocks. See 'coll_funcs.py' for what variables are used.
+#
+# Note: Will try to cache data in a directory 'cache' -- please ensure it exists and is empty, so no data is lost.
+# 
+# Use as:
+# python3.5 verify_cmotors.py <action> (<argument>)
+#
+# Actions:
+# - 'stats': Prints all variables for each collimator
+# - 'hist': Creates a histogram over all collimators for a given variable.
+#       <argument>: Variable to use, e.g. 'left_downstream'
+# - 'plot': Plot motors and interlocks for a given collimator.
+#       <arguemnt>: Collimator, e.g. 'TCP.D6L7.B1'
+#
+# Author: Joel Wretborn, CERN 12-07-2017
+########
 
-def color_wrap(string, color):
-    return '\x1b[{}m'.format(color) + string + '\x1b[0m'
+# SET THESE
+# --------
+# Timber fill used for the analysis
+fill_nbr = 5699 
 
-def red(string):
-    return color_wrap(string, "1;31;40")
+# Location from Trim variables
+coll_trim_file = "motor_functions_ramp_B12_2017_CRS_2017_5_19_16_11_16.755108.csv" 
 
-fill_nbr = 5699
-coll_trim_file = "motor_functions_ramp_B12_2017_CRS_2017_5_19_16_11_16.755108.csv"
-ignore_collimators = [
+# Threshold in mm for allowed discrepancy between Timber/Trim
+threshold = 0.1 
+
+# Remove collimators from analysis
+ignore_collimators = [ 
         "TCL.5R1.B1",
         "TCL.6R1.B1",
         "TCL.4R5.B1",
@@ -40,9 +58,20 @@ ignore_collimators = [
         "TCDQA.A4R6.B1",
         "TCDQA.A4L6.B2",
         ]
+# --------
+
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+import coll_funcs as cf
+
+def color_wrap(string, color):
+    return '\x1b[{}m'.format(color) + string + '\x1b[0m'
+
+def red(string):
+    return color_wrap(string, "1;31;40")
 
 def plot_func(cfunc):
-
     series = [
         ["t",
          "left_downstream",
@@ -107,8 +136,6 @@ def plot_func(cfunc):
     plt.show()
 
 def compare_funcs(funcs, threshold=0.1):
-    print("Compare")
-
     tot_var = 0
     nbr_variables_exceeds = 0
     fills_exceeding = []
@@ -178,7 +205,7 @@ if __name__ == "__main__":
         print("done")
 
         if action == "stats":
-            compare_funcs(funcs, 0.1)
+            compare_funcs(funcs, threshold)
         elif action == "hist":
             variable = sys.argv[2]
             plot_compare_hist(funcs, variable)

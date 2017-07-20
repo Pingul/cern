@@ -419,11 +419,11 @@ def plot_blm(fill):
     blm_axis.set_frame_on(True)
     blm_axis.plot(*oml, color='r', linestyle='--', zorder=2, label='TCP IR3')
     blm_axis.plot(*fill.blm_ir7(), color='g', linestyle='--', zorder=1, label='TCP-C IR7')
-    blm_axis.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
+    # blm_axis.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
     blm_axis.set_yscale('log')
     blm_axis.set_ylabel("Losses")
     blm_axis.legend(loc='lower right')
-    blm_axis.set_xlim(fill.blm_ir3().x[[start, end]] + np.array([-5, +40]))
+    # blm_axis.set_xlim(fill.blm_ir3().x[[start, end]] + np.array([-5, +40]))
 
     plt.title("Fill {} (beam {})".format(fill.nbr, fill.beam))
     plt.show()

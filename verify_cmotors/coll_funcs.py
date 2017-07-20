@@ -6,7 +6,7 @@ from collections import namedtuple
 from scipy import interpolate
 
 class CollTrimVMap:
-
+    """ Maps a variable from Timber to a Trim variable """
     fillVars = np.array([
         "t",
         "MEAS_MOTOR_LD",
@@ -79,8 +79,7 @@ class CollFunction:
         """ Recalculate the time variable so that the 
             two functions can be compared per index basis.
 
-            Does interpolation. Values outside the previous
-            range will be set to 0.
+            Does interpolation and extrapolation.
         """
         t = self.get_series("t")[0]
         other_t = func.get_series("t")[0]
@@ -99,7 +98,7 @@ class CollTrimFunction(CollFunction):
             We assume:
                 1. an even amount of columns
                 2. the sample time _is the same_ for all motors
-                3. the data is distributed as 't, motor1, t, motor2, ...'
+                3. the data is written as 't, motor1, t, motor2, ...'
         """
 
         if not csv_header.shape[0] == csv_data_block.shape[1] or not len(csv_header) % 2 == 0:
@@ -128,6 +127,8 @@ class CollFillFunction(CollFunction):
     def fetch(self, forced=False, cache=True):
         """ Fetch all logged motor functions for collimator 'cname'
             and fill 'nbr'.
+
+            Will try to cache the data if possible, as fetching from Timber can be slow.
         """
         print("loading collimator {}... ".format(self.cname), end=" ")
         if not forced and os.path.isfile(self.cache_file()):
