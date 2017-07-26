@@ -50,12 +50,15 @@ bool validateArguments()
     if (nbrTurnsSimulate < 0)
         errors.emplace_back("nbrTurnsSimulate: must be > 0");
 
+    if (longDist != "lin+exp" && longDist != "constant")
+        errors.emplace_back("longDist: must be 'lin+exp' or 'constant', is '" + longDist + "'");
+
     if (errors.size() > 0)  {
         std::cout << "Errors:" << std::endl;
         for (auto& e : errors) std::cout << "\t" << e << std::endl;
     }
     
-    std::cout << "longDist and transDist not used" << std::endl;
+    std::cout << "transDist not used" << std::endl;
 
     return errors.size() == 0;
 }
@@ -91,7 +94,15 @@ void generateFiles()
     void (*exportFunc)(const Acc&, const PColl&, const std::string&) = particles::sixtrackExport_nonCollimat;
     if (outputFormat == "coll") exportFunc = particles::sixtrackExport;
 
-    auto all_particles = pgen.create(nbrOutputFiles*pPerFile, particles::CCombined, particles::DoubleGaussian);
+
+    typename ParticleGenerator::PCollPtr all_particles;
+    auto n = nbrOutputFiles*pPerFile;
+    if (longDist == "lin+exp")
+        all_particles = pgen.create(n, particles::CCombined, particles::DoubleGaussian);
+    else if (longDist == "constant")
+        all_particles = pgen.create(n, particles::CConstant, particles::DoubleGaussian);
+    else
+        throw std::runtime_error("Unexpected 'longDist' argument");
     lhc = simulateTurns(lhc, all_particles, nbrTurnsSimulate);
 
     exportFunc(lhc, *all_particles, outputDirectory + "/all.txt");

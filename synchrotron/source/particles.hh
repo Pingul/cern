@@ -207,6 +207,7 @@ static const char* LONGITUDINAL_DIST_NAMES[] = {
     "AV outside, uniform E",
     "OutsideColl",
     "Zero",
+    "Constant",
 };
 enum LongitudinalDist
 {
@@ -225,6 +226,7 @@ enum LongitudinalDist
     AVOutside_E,
     OutsideColl,
     LZero,
+    CConstant,
 };
 std::ostream& operator<<(std::ostream& os, LongitudinalDist e)
 {
@@ -281,6 +283,12 @@ struct ParticleGenerator
 
                 const T sep = separatrix(mAcc);
                 auto pnext = [&](Generator& g) { return 1.75e7*dist(g) + sep - 7000; };
+                generateAVDist(*p, pnext);
+            } break;
+            case CConstant: {
+                const T sep = separatrix(mAcc);
+                std::uniform_real_distribution<> d(sep - 1e4, sep + 1.75e7);
+                auto pnext = [&](Generator& g) { return d(g); };
                 generateAVDist(*p, pnext);
             } break;
             case COutside_ab: {
