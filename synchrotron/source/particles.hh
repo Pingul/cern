@@ -198,10 +198,6 @@ static const char* LONGITUDINAL_DIST_NAMES[] = {
     "AV inside, uniform E",
     "Cont. outside, exponential",
     "Cont. outside, non-uniform exponential dist. above/below bucket",
-    "Cont. inside, linear",
-    "Cont. inside, linearly increasing (towards separatrix)",
-    "Cont. inside, linearly decreasing (towards separatrix)",
-    "Cont. inside, constant",
     "Cont. combined: non-uniform exponential outside, linear inside",
     "AV outside, uniform H",
     "AV outside, uniform E",
@@ -217,10 +213,6 @@ enum LongitudinalDist
     AVInside_E,
     COutside_exp,
     COutside_ab,
-    CInside_lin,
-    CInside_LI,
-    CInside_LD,
-    CInside_C,
     CCombined,
     AVOutside_H,
     AVOutside_E,
@@ -251,6 +243,22 @@ struct DistributionNotFound : public std::runtime_error
     DistributionNotFound(const std::string& type)
         : std::runtime_error("particles.hh: " + type) {}
 };
+
+
+// Distributions
+namespace {
+template <typename T>
+T pdfOutsideAbove(T x) {
+    if (x < 0 || x > 1) throw std::runtime_error("pdfOutsideAbove: not allowed range");
+    return std::exp(-20.984*std::pow(x, 1.000) + 0.320);
+}
+
+template<typename T>
+T pdfOutsideBelow(T x) {
+    if (x < 0 || x > 1) throw std::runtime_error("pdfOutsideBelow: not allowed range");
+    return std::exp(-13.032*std::pow(x, 0.703) + 0.488);
+}
+}
 
 
 template <typename Acc>
@@ -292,78 +300,31 @@ struct ParticleGenerator
                 generateAVDist(*p, pnext);
             } break;
             case COutside_ab: {
-                const T max = 3.20e7;
-                auto pdf = [](T x, T a, T b, T c) {
-                    if (x < 0 || x > 1) throw std::runtime_error("COutside_ab - range");
-                    return std::exp(a*std::pow(x, b) + c);
-                };
-
-                //auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
-                auto a_pdf = [&](T x) { return pdf(x, -20.984, 1.000, 0.320); };
-                //auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
-                auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
-                const T a_ratio = 0.40;
-                
-                Sampled_distribution<T> a_dist(a_pdf, 0, 1, Sampled_distribution<T>::PDF);
-                Sampled_distribution<T> b_dist(b_pdf, 0, 1, Sampled_distribution<T>::PDF);
+                Sampled_distribution<T> d_above(pdfOutsideAbove<T>, 0, 1, Sampled_distribution<T>::PDF);
+                Sampled_distribution<T> d_below(pdfOutsideBelow<T>, 0, 1, Sampled_distribution<T>::PDF);
+                const T above_ratio = 0.40;
 
                 const T sep = separatrix(mAcc);
                 std::uniform_real_distribution<> dist(0.0, 1.0);
                 for (int i = 0; i < p->size(); ++i) {
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
-                    const T sign = dist(mGenerator) < a_ratio ? 1 : -1;
-                    const T action = max*(sign > 0 ? a_dist(mGenerator) : b_dist(mGenerator)) + sep;
+                    const T sign = dist(mGenerator) < above_ratio ? 1 : -1;
+                    const T action = 3.20e7*(sign > 0 ? d_above(mGenerator) : d_below(mGenerator)) + sep;
                     const T energy = levelCurve(mAcc, phase, action, sign);
                     if (std::isnan(energy)) { --i; continue; }
                     p->momentum[i] = energy;
                     p->phase[i] = phase;
                 }
             } break;
-            case CInside_LD:
-            case CInside_lin: {
-                const T sep = separatrix(mAcc);
-                std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
-                std::vector<T> d{-7000 + sep, sep};
-                std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
-                auto pnext = [&](Generator& g) { return dist(g); };
-                generateAVDist(*p, pnext);
-            } break;
-            case CInside_LI: {
-                const T sep = separatrix(mAcc);
-                std::vector<T> q{7.14053036791e-05, 0.8152908985876791};
-                std::vector<T> d{-7000 + sep, sep};
-                std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
-                auto pnext = [&](Generator& g) { return dist(g); };
-                generateAVDist(*p, pnext);
-            } break;
-            case CInside_C: {
-                const T sep = separatrix(mAcc);
-                std::vector<T> q{1.0, 1.0};
-                std::vector<T> d{-7000 + sep, sep};
-                std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
-                auto pnext = [&](Generator& g) { return dist(g); };
-                generateAVDist(*p, pnext);
-            } break;
             case CCombined: {
-                const T max = 3.20e7;
-                auto pdf = [](T x, T a, T b, T c) {
-                    if (x < 0 || x > 1) throw std::runtime_error("COutside_ab - range");
-                    return std::exp(a*std::pow(x, b) + c);
-                };
+                Sampled_distribution<T> d_above(pdfOutsideAbove<T>, 0, 1, Sampled_distribution<T>::PDF);
+                Sampled_distribution<T> d_below(pdfOutsideBelow<T>, 0, 1, Sampled_distribution<T>::PDF);
+                const T above_ratio = 0.40;
 
-                //auto a_pdf = [&](T x) { return pdf(x, -10.997, 0.785, 0.401); };
-                auto a_pdf = [&](T x) { return pdf(x, -20.984, 1.000, 0.320); };
-                //auto b_pdf = [&](T x) { return pdf(x, -10.032, 0.703, 0.488); };
-                auto b_pdf = [&](T x) { return pdf(x, -13.032, 0.703, 0.488); };
-                const T a_ratio = 0.40;
-                
-                Sampled_distribution<T> oa_dist(a_pdf, 0, 1, Sampled_distribution<T>::PDF);
-                Sampled_distribution<T> ob_dist(b_pdf, 0, 1, Sampled_distribution<T>::PDF);
-
-                const T i_ratio = 0.20;
                 std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
                 std::vector<T> d{-7000, 0};
-                std::piecewise_linear_distribution<> i_dist(d.begin(), d.end(), q.begin());
+                std::piecewise_linear_distribution<> d_inside(d.begin(), d.end(), q.begin());
+                const T inside_ratio = 0.20;
 
                 int pin = 0;
                 int pout = 0;
@@ -373,15 +334,15 @@ struct ParticleGenerator
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
                     T action;
                     T sign;
-                    if (dist(mGenerator) < i_ratio) {
+                    if (dist(mGenerator) < inside_ratio) {
                         // generate particle inside separatrix
                         sign = dist(mGenerator) > 0.5 ? 1 : -1;
-                        action = i_dist(mGenerator);
+                        action = d_inside(mGenerator);
                         ++pin;
                     } else {
                         // outside
-                        sign = dist(mGenerator) < a_ratio ? 1 : -1;
-                        action = max*(sign > 0 ? oa_dist(mGenerator) : ob_dist(mGenerator));
+                        sign = dist(mGenerator) < above_ratio ? 1 : -1;
+                        action = 3.20e7*(sign > 0 ? d_above(mGenerator) : d_below(mGenerator));
                         ++pout;
                     }   
                     action += sep;
@@ -418,13 +379,6 @@ struct ParticleGenerator
             }
             case DoubleGaussian:
             {
-                // Orthogonal
-                //std::normal_distribution<> d(0, 1);
-                //for (size_t i = 0; i < p->size(); ++i) {
-                    //p->x[i] = d(mGenerator);
-                    //p->px[i] = d(mGenerator);
-                //}
-
                 // Bi-gaussian
                 std::normal_distribution<> rd(0, 1);
                 std::uniform_real_distribution<> phid(0, 2*cnst::pi);
