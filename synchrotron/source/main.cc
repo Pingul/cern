@@ -33,7 +33,6 @@ void generatePhasespaceLines(int seconds)
     }
 }
 
-
 int main(int argc, char* argv[])
 {
     std::vector<std::string> args(argv, argv + argc);
@@ -58,12 +57,16 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist" || args[1] == "export") {
         // We often work with these together, so we make sure we have the same
         // particle distribution for both
-        auto p = partGen.create(100, particles::CCombined, particles::DoubleGaussian);
+        auto p = partGen.create(100000, particles::LinearFull, particles::DoubleGaussian);
         ss.addParticles(p);
         if (args[1] == "lossmap")
             ss.simulateTurns(progGen.create(20*11245, progType), path::PATH_FILE, 11245);
         else if (args[1] == "export") {
-            //ss.simulateTurns(progGen.create(100, progType), path::PATH_FILE, 11245);
+            //ss.simulateTurns(progGen.create(100, progType));
+            //for (auto& phi : p->momentum) {
+                //auto r = static_cast<int>(std::floor(phi/(2*cnst::pi)));
+                //phi -= 2.0*cnst::pi*r;
+            //}
             particles::sixtrackExport(ss.getAcc(), *p, "collimat_export.txt");
             particles::sixtrackExport_nonCollimat(ss.getAcc(), *p, "non_collimat_export.txt");
         }
@@ -74,7 +77,7 @@ int main(int argc, char* argv[])
         //ss.simulateTurns(progGen.create(20*11245, progType), path::PATH_FILE, 11245);
 
     } else if (args[1].find("animate") == 0) {
-        ss.addParticles(partGen.create(1000, particles::AroundSeparatrix, particles::DoubleGaussian));
+        ss.addParticles(partGen.create(1000, particles::CConstant, particles::DoubleGaussian));
         if (args[1] == "animate") {
             ss.simulateTurns(progGen.create(1000, progType), path::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {

@@ -43,6 +43,8 @@ int main(int argc, char* argv[])
         // This is most likely unreliable
         tbb::task_scheduler_init init;
         std::cout << "Threads: " << init.default_num_threads() << std::endl;
+    } else if (args[1] == "acc") {
+        std::cout << std::setprecision(16) << stron::Accelerator<double>::getLHC().f_rf << std::endl;
     } else {
         std::cout << "unrecognised action" << std::endl;
     }

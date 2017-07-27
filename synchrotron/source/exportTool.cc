@@ -50,8 +50,8 @@ bool validateArguments()
     if (nbrTurnsSimulate < 0)
         errors.emplace_back("nbrTurnsSimulate: must be > 0");
 
-    if (longDist != "lin+exp" && longDist != "constant")
-        errors.emplace_back("longDist: must be 'lin+exp' or 'constant', is '" + longDist + "'");
+    if (longDist != "lin" && longDist != "lin+exp" && longDist != "constant")
+        errors.emplace_back("longDist: must be 'lin', 'lin+exp', or 'constant'; is '" + longDist + "'");
 
     if (errors.size() > 0)  {
         std::cout << "Errors:" << std::endl;
@@ -99,6 +99,8 @@ void generateFiles()
     auto n = nbrOutputFiles*pPerFile;
     if (longDist == "lin+exp")
         all_particles = pgen.create(n, particles::CCombined, particles::DoubleGaussian);
+    else if (longDist == "lin") 
+        all_particles = pgen.create(n, particles::LinearFull, particles::DoubleGaussian);
     else if (longDist == "constant")
         all_particles = pgen.create(n, particles::CConstant, particles::DoubleGaussian);
     else

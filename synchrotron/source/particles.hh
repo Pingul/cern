@@ -196,7 +196,14 @@ static const char* LONGITUDINAL_DIST_NAMES[] = {
     "AVFull", 
     "AV inside, uniform H", 
     "AV inside, uniform E",
+    "ConstOutside_above",
+    "ConstOutside_below",
+    "ConstInside",
+    "LinearFull",
     "Cont. outside, exponential",
+    "Cont. outside, non-uniform exponential dist, above",
+    "Cont. outside, non-uniform exponential dist, below",
+    "Cont. linear inside",
     "Cont. outside, non-uniform exponential dist. above/below bucket",
     "Cont. combined: non-uniform exponential outside, linear inside",
     "AV outside, uniform H",
@@ -211,7 +218,14 @@ enum LongitudinalDist
     AVFull,
     AVInside_H,
     AVInside_E,
+    ConstOutside_above,
+    ConstOutside_below,
+    ConstInside,
+    LinearFull,
     COutside_exp,
+    COutside_above,
+    COutside_below,
+    CInside,
     COutside_ab,
     CCombined,
     AVOutside_H,
@@ -273,12 +287,22 @@ struct ParticleGenerator
 
     PCollPtr create(int n, LongitudinalDist lDist, TransverseDist tDist = Zero)
     {
+        const T sep = separatrix(mAcc);
         auto p = PColl::create(n);
         switch (lDist) {
             case AroundSeparatrix: aroundSep(*p); break;
             case AVFull: AVFullRange(*p); break;
             case AVInside_H: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/true); break;
             case AVInside_E: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/false); break;
+            case ConstOutside_above: generateAVDist(*p, [=](Generator& g) { std::uniform_real_distribution<> d(sep, sep + 3.2e7); return d(g); }, 1); break;
+            case ConstOutside_below: generateAVDist(*p, [=](Generator& g) { std::uniform_real_distribution<> d(sep, sep + 3.2e7); return d(g); }, -1); break;
+            case ConstInside: generateAVDist(*p, [=](Generator& g) { std::uniform_real_distribution<> d(sep - 7000, sep + 1000); return d(g); }); break;
+            case LinearFull: {
+                std::vector<T> q{1, 0};
+                std::vector<T> d{sep - 7000, sep + 3.2e7};
+                std::piecewise_linear_distribution<> dist(d.begin(), d.end(), q.begin());
+                generateAVDist(*p, [&](Generator& g) { return dist(g); });
+            } break;
             case COutside_exp: {
                 auto pdf = [](T x){ 
                     const T m = 1;
@@ -298,6 +322,51 @@ struct ParticleGenerator
                 std::uniform_real_distribution<> d(sep - 1e4, sep + 1.75e7);
                 auto pnext = [&](Generator& g) { return d(g); };
                 generateAVDist(*p, pnext);
+            } break;
+            case COutside_above: {
+                Sampled_distribution<T> d_above(pdfOutsideAbove<T>, 0, 1, Sampled_distribution<T>::PDF);
+                
+                const T sep = separatrix(mAcc);
+                std::uniform_real_distribution<> dist(0.0, 1.0);
+                for (int i = 0; i < p->size(); ++i) {
+                    const T phase = dist(mGenerator)*2.0*cnst::pi;
+                    const T action = 3.20e7*d_above(mGenerator) + sep;
+                    const T energy = levelCurve(mAcc, phase, action, 1.0);
+                    if (std::isnan(energy)) { --i; continue; }
+                    p->momentum[i] = energy;
+                    p->phase[i] = phase;
+                }
+            } break;
+            case COutside_below: {
+                Sampled_distribution<T> d_below(pdfOutsideBelow<T>, 0, 1, Sampled_distribution<T>::PDF);
+                
+                const T sep = separatrix(mAcc);
+                std::uniform_real_distribution<> dist(0.0, 1.0);
+                for (int i = 0; i < p->size(); ++i) {
+                    const T phase = dist(mGenerator)*2.0*cnst::pi;
+                    const T action = 3.20e7*d_below(mGenerator) + sep;
+                    const T energy = levelCurve(mAcc, phase, action, -1.0);
+                    if (std::isnan(energy)) { --i; continue; }
+                    p->momentum[i] = energy;
+                    p->phase[i] = phase;
+                }
+            } break;
+            case CInside: {
+                std::vector<T> q{0.8152908985876791, 7.14053036791e-05};
+                std::vector<T> d{-7000, 0};
+                std::piecewise_linear_distribution<> d_inside(d.begin(), d.end(), q.begin());
+
+                const T sep = separatrix(mAcc);
+                std::uniform_real_distribution<> dist(0.0, 1.0);
+                for (int i = 0; i < p->size(); ++i) {
+                    const T phase = dist(mGenerator)*2.0*cnst::pi;
+                    const T sign = dist(mGenerator) < 0.5 ? 1 : -1;
+                    const T action = d_inside(mGenerator) + sep;
+                    const T energy = levelCurve(mAcc, phase, action, sign);
+                    if (std::isnan(energy)) { --i; continue; }
+                    p->momentum[i] = energy;
+                    p->phase[i] = phase;
+                }
             } break;
             case COutside_ab: {
                 Sampled_distribution<T> d_above(pdfOutsideAbove<T>, 0, 1, Sampled_distribution<T>::PDF);
@@ -409,7 +478,23 @@ private:
     
         for (int i = 0, n = particles.size(); i < n; ++i) {
             const T phase = uni_dist(mGenerator);
-            const T sign = uni_dist(mGenerator) < cnst::pi ? 1.0 : -1.0;
+            const T sign = uni_dist(mGenerator) < cnst::pi ? 1 : -1;
+            const T action = nextAV(mGenerator);
+            const T energy = levelCurve(mAcc, phase, action, sign);
+            if (std::isnan(energy)) { --i; continue; }
+            particles.momentum[i] = energy;
+            particles.phase[i] = phase;
+        }
+    }
+
+    template <typename AVGen>
+    void generateAVDist(PColl& particles, AVGen nextAV, T sign)
+    {
+        std::uniform_real_distribution<> uni_dist(0.0, 2*cnst::pi);
+    
+        for (int i = 0, n = particles.size(); i < n; ++i) {
+            const T phase = uni_dist(mGenerator);
+            if (sign == 0) { sign = uni_dist(mGenerator) < cnst::pi ? 1 : -1; }
             const T action = nextAV(mGenerator);
             const T energy = levelCurve(mAcc, phase, action, sign);
             if (std::isnan(energy)) { --i; continue; }
