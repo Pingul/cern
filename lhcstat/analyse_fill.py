@@ -118,7 +118,7 @@ def plot_aggregate_fill_overlayed(beam, fill_list):
     """ 'beam' must be iterable: (1,), (2,), or (1, 2) """
     fig, axes = plt.subplots(2, sharex=True, sharey=True)
     for b in beam:
-        ls = '--' if b == 2 else '-'
+        ls = '--' if b == 2 and len(beam) == 2 else '-'
         for nbr in fill_list:
             fill = Fill(nbr, beam=b)
             c = np.random.rand(3)
@@ -130,13 +130,13 @@ def plot_aggregate_fill_overlayed(beam, fill_list):
         axes[1].plot(*aggr.blm_ir7(), color='black', label='IR7 Aggregate B{}'.format(b), zorder=4, linestyle=ls)
 
     axes[0].set_xlim(aggr.blm_ir3().x[aggr.OML_period()] + np.array([-5, +120]))
-    axes[0].set_ylabel("TCP IR3 BLM signal")
-    axes[1].set_ylabel("TCP IR7 BLM signal")
+    axes[0].set_ylabel("BLM signal")
+    axes[1].set_ylabel("BLM signal")
     for ax in axes:
         ax.set_yscale("log")
         ax.set_xlabel("t (s)")
         ax.legend(loc="upper right")
-    fig.suptitle("Overlay plot (beam {})".format(beam))
+    fig.suptitle("Overlay plot (beam {})".format(",".join(map(str, beam))))
     # plt.title("Overlay plot (beam {})".format(beam))
     plt.show()
 
@@ -259,6 +259,23 @@ def histogram_spike_duration(file):
 
     draw_histogram('Spike duration for {}'.format(file), durations, 10, 'Seconds', 'Count')
     return outliers
+
+def histogram_spike_time(fills):
+    beam = {1 : [], 2 : []}
+    for nbr in fills:
+        for b in (1, 2):
+            fill = Fill(nbr, beam=b)
+            t = fill.OML_peak()['t']
+            beam[b].append(t)
+
+    fig, ax = plt.subplots()
+    ax.hist([beam[1], beam[2]], label=["Beam 1", "Beam 2"])
+    ax.legend(loc="upper right")
+    ax.set_xlabel("t (s)")
+    ax.set_ylabel("Fill count")
+    plt.title("Time of max OML spike after start of ramp")
+    plt.show()
+
 
 def histogram_crossover_point(file):
     """ Histogram on what durations OML dominate the transversal losses """
