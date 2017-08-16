@@ -36,7 +36,7 @@ class CHitMap:
         hm.ids += pid_offset
         return hm
 
-    def __init__(self, collfile="", pid_offset=0, store_ip=True):
+    def __init__(self, collfile="", pid_offset=0, store_ip=False):
         """ 
             Set store_ip=True (store impact parameters) to store phase, ∆E, and x,
             otherwise only particle id and turn is stored
@@ -88,7 +88,7 @@ class CHitMap:
 
             Set separate_above_bucket=True if a distinction between particles ±∆E should be made.
         """
-        h = ps.h.astype(int)
+        h = ps.h.astype(int)[self.ids]
         uh = np.unique(h)
         ch = np.empty(uh.size, dtype=object)
         tot_p = 0
