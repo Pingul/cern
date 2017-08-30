@@ -2,7 +2,10 @@
 #include <vector>
 #include <string>
 #include <sstream>
+
+#ifdef USE_TBB
 #include <tbb/task_scheduler_init.h>
+#endif
 
 #include "synchrotron.hh"
 #include "accelerator.hh"
@@ -37,7 +40,12 @@ int main(int argc, char* argv[])
 {
     std::vector<std::string> args(argv, argv + argc);
 
+#ifdef USE_TBB
     tbb::task_scheduler_init init;
+    std::cout << "Multi threaded version" << std::endl;
+#else
+    std::cout << "Single threaded version" << std::endl;
+#endif
 
     using SimpleSynchrotron = stron::SimpleSynchrotron<double>;
     using Acc = typename SimpleSynchrotron::Acc;

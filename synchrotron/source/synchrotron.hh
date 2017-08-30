@@ -5,9 +5,13 @@
 #include <fstream>
 #include <sstream>
 #include <random>
+
+#ifdef USE_TBB
 #include <tbb/task_scheduler_init.h>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
+#endif
+
 #include <iomanip>
 #include <limits>
 #include <stdexcept>
@@ -30,8 +34,6 @@
 #endif
 
 namespace stron {
-
-
 
 template <typename T>
 class SimpleSynchrotron 
@@ -108,7 +110,11 @@ public:
     void simulateTurn(int turn) 
     {
         CalcOp op(turn, mAcc, *mParticles, mCollHits);
+#ifdef USE_TBB
         tbb::parallel_for(tbb::blocked_range<size_t>(0, mParticles->size()), op);
+#else 
+        op();
+#endif
     }
     
     void simulateTurns(ProgramPtr program, std::string filePath = "", int saveFreq = 1)
@@ -290,9 +296,15 @@ private:
             px = -sin(Qx)*xc + cos(Qx)*px;
         }
 
+#ifdef USE_TBB
         void operator()(const tbb::blocked_range<size_t>& range) const
         {
             for (size_t n = range.begin(), N = range.end(); n < N; ++n) {
+#else
+        void operator()() const
+        {
+            for (size_t n = 0; n < mPart.size(); ++n) {
+#endif
                 if (!mPart.isActive(n)) 
                     continue;
 

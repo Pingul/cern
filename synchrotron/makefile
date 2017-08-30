@@ -1,11 +1,17 @@
 CC = clang++
 CPLUS_FLAGS +=-Wall -pedantic
 INCLUDE_FLAGS = -I/opt/local/include -I../common -Isource
-LIBRARY_PATHS = -L/opt/local/lib 
-LIBRARIES = -ltbb
+LIBRARY_PATHS = -L/opt/local/lib
+LIBRARIES = #-ltbb
 H_DEPS = $(wildcard source/*.hh) ../common/timer.hh
 CPP = ../common/timer.cc
 #H_DEPS = source/2d-synchrotron.hh source/settings.hh source/accelerator.hh source/hamiltonian.hh ../common/timer.hh
+
+MULTI_THREADING=0
+ifeq ($(MULTI_THREADING), 1)
+	LIBRARIES += -ltbb
+	CPLUS_FLAGS += -DUSE_TBB 
+endif
 
 UNAME := $(shell uname)
 
