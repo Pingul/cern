@@ -266,7 +266,7 @@ private:
 
             int Ns = 1;
             // Particles outside of the bucket does not need to be tracked as carefully
-            if (outsideBucket(index)) Ns = 1;
+            //if (outsideBucket(index)) Ns = 1;
 
             T& momentum = mPart.momentum[index];
             T& phase = mPart.phase[index];

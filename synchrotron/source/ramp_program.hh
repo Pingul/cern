@@ -217,7 +217,7 @@ class ProgramCombiner : public Programs...
 public:
     ProgramCombiner(Acc& acc, unsigned steps) : Base(acc, steps), Programs(acc, steps)... {} 
     
-    // Explanation at http://stackoverflow.com/questions/43322854/multiple-inheritance-with-variadic-templates-how-to-call-function-for-each-base/43322961?noredirect=1#comment73711445_43322961
+    // Explanation at https://stackoverflow.com/questions/43322854/multiple-inheritance-with-variadic-templates-how-to-call-function-for-each-base
     virtual void setup() override { int dummy[] = {0, (Programs::setup(), void(), 0)...}; static_cast<void>(dummy); }
     virtual void step() override { int dummy[] = {0, (Programs::step(), void(), 0)...}; static_cast<void>(dummy); }
 };

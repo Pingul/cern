@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
     } else if (args[1] == "lossmap" || args[1] == "startdist" || args[1] == "export") {
         // We often work with these together, so we make sure we have the same
         // particle distribution for both
-        auto p = partGen.create(100000, particles::LinearFull, particles::DoubleGaussian);
+        auto p = partGen.create(5000, particles::CCombined, particles::DoubleGaussian);
         ss.addParticles(p);
         if (args[1] == "lossmap")
             ss.simulateTurns(progGen.create(20*11245, progType), path::PATH_FILE, 11245);
@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
         //ss.simulateTurns(progGen.create(20*11245, progType), path::PATH_FILE, 11245);
 
     } else if (args[1].find("animate") == 0) {
-        ss.addParticles(partGen.create(1000, particles::CConstant, particles::DoubleGaussian));
+        ss.addParticles(partGen.create(1000, particles::AroundSeparatrix, particles::DoubleGaussian));
         if (args[1] == "animate") {
             ss.simulateTurns(progGen.create(1000, progType), path::PATH_FILE, 2);
         } else if (args[1] == "animate-long") {
@@ -122,14 +122,14 @@ int main(int argc, char* argv[])
         int n = 15;
         auto p = particles::ParticleCollection<double>::create(n);
         for (int i = 0; i < n; ++i) {
-            p->x[i] = i;
+            p->x[i] = 0;//i;
             p->px[i] = 0;
             p->phase[i] = cnst::pi;
-            p->momentum[i] = 0;
+            p->momentum[i] = 1e8;
         }
         ss.addParticles(p);
         //ss.simulateTurns(progGen.create(1000, stron::ProgramType::NoRamp), path::PATH_FILE, 1);
-        ss.simulateTurns(progGen.create(60*11245, stron::ProgramType::LHCRamp), path::PATH_FILE, 50);
+        ss.simulateTurns(progGen.create(350, stron::ProgramType::LHCRamp), path::PATH_FILE, 1);
 
     } else if (args[1] == "p-test") {
         int n = 10;

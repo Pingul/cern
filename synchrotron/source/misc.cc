@@ -45,6 +45,10 @@ int main(int argc, char* argv[])
         std::cout << "Threads: " << init.default_num_threads() << std::endl;
     } else if (args[1] == "acc") {
         std::cout << std::setprecision(16) << stron::Accelerator<double>::getLHC().f_rf << std::endl;
+    } else if (args[1] == "f-rev") {
+        std::cout << std::setprecision(16) << LHC.f_rev << std::endl;
+    } else if (args[1] == "synch") {
+        std::cout << std::setprecision(16) << std::sqrt(LHC.calcParticleProp(0).W2)/(2*cnst::pi) << std::endl;
     } else {
         std::cout << "unrecognised action" << std::endl;
     }

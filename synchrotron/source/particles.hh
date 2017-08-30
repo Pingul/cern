@@ -294,8 +294,8 @@ struct ParticleGenerator
             case AVFull: AVFullRange(*p); break;
             case AVInside_H: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/true); break;
             case AVInside_E: AVInRange(*p, -7000, 1000, 100, /*uniform_in_H*/false); break;
-            case ConstOutside_above: generateAVDist(*p, [=](Generator& g) { std::uniform_real_distribution<> d(sep, sep + 3.2e7); return d(g); }, 1); break;
-            case ConstOutside_below: generateAVDist(*p, [=](Generator& g) { std::uniform_real_distribution<> d(sep, sep + 3.2e7); return d(g); }, -1); break;
+            case ConstOutside_above: generateAVDist(*p, [=](Generator& g) { std::uniform_real_distribution<> d(sep, sep + 3.1e7); return d(g); }, 1); break;
+            case ConstOutside_below: generateAVDist(*p, [=](Generator& g) { std::uniform_real_distribution<> d(sep, sep + 3.1e7); return d(g); }, -1); break;
             case ConstInside: generateAVDist(*p, [=](Generator& g) { std::uniform_real_distribution<> d(sep - 7000, sep + 1000); return d(g); }); break;
             case LinearFull: {
                 std::vector<T> q{1, 0};
