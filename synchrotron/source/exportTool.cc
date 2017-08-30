@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
     pPerFile = std::stoi(args[4]);
     longDist = args[5];
     //transDist = args[6];
-    nbrTurnsSimulate = std::stoi(args[7]);
+    nbrTurnsSimulate = std::stoi(args[6]);
 
     printInput();
     if (!validateArguments()) {
