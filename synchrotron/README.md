@@ -56,10 +56,10 @@ Quick overview of the main files:
 - `plot.py` : Main tool for visualising output from the Toy model. Can make movies/distribution plots/loss time profiles. 
     Some useful commands:
 
-        python3.5 analysis/plot dist <path/to/distribution>  # Plots the phase space of the given distribution
-        python3.5 analysis/plot animate  # Animates the phase space of the distribution found in `calc/particles.dat`
-        python3.5 analysis/plot ham-dist  # Plots a histogram over the `calc/startdist.dat` in Hamiltonian units
-        python3.5 analysis/plot e-dist  # Same as above, but for ΔE units instead
+     python3.5 analysis/plot dist <path/to/distribution>  # Plots the phase space of the given distribution
+     python3.5 analysis/plot animate  # Animates the phase space of the distribution found in `calc/particles.dat`
+     python3.5 analysis/plot ham-dist  # Plots a histogram over the `calc/startdist.dat` in Hamiltonian units
+     python3.5 analysis/plot e-dist  # Same as above, but for ΔE units instead
 
 - `batch_plot.py` : Same role as `plot.py` but for LXPLUS batches.
 - `phasespace.py` : Data structure for managing phase space data for all particles. It reads `calc/startdist.dat`, `calc/enddist.dat`, `calc/particles.dat`, `calc/lines.dat` depending on what is being studied.
