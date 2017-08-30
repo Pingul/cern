@@ -26,7 +26,7 @@ struct ParticleCollection
     ParticleCollection(const ParticleCollection& other, const std::vector<int>& indices)
         : ParticleCollection(indices.size()) 
     {
-        for (int i = 0; i < indices.size(); ++i) {
+        for (size_t i = 0; i < indices.size(); ++i) {
             int oi = indices[i];
             momentum[i] = other.momentum[oi];
             phase[i] = other.phase[oi];
@@ -328,7 +328,7 @@ struct ParticleGenerator
                 
                 const T sep = separatrix(mAcc);
                 std::uniform_real_distribution<> dist(0.0, 1.0);
-                for (int i = 0; i < p->size(); ++i) {
+                for (size_t i = 0; i < p->size(); ++i) {
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
                     const T action = 3.20e7*d_above(mGenerator) + sep;
                     const T energy = levelCurve(mAcc, phase, action, 1.0);
@@ -342,7 +342,7 @@ struct ParticleGenerator
                 
                 const T sep = separatrix(mAcc);
                 std::uniform_real_distribution<> dist(0.0, 1.0);
-                for (int i = 0; i < p->size(); ++i) {
+                for (size_t i = 0; i < p->size(); ++i) {
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
                     const T action = 3.20e7*d_below(mGenerator) + sep;
                     const T energy = levelCurve(mAcc, phase, action, -1.0);
@@ -358,7 +358,7 @@ struct ParticleGenerator
 
                 const T sep = separatrix(mAcc);
                 std::uniform_real_distribution<> dist(0.0, 1.0);
-                for (int i = 0; i < p->size(); ++i) {
+                for (size_t i = 0; i < p->size(); ++i) {
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
                     const T sign = dist(mGenerator) < 0.5 ? 1 : -1;
                     const T action = d_inside(mGenerator) + sep;
@@ -375,7 +375,7 @@ struct ParticleGenerator
 
                 const T sep = separatrix(mAcc);
                 std::uniform_real_distribution<> dist(0.0, 1.0);
-                for (int i = 0; i < p->size(); ++i) {
+                for (size_t i = 0; i < p->size(); ++i) {
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
                     const T sign = dist(mGenerator) < above_ratio ? 1 : -1;
                     const T action = 3.20e7*(sign > 0 ? d_above(mGenerator) : d_below(mGenerator)) + sep;
@@ -399,7 +399,7 @@ struct ParticleGenerator
                 int pout = 0;
                 const T sep = separatrix(mAcc);
                 std::uniform_real_distribution<> dist(0.0, 1.0);
-                for (int i = 0; i < p->size(); ++i) {
+                for (size_t i = 0; i < p->size(); ++i) {
                     const T phase = dist(mGenerator)*2.0*cnst::pi;
                     T action;
                     T sign;
