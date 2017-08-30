@@ -5,6 +5,8 @@ Small project aimed to help understand the longitudinal motion of particles insi
 ### Compiling
 The code has been tested on macOS Sierra and on LXPLUS. To compile it the first time, simply write `make` in the main directory.
 
+**Also create a directory "calc" in the same directory as this file (`mkdir calc`). It is needed for storage of some calculations.**
+
 Options:
 - It is possible to run the code multi-threaded. Go into the `makefile` and change `MULTI_THREADING=1`. Note that [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org) is needed for multi-threading. Installing it on LXPLUS is a little bit tricky, so in general I recommend running the single threaded version there. Installing TBB on macOS is easy using [MacPorts](https://www.macports.org), and it should be possible to use `apt-get` on Linux.
 

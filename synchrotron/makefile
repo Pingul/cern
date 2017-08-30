@@ -29,9 +29,6 @@ endif
 
 ifeq ($(UNAME), Darwin)
 	CPLUS_FLAGS += -std=c++11 -stdlib=libc++ 
-
-	## Directory is needed for temporary calculations
-	mkdir -p calc
 endif
 
 
