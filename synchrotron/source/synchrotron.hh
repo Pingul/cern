@@ -10,6 +10,8 @@
 #include <tbb/task_scheduler_init.h>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
+#else
+#include <memory> // This seems to hold the implementation for std::shared_ptr, which otherwise is found through tbb
 #endif
 
 #include <iomanip>

@@ -21,7 +21,7 @@ ifeq ($(UNAME), Linux)
 	INCLUDE_FLAGS += -I$(TBB_INCLUDE)
 	CC = g++
 # Not linking statically to libstdc++ crashes for some reason
-	CPLUS_FLAGS += -static-libstdc++
+	CPLUS_FLAGS += -static-libstdc++ -std=c++11
 # IO_TO_DIR makes the 2d-synchrotron look for input and put output in the same directly as the binary
 # was called
 	CPLUS_FLAGS += -DIO_TO_SAME_DIR
