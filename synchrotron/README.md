@@ -45,19 +45,24 @@ Arguments explained:
 
 
 # Analysis tools
-Quick overview of the different files:
+Dependencies:
+- Python 3.5
+- matplotlib
+- numpy
+- scipy
 
-**Note: The term 'lossmap' here is a little outdated and wrongly used. It is the terminology I used for simulated BLM signals.**
 
-- `plot.py` : Main tool for visualising output from the Toy model. Can make movies/distribution plots/loss time profiles. Some useful commands:
-    - `py3 analysis/plot.py dist <path/to/distribution>`
-    - `py3 analysis/plot.py animate`
-    - `py3 analysis/plot.py ham-dist`
-    - `py3 analysis/plot.py e-dist`
+Quick overview of the main files:
+- `plot.py` : Main tool for visualising output from the Toy model. Can make movies/distribution plots/loss time profiles. 
+    Some useful commands:
+
+    python3.5 analysis/plot dist <path/to/distribution>  # Plots the phase space of the given distribution
+    python3.5 analysis/plot animate  # Animates the phase space of the distribution found in `calc/particles.dat`
+    python3.5 analysis/plot ham-dist  # Plots a histogram over the `calc/startdist.dat` in Hamiltonian units
+    python3.5 analysis/plot e-dist  # Same as above, but for ΔE units instead
+
 - `batch_plot.py` : Same role as `plot.py` but for LXPLUS batches.
 - `phasespace.py` : Data structure for managing phase space data for all particles. It reads `calc/startdist.dat`, `calc/enddist.dat`, `calc/particles.dat`, `calc/lines.dat` depending on what is being studied.
 - `lossmap.py` : Data structure for keeping track of what turn a particle hits a collimator (the data structure has been renamed to `CHitMap`). Reads `calc/TCP_IR3.ch` and `calc/TCPc_IR7.ch`.
+    **Note: The term 'lossmap' here is a little outdated and wrongly used. It is the terminology I used for simulated BLM signals.**
 - `lhccomp.py` : Compares Toy model with LHC aggregate. Aggregate fill generated from `../lhcstat/` needs to exist to work.
-- `ramp.py` : Reads the energy ramp from file.
-- `sixtrack_oml.py` : Reads in SixTrack batches, and does plots similar to `plot.py` (e.g., plotting distributions, time profiles). Does not do a proper SixTrack loss map.
-- `settings.py` and `settings.json` : Contains some project settings. 
