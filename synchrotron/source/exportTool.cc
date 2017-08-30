@@ -1,7 +1,11 @@
 #include <iostream>
 #include <vector>
 #include <string>
+
+#ifdef USE_TBB
 #include <tbb/task_scheduler_init.h>
+#endif 
+
 #include <sys/stat.h>
 
 #include "accelerator.hh"
@@ -15,7 +19,7 @@ std::string outputDirectory;
 int nbrOutputFiles;
 int pPerFile;
 std::string longDist;
-std::string transDist;
+//std::string transDist;
 int nbrTurnsSimulate;
 
 void printInput()
@@ -27,7 +31,7 @@ void printInput()
         << "\tnbrOutputFiles : " << nbrOutputFiles << std::endl
         << "\tpPerFile : " << pPerFile << std::endl
         << "\tlongDist : " << longDist << std::endl
-        << "\ttransDist : " << transDist << std::endl
+        //<< "\ttransDist : " << transDist << std::endl
         << "\tnbrTurnsSimulate : " << nbrTurnsSimulate << std::endl;
 }
 
@@ -50,8 +54,8 @@ bool validateArguments()
     if (nbrTurnsSimulate < 0)
         errors.emplace_back("nbrTurnsSimulate: must be > 0");
 
-    if (longDist != "lin" && longDist != "lin+exp" && longDist != "constant")
-        errors.emplace_back("longDist: must be 'lin', 'lin+exp', or 'constant'; is '" + longDist + "'");
+    if (longDist != "lin" && longDist != "linexp" && longDist != "const")
+        errors.emplace_back("longDist: must be 'lin', 'linexp', or 'const'; is '" + longDist + "'");
 
     if (errors.size() > 0)  {
         std::cout << "Errors:" << std::endl;
@@ -97,11 +101,11 @@ void generateFiles()
 
     typename ParticleGenerator::PCollPtr all_particles;
     auto n = nbrOutputFiles*pPerFile;
-    if (longDist == "lin+exp")
+    if (longDist == "linexp")
         all_particles = pgen.create(n, particles::CCombined, particles::DoubleGaussian);
     else if (longDist == "lin") 
         all_particles = pgen.create(n, particles::LinearFull, particles::DoubleGaussian);
-    else if (longDist == "constant")
+    else if (longDist == "const")
         all_particles = pgen.create(n, particles::CConstant, particles::DoubleGaussian);
     else
         throw std::runtime_error("Unexpected 'longDist' argument");
@@ -127,24 +131,24 @@ void generateFiles()
         3. Number of output files
         4. Number of particles per file (should be an even number)
         5. Longitudinal distribution
-        6. Horizontal (transversal?) distribution
-        7. Numbr of turns to simulate
+        6. Numbr of turns to simulate
 */
 int main(int argc, char* argv[])
 {
+#ifdef USE_TBB
     tbb::task_scheduler_init init;
-
+#endif
     std::vector<std::string> args(argv, argv + argc);
 
-    if (args.size() != 8)
-        throw std::runtime_error("Expected 7 arguments, received " + std::to_string(args.size()));
+    if (args.size() != 7)
+        throw std::runtime_error("Expected 6 arguments, received " + std::to_string(args.size()));
     
     outputFormat = args[1];
     outputDirectory = args[2];
     nbrOutputFiles = std::stoi(args[3]);
     pPerFile = std::stoi(args[4]);
     longDist = args[5];
-    transDist = args[6];
+    //transDist = args[6];
     nbrTurnsSimulate = std::stoi(args[7]);
 
     printInput();
