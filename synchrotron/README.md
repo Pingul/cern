@@ -5,10 +5,13 @@ Small project aimed to help understand the longitudinal motion of particles insi
 ### Compiling
 The code has been tested on macOS Sierra and on LXPLUS. To compile it the first time, simply write `make` in the main directory.  Also create a directory "calc" in the same directory as this file (`mkdir calc`). It is needed for storage of some calculations.
 
+**Note:** You need a compiler that supports `C++11` to compile the project. The normal version of g++ on LXPLUS does not support this, however a newer version can be found at `/cvmfs/sft.cern.ch/lcg/releases/gcc/6.2.0/x86_64-slc6/bin/g++`.
+
 Options:
 - It is possible to run the code multi-threaded. Go into the `makefile` and change `MULTI_THREADING=1`. Note that [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org) is needed for multi-threading. Installing it on LXPLUS is a little bit tricky, so in general I recommend running the single threaded version there. Installing TBB on macOS is easy using [MacPorts](https://www.macports.org), and it should be possible to use `apt-get` on Linux.
 
 - Normally data is written to `calc/` and the ramping functions are read from files under `resources/`. Use the the flag `-DIO_TO_SAME_DIR` to make the Toy model read and write everything to calling directory.
+
 
 # Use the Toy model
 There are 2 main use cases for the Toy model:
