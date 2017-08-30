@@ -3,12 +3,12 @@ Small project aimed to help understand the longitudinal motion of particles insi
 # Setup
 
 ### Compiling
-The code has been tested on macOS Sierra and on LXPLUS. To compile it the first time, simply write `make` in the main directory.
-
-**Also create a directory "calc" in the same directory as this file (`mkdir calc`). It is needed for storage of some calculations.**
+The code has been tested on macOS Sierra and on LXPLUS. To compile it the first time, simply write `make` in the main directory.  Also create a directory "calc" in the same directory as this file (`mkdir calc`). It is needed for storage of some calculations.
 
 Options:
 - It is possible to run the code multi-threaded. Go into the `makefile` and change `MULTI_THREADING=1`. Note that [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org) is needed for multi-threading. Installing it on LXPLUS is a little bit tricky, so in general I recommend running the single threaded version there. Installing TBB on macOS is easy using [MacPorts](https://www.macports.org), and it should be possible to use `apt-get` on Linux.
+
+- Normally data is written to `calc/` and the ramping functions are read from files under `resources/`. Use the the flag `-DIO_TO_SAME_DIR` to make the Toy model read and write everything to calling directory.
 
 # Use the Toy model
 There are 2 main use cases for the Toy model:
@@ -38,6 +38,8 @@ Arguments explained:
 6. Number of turns to simulate
 
 ### 2. Simulation meant to be analysed using `analysis/` scripts
+**Note:** This use case currently only works on `macOS`, due to the fact that the compilation flag `-DIO_TO_SAME_DIR` is used for Linux. This is a work around to get the code working on LXPLUS. Remove the compilation flag if you want it to run properly on Linux.
+
 To get started, do the following steps:
 
 1. Open `analysis/settings.json`:
@@ -50,8 +52,6 @@ Now you should be good to go! Some nice commands:
     ./run.sh animate # short-hand for `make; ./2dsynch animate; py3 analysis/plot.py animate`
     ./run.sh lossmap
     ./run.sh startdist
-
-**Note: The term 'lossmap' here is a little outdated and wrongly used. It is the terminology I used for simulated BLM signals.**
 
 
 # Analysis tools
