@@ -15,6 +15,12 @@ from settings import settings
 from logger import ModuleLogger, LogLevel
 lg = ModuleLogger("sixtrack_oml")
 
+
+## SET
+collVersion = True
+beam = 1
+##
+
 class Batch:
     def __init__(self, path, forced=False):
         self.path = path
@@ -65,7 +71,7 @@ class Batch:
 
     def aggregate(self):
         n = 1
-        collVersion = True
+        # collVersion = True
         if collVersion:
             required_files = ['coll_summary.dat', 'dist0.dat', 'FirstImpacts.dat']
         else:
@@ -107,8 +113,10 @@ def hits_from_FirstImpact(filepath, offset):
         ids, turns, colls = np.loadtxt(filepath, dtype=int, skiprows=1, usecols=(0, 1, 2), unpack=True)
     except ValueError:
         return lm.CHitMap(store_ip=False)
-    # m = colls == 9 # TCP IR3 beam 1
-    m = colls == 37 # TCP IR3 beam 2
+    if beam == 1:
+        m = colls == 9 # TCP IR3 beam 1
+    else:
+        m = colls == 37 # TCP IR3 beam 2
     return lm.CHitMap.from_hits(list(zip(turns[m], ids[m])), pid_offset=offset)
 
 def hits_from_chits(filepath, offset):
@@ -133,6 +141,7 @@ if __name__ == "__main__":
         b = Batch(d)
         lg.log("Batch stats\n\tJobs: {}\n\tParticles: {}".format(b.nbr_jobs, b.phasespace.nbr_p))
         
+        print(b.hitmap.ids.size)
         lm.plot(b.hitmap, block=False)
 
         turn_max = b.hitmap.losses(integrated=True).argmax()
@@ -140,7 +149,13 @@ if __name__ == "__main__":
 
         fill = af.aggregate_fill(1, from_cache=True)
         comp = lhccomp.LHCComparison(fill, b.phasespace, b.hitmap)
-        comp.halign(-11)
+
+        # pss = ps.PhaseSpace(settings.STARTDIST_PATH)
+        # hmm = lm.CHitMap(settings.COLL_PATH)
+        # pscomp = lhccomp.LHCComparison(fill, pss, hmm)
+    
+        # comp.halign(-11)
+        # lhccomp.plot_comp(fill, (comp.t(), comp.BLM()), (pscomp.t(), pscomp.BLM()), block=False)
         lhccomp.plot_comp(fill, (comp.t(), comp.BLM()), block=False)
         b.phasespace.plot_particles()
     elif action == "dump":

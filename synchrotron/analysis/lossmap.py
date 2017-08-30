@@ -88,7 +88,10 @@ class CHitMap:
 
             Set separate_above_bucket=True if a distinction between particles ±∆E should be made.
         """
-        h = ps.h.astype(int)[self.ids]
+        h = ps.h.astype(int)
+        if separate_above_bucket: h *= np.sign(ps.denergy).astype(int)
+        h = h[self.ids]
+
         uh = np.unique(h)
         ch = np.empty(uh.size, dtype=object)
         tot_p = 0

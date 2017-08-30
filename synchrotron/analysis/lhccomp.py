@@ -106,7 +106,7 @@ def plot_comp(fill, blm=None, fit=None, block=True):
     loss_ax.axvspan(0.0, fill.crossover_point()['t'], facecolor='b', zorder=0, alpha=0.1)
 
     if not blm is None:
-        loss_ax.plot(*blm, label="Simulated BLM")
+        loss_ax.plot(*blm, label="Toy model BLM")
     if not fit is None:
         loss_ax.plot(*fit, label="Fit", linestyle='--', zorder=6, color="forestgreen")
 
@@ -244,6 +244,7 @@ if __name__ == "__main__":
     if action == "fit":
         blm_s = (comp.t(), comp.BLM())
         comp.set_window(14, 20)
+        # comp.set_window(0, 14)
         # comp.halign()
         comp.fit_action_values()
 
