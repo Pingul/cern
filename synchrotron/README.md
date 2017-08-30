@@ -11,13 +11,21 @@ Options:
 There are 2 main use cases for the Toy model:
 
 ### 1. Simulation meant to be analysed using `analysis/` scripts
-Make sure there is a `calc/` folder in the main directory, as that's where the output data from the simulation is put. Afterwards, the `plot.py` script can be used to visualize the results. See below for more details.
+To get started, do the following steps:
 
-Some nice commands:
+1. Create a `calc/` directory at the install location (same directory as this file is in)
+2. (Optional) If you want your simulations cached, also create a directory called `simulations/cache/`
+3. Open `settings.json`:
+    - Edit `DATA_DIR` to the absolute path where the `calc/` directory is located
+    - Edit `RESOURCE_DIR` to the absolute path where the `resource/` directory is located 
+
+Now you should be good to go! Some nice commands:
 
     ./run.sh animate # short-hand for `make; ./2dsynch animate; py3 analysis/plot.py animate`
     ./run.sh lossmap
     ./run.sh startdist
+
+**Note: The term 'lossmap' here is a little outdated and wrongly used. It is the terminology I used for simulated BLM signals.**
 
 ### 2. Input for SixTrack
 A special tool has been designed to output data directly to SixTrack.
@@ -64,5 +72,4 @@ Quick overview of the main files:
 - `batch_plot.py` : Same role as `plot.py` but for LXPLUS batches.
 - `phasespace.py` : Data structure for managing phase space data for all particles. It reads `calc/startdist.dat`, `calc/enddist.dat`, `calc/particles.dat`, `calc/lines.dat` depending on what is being studied.
 - `lossmap.py` : Data structure for keeping track of what turn a particle hits a collimator (the data structure has been renamed to `CHitMap`). Reads `calc/TCP_IR3.ch` and `calc/TCPc_IR7.ch`.
-    **Note: The term 'lossmap' here is a little outdated and wrongly used. It is the terminology I used for simulated BLM signals.**
 - `lhccomp.py` : Compares Toy model with LHC aggregate. Aggregate fill generated from `../lhcstat/` needs to exist to work.
