@@ -237,7 +237,7 @@ def plot_lossmap(lossmaps, labels=[], save_to=''):
 
     max_turn = 0
     for lm in lossmaps:
-        max_turn = max(max(max_turn, max(lm.keys())), 20*11245) # at least 20 s
+        max_turn = max(max(max_turn, max(lm.keys())), 19*11245) # at least 19 s
     turns = np.array(range(max_turn + 100))
 
     # Plotting
