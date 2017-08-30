@@ -7,8 +7,8 @@ The code has been tested on macOS Sierra and on LXPLUS. To compile it the first 
 Options:
 - It is possible to run the code multi-threaded. Go into the `makefile` and change `MULTI_THREADING=1`. Note that [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org) is needed for multi-threading. Installing it on LXPLUS is a little bit tricky, so in general I recommend running the single threaded version there. Installing TBB on macOS is easy using [MacPorts](https://www.macports.org), and it should be possible to use `apt-get` on Linux.
 
-# Use the code
-There are 2 main use cases for the tool:
+# Use the Toy model
+There are 2 main use cases for the Toy model:
 
 ### 1. Simulation meant to be analysed using `analysis/` scripts
 Make sure there is a `calc/` folder in the main directory, as that's where the output data from the simulation is put. Afterwards, the `plot.py` script can be used to visualize the results. See below for more details.
