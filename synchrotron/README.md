@@ -1,7 +1,8 @@
 Small project aimed to help understand the longitudinal motion of particles inside a synchrotron accelerator. 
 
-# Compiling
+# Setup
 
+### Compiling
 The code has been tested on macOS Sierra and on LXPLUS. To compile it the first time, simply write `make` in the main directory.
 
 Options:
@@ -10,24 +11,7 @@ Options:
 # Use the Toy model
 There are 2 main use cases for the Toy model:
 
-### 1. Simulation meant to be analysed using `analysis/` scripts
-To get started, do the following steps:
-
-1. Create a `calc/` directory at the install location (same directory as this file is in)
-2. (Optional) If you want your simulations cached, also create a directory called `simulations/cache/`
-3. Open `settings.json`:
-    - Edit `DATA_DIR` to the absolute path where the `calc/` directory is located
-    - Edit `RESOURCE_DIR` to the absolute path where the `resource/` directory is located 
-
-Now you should be good to go! Some nice commands:
-
-    ./run.sh animate # short-hand for `make; ./2dsynch animate; py3 analysis/plot.py animate`
-    ./run.sh lossmap
-    ./run.sh startdist
-
-**Note: The term 'lossmap' here is a little outdated and wrongly used. It is the terminology I used for simulated BLM signals.**
-
-### 2. Input for SixTrack
+### 1. Input for SixTrack
 A special tool has been designed to output data directly to SixTrack.
 
 Compile:
@@ -36,7 +20,7 @@ Compile:
     
 Use by:
 
-    ./export coll . 1 10000 linexp 1000
+    ./exportTool coll . 1 10000 linexp 1000
 
 The output is found at `./1.txt`
 
@@ -50,6 +34,22 @@ Arguments explained:
     - `lin`: Linear distribution from the separatrix to the collimator.
     - `const`: Constant distribution from the separatrix to the collimator.
 6. Number of turns to simulate
+
+### 2. Simulation meant to be analysed using `analysis/` scripts
+To get started, do the following steps:
+
+1. Open `analysis/settings.json`:
+    - Edit `DATA_DIR` to the absolute path where the `calc/` directory is located
+    - Edit `RESOURCE_DIR` to the absolute path where the `resource/` directory is located 
+2. (Optional) If you want your simulations cached, create a directory called `simulations/cache/`
+
+Now you should be good to go! Some nice commands:
+
+    ./run.sh animate # short-hand for `make; ./2dsynch animate; py3 analysis/plot.py animate`
+    ./run.sh lossmap
+    ./run.sh startdist
+
+**Note: The term 'lossmap' here is a little outdated and wrongly used. It is the terminology I used for simulated BLM signals.**
 
 
 # Analysis tools

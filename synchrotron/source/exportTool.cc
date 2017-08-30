@@ -61,8 +61,6 @@ bool validateArguments()
         std::cout << "Errors:" << std::endl;
         for (auto& e : errors) std::cout << "\t" << e << std::endl;
     }
-    
-    std::cout << "transDist not used" << std::endl;
 
     return errors.size() == 0;
 }

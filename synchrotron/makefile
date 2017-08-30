@@ -7,7 +7,7 @@ H_DEPS = $(wildcard source/*.hh) ../common/timer.hh
 CPP = ../common/timer.cc
 #H_DEPS = source/2d-synchrotron.hh source/settings.hh source/accelerator.hh source/hamiltonian.hh ../common/timer.hh
 
-MULTI_THREADING=0
+MULTI_THREADING=1
 ifeq ($(MULTI_THREADING), 1)
 	LIBRARIES += -ltbb
 	CPLUS_FLAGS += -DUSE_TBB 
@@ -29,6 +29,9 @@ endif
 
 ifeq ($(UNAME), Darwin)
 	CPLUS_FLAGS += -std=c++11 -stdlib=libc++ 
+
+	## Directory is needed for temporary calculations
+	mkdir -p calc
 endif
 
 
