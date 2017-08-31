@@ -4,6 +4,8 @@
 
 #ifdef USE_TBB
 #include <tbb/task_scheduler_init.h>
+#else
+#include <memory> // Has the definition of std::shared_ptr
 #endif 
 
 #include <sys/stat.h>
