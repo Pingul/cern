@@ -15,6 +15,8 @@ from settings import settings
 
 lg = ModuleLogger("oml")
 
+FILLS = [5433, 5427, 5426, 5424, 5423, 5421, 5418, 5416, 5406, 5405, 5401, 5395, 5394, 5393, 5391, 5370, 5355, 5351, 5345, 5340, 5339, 5288, 5287, 5282, 5279, 5276, 5275, 5274, 5270, 5267, 5266, 5265, 5264, 5261, 5258, 5257, 5256, 5254, 5253, 5251, 5229, 5222, 5219, 5211, 5210, 5209, 5206, 5205, 5199, 5198, 5197, 5196, 5187, 5183, 5181, 5179, 5170, 5169, 5163, 5162, 5161, 5154, 5117, 5116, 5112, 5111, 5109, 5108, 5107, 5106, 5105, 5102, 5101, 5097, 5096, 5095, 5093, 5091, 5085, 5083, 5080, 5078, 5076, 5073, 5072, 5071, 5069, 5068, 5060, 5059, 5056, 5052, 5048, 5045, 5043, 5038, 5030, 5029, 5028, 5027, 5026, 5024, 5021, 5020, 5017, 5013, 4990, 4988, 4985, 4984, 4980, 4979, 4976, 4965, 4964, 4961, 4960]
+
 def store_file_for_fill(fill_nbr):
     return os.path.join(os.path.dirname(__file__), 'fills/fill_{}.dat'.format(fill_nbr))
 
@@ -267,7 +269,7 @@ class Fill:
         var = 'intensity_b{}'.format(self.beam)
         self.data[var].y = self.data[var].y/np.max(self.data[var].y)
 
-    def offset_time(self, align_mode="time_corr"):
+    def offset_time(self, align_mode="time_corr", t=0):
         # start, end = self.OML_period()
         # t = self.blm_ir3().x[start]
 
@@ -295,6 +297,8 @@ class Fill:
             # t = stats.mode(ts)[0]
             t = np.median(ts)
             # print(t, self.motor_start().x[0])
+        elif align_mode == "manual":
+            t = self._timeshift = t
         else:
             raise Exception("align_mode does not exist")
 
@@ -348,7 +352,7 @@ class Fill:
         blm_ir7y = interpolate.interp1d(*self.blm_ir7())(x)
 
         i = imax(blm_ir3y)[1]
-        while blm_ir3y[i] > blm_ir7y[i]: i += 1
+        while i < len(x) - 1 and blm_ir3y[i] > blm_ir7y[i]: i += 1
         return {'t' : x[i], 'i' : self.blm_ir3().index_for_time(x[i])}
 
 ## class Fill
@@ -367,10 +371,10 @@ def plot(fill):
 
     intensity_axis.plot(*fill.intensity(), color='b', zorder=10, linestyle='-', linewidth=1)
     intensity_axis.set_ylim([0.95, 1.005])
-    intensity_axis.set_ylabel("Beam Intensity")
+    intensity_axis.set_ylabel("Frac. beam int.")
 
     energy_axis.plot(*fill.energy(), color='black', zorder=5)
-    energy_axis.set_ylabel("Energy")
+    energy_axis.set_ylabel("Energy (GeV)")
 
     oml = fill.blm_ir3()
     start, end = fill.OML_period()
@@ -379,10 +383,12 @@ def plot(fill):
     fig.subplots_adjust(right=0.75)
     blm_axis.spines['right'].set_position(('axes', 1.15))
     blm_axis.set_frame_on(True)
-    blm_axis.plot(*oml, color='r', linestyle='--', zorder=1)
+    blm_axis.plot(*oml, color='r', linestyle='--', zorder=1, label='TCP IR3')
     blm_axis.set_yscale('log')
-    blm_axis.set_ylabel("Losses")
-
+    blm_axis.set_ylabel("Losses (Gy/s)")
+    blm_axis.plot(0,0, color='b', linestyle='-', label='Beam int.')
+    blm_axis.plot(0,0, color='black', label='Ramp energy')
+    blm_axis.legend(loc='lower right')
 
     plt.title("Fill {} (beam {})".format(fill.nbr, fill.beam))
 
@@ -390,7 +396,8 @@ def plot(fill):
     ag = moving_average(fill.abort_gap().y, 10)
     agap_ax.plot(fill.abort_gap().x, ag, color='g')
     agap_ax.set_ylim([0, 2e10])
-    agap_ax.set_ylabel("Abort gap intensity")
+    agap_ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.2f}".format(x/1e10)))
+    agap_ax.set_ylabel("Abort gap int. ($10^{10}$ p.)")
     agap_ax.set_xlabel("Time (s)")
 
     plt.show()
@@ -405,11 +412,11 @@ def plot_blm(fill):
 
     intensity_axis.plot(*fill.intensity(), color='b', zorder=10, linestyle='-', linewidth=1)
     intensity_axis.set_ylim([0.95, 1.005])
-    intensity_axis.set_ylabel("Beam Intensity")
+    intensity_axis.set_ylabel("Frac. beam int.")
     intensity_axis.set_xlabel("Time (s)")
 
     energy_axis.plot(*fill.energy(), color='black', zorder=5)
-    energy_axis.set_ylabel("Energy")
+    energy_axis.set_ylabel("Energy (GeV)")
 
     oml = fill.blm_ir3()
     start, end = fill.OML_period()
@@ -419,11 +426,16 @@ def plot_blm(fill):
     blm_axis.set_frame_on(True)
     blm_axis.plot(*oml, color='r', linestyle='--', zorder=2, label='TCP IR3')
     blm_axis.plot(*fill.blm_ir7(), color='g', linestyle='--', zorder=1, label='TCP-C IR7')
-    # blm_axis.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
+    blm_axis.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
     blm_axis.set_yscale('log')
-    blm_axis.set_ylabel("Losses")
+    blm_axis.set_ylabel("Losses (Gy/s)")
+
+    blm_axis.plot(0,0, color='b', linestyle='-', label='Beam int.')
+    blm_axis.plot(0,0, color='black', label='Ramp energy')
     blm_axis.legend(loc='lower right')
-    # blm_axis.set_xlim(fill.blm_ir3().x[[start, end]] + np.array([-5, +40]))
+
+
+    blm_axis.set_xlim(fill.blm_ir3().x[[start, end]] + np.array([-5, +40]))
 
     plt.title("Fill {} (beam {})".format(fill.nbr, fill.beam))
     plt.show()
@@ -447,11 +459,13 @@ def plot_2_blm(f1, f2):
     blm_axis.plot(*f2.blm_ir3(), color='darkorange', linestyle='-', zorder=3, label='2: TCP IR3')
     blm_axis.plot(*f2.blm_ir7(), color='olivedrab', linestyle='--', zorder=5, label='2: TCP-C IR7')
 
-
     blm_axis.axvspan(oml.x[start], oml.x[end], facecolor='b', alpha=0.2)
+    # blm_axis.axvline(x=46, color='black', zorder=0)
+
     blm_axis.set_yscale('log')
-    blm_axis.set_ylabel("Losses")
-    blm_axis.legend(loc='lower right')
+    blm_axis.set_ylabel("Losses (Gy/s)")
+    blm_axis.set_xlabel("t (s)")
+    blm_axis.legend(loc='upper right')
     blm_axis.set_xlim(f1.blm_ir3().x[[start, end]] + np.array([-5, +40]))
 
     f1_label = f1.nbr if f1.nbr > 0 else "AGGREGATE"
@@ -536,7 +550,7 @@ def plot_from(file, plot_at_the_time=10, status_string='*'):
         n += 1
         lg.log("evaluating %s" % fill_nbr)
         fill = Fill(fill_nbr)
-        plot_blm(fill)
+        plot(fill)
         lg.log("--\n")
         if n % plot_at_the_time == 0:
             inp = input("draw {} more plots? (press 'q' to quit) ".format(plot_at_the_time))

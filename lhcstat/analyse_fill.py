@@ -130,8 +130,8 @@ def plot_aggregate_fill_overlayed(beam, fill_list):
         axes[1].plot(*aggr.blm_ir7(), color='black', label='IR7 Aggregate B{}'.format(b), zorder=4, linestyle=ls)
 
     axes[0].set_xlim(aggr.blm_ir3().x[aggr.OML_period()] + np.array([-5, +120]))
-    axes[0].set_ylabel("BLM signal")
-    axes[1].set_ylabel("BLM signal")
+    axes[0].set_ylabel("Losses (Gy/s)")
+    axes[1].set_ylabel("Losses (Gy/s)")
     for ax in axes:
         ax.set_yscale("log")
         ax.set_xlabel("t (s)")
@@ -171,7 +171,7 @@ def plot_aggregate_fill(beam, fill_list):
     e_ax.plot(*merged["energy"]["average"], zorder=5, color='black', label='energy')
     e_ax.set_ylabel("Reference energy (GeV)")
     ax.set_xlabel("t (s)")
-    ax.set_ylabel("BLM signal")
+    ax.set_ylabel("Gy/s")
     ax.legend(loc="upper right")
     ax.set_xlim(fills[0].blm_ir3().x[fills[0].OML_period()] + np.array([-5, +120]))
     # ax.axvspan(0.0, 13.55, facecolor='b', zorder=0, alpha=0.1)
@@ -311,8 +311,7 @@ def histogram_max_spike(fills):
     plt.show()
     # draw_histogram('Max spike event for beam {}'.format(beam), spike_time, 0.5, 'Delta t (s) from start of ramp till spike', 'Count')
 
-def histogram_max_abort_gap_before_OML(file):
-    fills = fills_from_file(file, "OML")
+def histogram_max_abort_gap_before_OML(fills):
     max_ag = {1:[], 2:[]}
 
     for nbr in fills:
@@ -324,12 +323,13 @@ def histogram_max_abort_gap_before_OML(file):
     fig, ax = plt.subplots()
     ax.hist([max_ag[1], max_ag[2]], bins=bins, label=["Beam 1", "Beam 2"])
     ax.legend(loc="upper right")
-    ax.set_xlabel("Max abort gap intensity before start of ramp")
     ax.set_ylabel("Fill count")
+    ax.set_xlabel("Abort gap intensity [$ 10^9 $]")
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: "{0:.1f}".format(x/1e9)))
+    plt.title("Max abort gap intensity before start of ramp")
     plt.show()
 
-def histogram_OML_peak(file):
-    fills = fills_from_file(file, "OML")
+def histogram_OML_peak(fills):
     OML_peak = {1: [], 2: []}
 
     for nbr in fills:
