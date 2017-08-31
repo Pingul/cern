@@ -29,7 +29,7 @@ batchSys=LSF
 #   pick up a value amongst:
 #   . LSF: test 8nm 1nh 8nh 1nd 2nd 1nw 2nw (see http://lsf-rrd.cern.ch/lrf-lsf/)
 #   . HTCONDOR: espresso (20min) microcentury (1h) longlunch (2h) workday (8h) tomorrow (1d) testmatch (3d) nextweek (1w) (see http://batchdocs.web.cern.ch/batchdocs/local/lsfmigratepractical.html)
-queue=8nh
+queue=espresso
 
 # - list of files to be kept:
 fileList="*DUMP.txt dist0.dat screenout FirstImpacts.dat first_imp_average.dat LPI_BLP_out.s Coll_Scatter_real.dat collgaps.dat coll_summary.dat impacts_real.dat"
@@ -38,8 +38,8 @@ fileList="*DUMP.txt dist0.dat screenout FirstImpacts.dat first_imp_average.dat L
 lseed=false
 
 # - range of numerical dirs:
-LIMITLOW=501
-LIMITHIGH=3500
+LIMITLOW=1
+LIMITHIGH=1
 
 # - executables:
 SixTOOLS="/afs/cern.ch/user/s/swretbor/collsoft_utilities"
@@ -55,7 +55,7 @@ HTCONDORtemplate="${SixTOOLS}/Submission_script/htcondor.sub"
 extract_chits="/afs/cern.ch/work/s/swretbor/sixtrack/simulations/oml_study/extract_chits.sh"
 
 # Toy model
-TMParticleGenerator="/afs/cern.ch/user/s/swretbor/test/cern/synchrotron/exportTool"
+TMParticleGenerator="/afs/cern.ch/user/s/swretbor/verify/cern/synchrotron/exportTool"
 
 # - avoid LSF mails (leave empty in case you want to be spammed):
 LSFerrFile=stderr.txt
@@ -191,7 +191,7 @@ fi
 
 # 1 and 2
 echo "Generating particles..."
-$TMParticleGenerator coll . 1 2000 hor ver 123695
+$TMParticleGenerator coll . 1 2000 linexp 123695
 mv 1.txt coll_input.txt
 
 # 3

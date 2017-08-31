@@ -25,21 +25,21 @@ LocalUser=`whoami`
 
 # - queue type:
 #   choose between LSF and HTCONDOR
-batchSys=HTCONDOR
+batchSys=LSF
 #   pick up a value amongst:
 #   . LSF: test 8nm 1nh 8nh 1nd 2nd 1nw 2nw (see http://lsf-rrd.cern.ch/lrf-lsf/)
 #   . HTCONDOR: espresso (20min) microcentury (1h) longlunch (2h) workday (8h) tomorrow (1d) testmatch (3d) nextweek (1w) (see http://batchdocs.web.cern.ch/batchdocs/local/lsfmigratepractical.html)
-queue=tomorrow
+queue=espresso
 
 # - list of files to be kept:
-fileList="DUMP.txt dist0.dat screenout FirstImpacts.dat first_imp_average.dat LPI_BLP_out.s Coll_Scatter_real.dat collgaps.dat coll_summary.dat impacts_real.dat"
+fileList="*DUMP.txt dist0.dat screenout FirstImpacts.dat first_imp_average.dat LPI_BLP_out.s Coll_Scatter_real.dat collgaps.dat coll_summary.dat impacts_real.dat"
 
 # - random seed is randomly chosen (false) or set equal to run index (true)
 lseed=false
 
 # - range of numerical dirs:
 LIMITLOW=1
-LIMITHIGH=2000
+LIMITHIGH=1
 
 # - executables:
 SixTOOLS="/afs/cern.ch/user/s/swretbor/collsoft_utilities"
@@ -55,7 +55,7 @@ HTCONDORtemplate="${SixTOOLS}/Submission_script/htcondor.sub"
 extract_chits="/afs/cern.ch/work/s/swretbor/sixtrack/simulations/oml_study/extract_chits.sh"
 
 # Toy model
-TMParticleGenerator="/afs/cern.ch/user/s/swretbor/test/cern/synchrotron/exportTool"
+TMParticleGenerator="/afs/cern.ch/user/s/swretbor/verify/cern/synchrotron/exportTool"
 
 # - avoid LSF mails (leave empty in case you want to be spammed):
 LSFerrFile=stderr.txt
@@ -142,8 +142,6 @@ if [ "${batchSys}" == "LSF" ] ; then
     rm -rf LSFJOB_*
 fi
 
-print_date="echo \$(date)"
-
 # loop over numerical dirs
 for ((a = LIMITLOW; a <= LIMITHIGH ; a++)) ; do
     index=`printf "%04i" "$a"`
@@ -188,34 +186,18 @@ fi
 # ---------------------------------------------------------------------------------------------------
 # Part that does the work
 # 1. Generate a particle distribution
-# 2. Run distribution for n turns with SixTrack
-# 3. Convert the output to collimation input
-# 4. Run collimation version of SixTrack
+# 2. Run distribution for n turns with ToyModel
+# 3. Run collimation version of SixTrack
 
-echo $print_date
-# 1
+# 1 and 2
 echo "Generating particles..."
-$TMParticleGenerator nocoll . 1 2000 lin+exp ver 0
-mv 1.txt fort.13
+$TMParticleGenerator coll . 1 2000 linexp 123695
+mv 1.txt coll_input.txt
 
-echo $print_date
-# 2
-echo "Running non-collimation version..."
-mv fort.3_nocoll fort.3
-$SixExeNonCollimat > screen_nocoll
-
-echo $print_date
 # 3
-echo "Converting output..."
-python convert_dump_to_input.py ip1_dump.txt coll_input.txt 2000 451209.0195450667524710 # Last number is expected energy after 11 seconds of ramping
-
-echo $print_date
-# 4
 echo "Running collimation version..."
 mv fort.3_coll fort.3
-$SixExeCollimat > screen_coll
-
-echo $print_date
+$SixExeCollimat > screenout
 
 # ---------------------------------------------------------------------------------------------------
 # post-processing
@@ -280,7 +262,7 @@ done
 if [ "${batchSys}" == "HTCONDOR" ] ; then
     echo " Submitting jobs to htcondor..."
     cp ${HTCONDORtemplate} .
-    sed -i "s/^+JobFlavour.*/+JobFlavour = \"${queue}\"/" htcondor.sub
+    sed -i "s/^+JobFlavour.*/+JobFlavour = '${queue}'/" htcondor.sub
     condor_submit htcondor.sub
     if [ $? -eq 0 ] ; then
 	rm -f jobs.txt
