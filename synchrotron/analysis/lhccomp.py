@@ -101,7 +101,7 @@ def plot_comp(fill, blm=None, fit=None, block=True):
     loss_ax.set_yscale("log")
     loss_ax.set_xlim([-5, 40])
     loss_ax.set_ylim([0.5e-5, 1])
-    loss_ax.set_ylabel("Losses (∆particles/1.3s)")
+    loss_ax.set_ylabel("Losses (Gy/s)")
     loss_ax.set_xlabel("t (s)")
     loss_ax.axvspan(0.0, fill.crossover_point()['t'], facecolor='b', zorder=0, alpha=0.1)
 
