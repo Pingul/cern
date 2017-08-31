@@ -29,5 +29,6 @@ else:
     print("Fit: ", *res.x)
 
 fit = lambda x : model(x, *res.x)
-plot_coefficients(h, c, plot_type="scatter", curve=fit)
-plot_coefficients(h, c, plot_type='bar')
+plot_coefficients(h, c, plot_type="scatter", curve=fit, block=False)
+plot_coefficients(h, c, plot_type='bar', block=False)
+plot_coefficients(h, coef, plot_type='bar')

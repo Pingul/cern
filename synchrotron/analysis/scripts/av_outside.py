@@ -76,5 +76,5 @@ c = list(cb) + list(ca)
 r = sum(ca)/(sum(ca) + sum(cb))
 print("Ratio particles\n\tabove: {:.4f}\n\tbelow: {:.4f}".format(r, 1 - r))
 
-# plot_coefficients(H, coef, plot_type='bar', info="Initial", block=False)
-# plot_coefficients(h, c, plot_type='bar', info="Pruned")
+plot_coefficients(H, coef, plot_type='bar', info="Initial", block=False)
+plot_coefficients(h, c, plot_type='bar', info="Pruned")

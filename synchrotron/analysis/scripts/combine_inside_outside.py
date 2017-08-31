@@ -16,10 +16,10 @@ from scipy.optimize import least_squares
 from settings import settings
 
 
-# dir_in = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_inside"
-# dir_out = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_outside"
-dir_in = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_inside_1turnmap"
-dir_out = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_outside_1turnmap"
+dir_in = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_inside"
+dir_out = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_outside"
+# dir_in = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_inside_1turnmap"
+# dir_out = "/Users/swretbor/Workspace/collimation/proj/synchrotron/simulations/store/pdf_outside_1turnmap"
 
 fill = af.aggregate_fill(1, from_cache=True)
 
@@ -57,12 +57,14 @@ print("Inside: ", res.x[0]/sum(res.x))
 print("Outside: ", res.x[1]/sum(res.x))
 
 fig, ax = plt.subplots()
-ax.plot(*fill.blm_ir3(), label="fill")
-ax.plot(oc.t(), oc.BLM(False), label='outside')
-ax.plot(ic.t(), ic.BLM(False), label='inside')
-ax.plot(t, model(c0), label='combined')
-ax.plot(t, model(res.x), label='optimal', linestyle='--')
+ax.plot(*fill.blm_ir3(), label="Aggregate fill", color='r')
+ax.plot(ic.t(), ic.BLM(False), label='inside', color='orange')
+ax.plot(oc.t(), oc.BLM(False), label='outside', color='purple')
+ax.plot(t, model(c0), label='combined', zorder=5, linestyle='--', color='b')
+ax.plot(t, model(res.x), label='optimal', linestyle='--', color='g')
 ax.legend(loc="upper left")
+ax.set_xlabel("t (s)")
+ax.set_ylabel("BLM signal")
 ax.set_yscale("log")
 ax.set_xlim([0, fill.crossover_point()['t']])
 plt.show()
