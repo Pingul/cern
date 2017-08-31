@@ -2,7 +2,7 @@ GEOM
 PRINTOUT
 NEXT
 TRACKING
-9999 0 1000 0 17 0 1
+10 0 1000 0 17 0 1
  1 1 0 0 0
 0 0 1 1 1 20000 2
 NEXT
@@ -58,7 +58,7 @@ FUN vlin MUL t vk
 FUN vstart CONST 0.75
 FUN vfin ADD vstart vlin
 SET GLOBAL-VARS E0 energy 1 -1 123695
-SET acsca.d5r4.b2 voltage vfin 1 -1 123695
+SET acsca.d5l4.b1 voltage vfin 1 -1 123695
 NEXT
 COLLIMATION
 .TRUE. 
@@ -76,7 +76,7 @@ COLLIMATION
 .FALSE. 6.003 .0015
 0 0 .FALSE. .FALSE. 
 0 .00213 0 0.288e-3 3
-"CollDB_V6.503_lowb_st.b2.data" 2
+"CollDB_V6.503_lowb_st.b1.data" 1
 .TRUE. .FALSE. WAbsVertLowbcoll 101 1 1.
 NEXT
 ENDE
