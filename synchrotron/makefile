@@ -7,7 +7,7 @@ H_DEPS = $(wildcard source/*.hh) ../common/timer.hh
 CPP = ../common/timer.cc
 #H_DEPS = source/2d-synchrotron.hh source/settings.hh source/accelerator.hh source/hamiltonian.hh ../common/timer.hh
 
-MULTI_THREADING=1
+MULTI_THREADING=0
 ifeq ($(MULTI_THREADING), 1)
 	LIBRARIES += -ltbb
 	CPLUS_FLAGS += -DUSE_TBB 
