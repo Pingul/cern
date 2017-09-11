@@ -5,7 +5,6 @@ import numpy as np
 
 from scipy import interpolate 
 from scipy.optimize import nnls, least_squares
-from sklearn import linear_model
 from bisect import bisect_left
 
 import sys, os

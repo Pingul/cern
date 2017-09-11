@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.ticker import FuncFormatter
 import numpy as np
-import pandas as pd
+# import pandas as pd
 import itertools
 import glob
 
