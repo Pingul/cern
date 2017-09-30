@@ -7,6 +7,29 @@ import glob
 import operator
 import sys
 
+## Set fontsizes etc.
+from matplotlib import rcParams,rc
+rcParams.update({'text.usetex': True}) #slow
+rc('font',**{'family':'serif','serif':['Times'],'size':10})
+
+GOLDEN = (1.0+np.sqrt(5.0))/2.0
+
+#paperWidth  = 17.0-(2.2+2.0) #cm
+paperWidth  = 469.4/72.27 #pt / (pt/inch) = inch
+#paperHeigth = paperWidth/GOLDEN
+paperHeigth = paperWidth/3.5
+
+FIGSIZE = (paperWidth,paperHeigth);
+#scaleFig = 1
+#FIGSIZE = map(lambda x: x*scaleFig, FIGSIZE)
+print ("FIGSIZE =", FIGSIZE)
+
+DPI=200
+#CMAP='viridis'
+CMAP=None
+## DONE
+
+
 ## WARM LHC REGIONS (can be put into an external file, but for convenience we leave it here)
 
 lhc_warm=np.array([[  0.00000000e+00,   2.25365000e+01],
@@ -108,22 +131,71 @@ hllhc_warm=np.array([[  0.00000000e+00,   2.25000000e+01],
 
 # USER INPUT
 
+plot_xlim=None
+collWidthScale = 25  #Collimator width scaling
+binWidthScale  = 250 # Aperture loss bin width scaling
+#(a)
+#b1_folder="v25"
+#b2_folder="v24"
+#SimulationName  = "Lossmap injection, SixTrack 11s + SixTrack 10k."
+#plotPDFname="a"
+
+#plot_xlim=(5750,7750)
+#collWidthScale = 4.0
+#binWidthScale  = 10.0
+#plotPDFname="a_zoom"
+
+#(b)
+#b1_folder="v26"
+#b2_folder="v27"
+#SimulationName  = "Lossmap injection, ToyModel 11s + SixTrack 10k."
+#plotPDFname="b"
+
+#plot_xlim=(5750,7750)
+#collWidthScale = 4.0
+#binWidthScale  = 10.0
+#plotPDFname="b_zoom"
+
+#(c)
+#b1_folder="v30"
+#b2_folder="v31"
+#SimulationName  = "Lossmap injection, ToyModel 11s + SixTrack 10k. Linear distribution."
+#plotPDFname="c"
+
+#plot_xlim=(5750,7750)
+#collWidthScale = 4.0
+#binWidthScale  = 10.0
+#plotPDFname="c_zoom"
+
+#(d)
+b1_folder="v28"
+b2_folder="v29"
+SimulationName  = "Lossmap injection, ToyModel 11s + SixTrack 10k. Constant distribution."
+plotPDFname="d"
+
+plot_xlim=(5750,7750)
+collWidthScale = 4.0
+binWidthScale  = 10.0
+plotPDFname="d_zoom"
+
 simulations = [{
     'beam' : 1,
-    'batch_path' : '/Users/swretbor/Workspace/work_afs/sixtrack/simulations/oml_study/v26/',
+#    'batch_path' : '/Users/swretbor/Workspace/work_afs/sixtrack/simulations/oml_study/v26/',
+    'batch_path' : '/scratchbox/kyrsjo/swretbor-workspace/Workspace/work_afs_copy/sixtrack/simulations/oml_study/'+b1_folder+'/',
     'pathtosim' : 'run*/',
     'pathtoLPIs' : 'LP*_BLP_out.s',
     'pathtoCollSum' : 'coll_summary.dat',
     'collPosFileName' : 'clean_input/CollPositions.b1.dat',
 },{
     'beam' : 2,
-    'batch_path' : '/Users/swretbor/Workspace/work_afs/sixtrack/simulations/oml_study/v27/',
+    #'batch_path' : '/Users/swretbor/Workspace/work_afs/sixtrack/simulations/oml_study/v27/',
+    'batch_path' : '/scratchbox/kyrsjo/swretbor-workspace/Workspace/work_afs_copy/sixtrack/simulations/oml_study/'+b2_folder+'/',
     'pathtosim' : 'run*/',
     'pathtoLPIs' : 'LP*_BLP_out.s',
     'pathtoCollSum' : 'coll_summary.dat',
     'collPosFileName' : 'clean_input/CollPositions.b2.dat',
 }]
-SimulationName  = "Lossmap injection, ToyModel 11s + SixTrack 10k. Linear distribution."     # title of the simulation
+
 dataFileName    = 'losses.dat'           # name of file where to save data
                                          # set it to None in case you don't want data to be saved in a file
 # beam4 = beam == 2
@@ -236,9 +308,9 @@ for s in simulations:
         print("Coll summary files: {}".format(n), end="\r")
         n += 1
     print("Coll summary files: {}".format(n))
-
     simu1co += collimators
-    
+
+    #Append the aperture losses
     if b4inB1RefSys:
         ap_loss_cold = np.concatenate((ap_loss_cold, clhc - np.array(ap_losses_cold1)))
         ap_loss_warm = np.concatenate((ap_loss_warm, clhc - np.array(ap_losses_warm1)))
@@ -253,7 +325,9 @@ ap_losses_warm1 = ap_loss_warm
 
 #### CREATE HISTOGRAM DATA
 
-fig, (ax0) = plt.subplots()
+#fig, (ax0) = plt.subplots()
+fig = plt.figure(figsize=FIGSIZE,dpi=DPI)
+ax0=plt.gca()
 
 
 nbins=int(clhc/0.10)
@@ -263,29 +337,40 @@ if ( plotCounts ):
 else:
     ymax = 3.0
     ymin = 1.0E-07
-# bar width=80% of bin width 
-width=0.80*clhc/nbins
 binWidth=clhc/nbins
+# bar width=80% of bin width 
+#width=0.80*clhc/nbins
+#width=0.80*binWidth
+# histogram bars must be wide enough to see
+width=binWidth*binWidthScale
+
 # total number of tracked particles
 normfac = float(totcollosses1+ApertureLossesColdSample1+ApertureLossesWarmSample1)                 
 
-
-## Cold Losses
-
-#  - Generate histogram
-hist_cold, bins = np.histogram(ap_losses_cold1, bins=nbins,range=(0,clhc))
-#  - Remove empty entries
-bins_cold = np.delete((bins[:-1] + bins[1:]) / 2,np.where(hist_cold==0)[0])
+## Collimator Losses
+#  - hack to get the correct label
+hasLabel = False
 if ( plotCounts ):
-    hist_cold = np.delete(hist_cold,np.where(hist_cold==0)[0])
+    if hasLabel: # Only set the label when plotting the first collimator
+        collLabel=None
+    else:
+        collLabel="Collimator"
+    for k in range(0,len(simu1co)): # Loop over simulations & collimators (all in one big array)
+        hasLabel=True
+        if ( simu1co[k][3] > 0.0 ):
+            ax0.bar(simu1co[k][1], simu1co[k][2], width=simu1co[k][3]*collWidthScale, color='black', edgecolor='black',linewidth=0,label=collLabel)
 else:
-    hist_cold = np.delete(hist_cold,np.where(hist_cold==0)[0])/(binWidth*normfac)
-#  - lossmap of cold elements
-ax0.bar(bins_cold, hist_cold, width=width , color='blue', edgecolor='blue', label='Cold')
+    for k in range(0,len(simu1co)): # Loop over simulations & collimators (all in one big array)
+        if hasLabel: # Only set the label when plotting the first collimator
+            collLabel=None
+        else:
+            collLabel="Collimator"
+        if ( simu1co[k][3] > 0.0 ):
+            hasLabel=True
+            ax0.bar(simu1co[k][1], simu1co[k][2]/(normfac*simu1co[k][3]), width=simu1co[k][3]*collWidthScale, color='black', edgecolor='black',linewidth=0,label=collLabel)
 
 
 ## Warm Losses
-
 #  - Generate histogram
 hist_warm, bins = np.histogram(ap_losses_warm1, bins=nbins,range=(0,clhc))
 #  - Remove empty entries
@@ -295,46 +380,49 @@ if ( plotCounts ):
 else:
     hist_warm = np.delete(hist_warm,np.where(hist_warm==0)[0])/(binWidth*normfac)
 #  - lossmap of warm elements
-ax0.bar(bins_warm, hist_warm, width=width , color='red', edgecolor='red', label='Warm')
+ax0.bar(bins_warm, hist_warm, width=width , color='red', edgecolor='red', label='Warm',linewidth=0)
 
 
-## Collimator Losses
-#  - hack to get the correct label
+## Cold Losses
+#  - Generate histogram
+hist_cold, bins = np.histogram(ap_losses_cold1, bins=nbins,range=(0,clhc))
+#  - Remove empty entries
+bins_cold = np.delete((bins[:-1] + bins[1:]) / 2,np.where(hist_cold==0)[0])
 if ( plotCounts ):
-    ax0.bar(simu1co[0][1], simu1co[0][2], width=simu1co[0][3] , color='black', edgecolor='black', label='Collimator')
+    hist_cold = np.delete(hist_cold,np.where(hist_cold==0)[0])
 else:
-    if simu1co[0][3] > 0.0:
-        ax0.bar(simu1co[0][1], simu1co[0][2]/(normfac*simu1co[0][3]), width=simu1co[0][3] , color='black', edgecolor='black', label='Collimator')
-#  - lossmap of collimators
-if ( plotCounts ):
-    for k in range(1,len(simu1co)):
-        if ( simu1co[k][3] > 0.0 ):
-            ax0.bar(simu1co[k][1], simu1co[k][2], width=simu1co[k][3] , color='black', edgecolor='black')
-else:
-    for k in range(1,len(simu1co)):
-        if ( simu1co[k][3] > 0.0 ):
-            ax0.bar(simu1co[k][1], simu1co[k][2]/(normfac*simu1co[k][3]), width=simu1co[k][3] , color='black', edgecolor='black')
+    hist_cold = np.delete(hist_cold,np.where(hist_cold==0)[0])/(binWidth*normfac)
+#  - lossmap of cold elements
+ax0.bar(bins_cold, hist_cold, width=width , color='blue', edgecolor='blue', label='Cold',linewidth=0)
 
 
 ## PLOT PROPERTIES
 
 ax0.set_yscale('log', nonposy='clip')
-ax0.set_xlim(0,clhc)
+if plot_xlim:
+    ax0.set_xlim(plot_xlim[0],plot_xlim[1])
+else:
+    ax0.set_xlim(0,clhc)
 ax0.set_ylim(ymin,ymax)
 ax0.set_xlabel(r'Longitudinal Coordinate (m)')
 if ( plotCounts ):
     ax0.set_ylabel(r'counts ()')
 else:
-    ax0.set_ylabel(r'Local cleaning inefficiency $\eta$ (1/m)')
+    ax0.set_ylabel(r'Local cleaning ineff. $\eta$ (1/m)')
+    ax0.yaxis.set_label_coords(-0.065,0.4)
 ax0.xaxis.grid(True)
 ax0.yaxis.grid(False)
 ax0.grid()
-ax0.legend(fontsize = 10, loc=1, borderaxespad=0.)
+ax0.legend(loc=1, borderaxespad=0.)
 
-ax0.set_title(SimulationName)
+#ax0.set_title(SimulationName) #If used, set top=0.9 in subplots_adjust
 
 # save plot
-plt.savefig('LM_LHC.pdf',bbox_inches='tight')
+#plt.savefig('LM_LHC.pdf',bbox_inches='tight')
+plt.subplots_adjust(left=0.08,bottom=0.20,right=0.995,top=0.99)
+plt.savefig('LM_LHC_'+plotPDFname+'.pdf',dpi=600)
+plt.savefig('LM_LHC_'+plotPDFname+'.png',dpi=600)
+print ("Saving file 'LM_LHC_"+plotPDFname+".pdf' for simulation '"+SimulationName+"'")
 
 plt.show()
 
